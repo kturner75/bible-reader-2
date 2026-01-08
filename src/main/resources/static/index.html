@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KJV Bible Reader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Minimal Header -->
+    <header class="header">
+        <nav class="nav-controls">
+            <!-- Left Controls -->
+            <div class="left-controls">
+                <!-- Library Toggle -->
+                <button id="library-toggle" aria-label="Open saved verses library" title="Saved verses">&#9776;</button>
+
+                <!-- Book/Chapter/Verse Dropdowns -->
+                <div class="nav-dropdowns">
+                    <select id="book-select" aria-label="Select Book">
+                        <option value="">Book</option>
+                    </select>
+                    <select id="chapter-select" aria-label="Select Chapter" disabled>
+                        <option value="">Ch</option>
+                    </select>
+                    <select id="verse-select" aria-label="Select Verse" disabled>
+                        <option value="">V</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Current Reference Display -->
+            <div class="current-reference" id="current-reference">
+                Genesis 1:1
+            </div>
+
+            <!-- Right Controls -->
+            <div class="right-controls">
+                <!-- Font Size -->
+                <div class="font-controls">
+                    <button id="font-decrease" aria-label="Decrease font size" title="Decrease font size">A−</button>
+                    <button id="font-increase" aria-label="Increase font size" title="Increase font size">A+</button>
+                </div>
+
+                <!-- Search -->
+                <div class="search-container">
+                    <input type="text" 
+                           id="search-input" 
+                           placeholder="Search or reference..." 
+                           aria-label="Search Bible"
+                           autocomplete="off">
+                </div>
+
+                <!-- Help Toggle -->
+                <button id="help-toggle" aria-label="Show keyboard shortcuts" title="Keyboard shortcuts (?)">&quest;</button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Reading Area -->
+    <main class="reading-container">
+        <!-- Chapter Title -->
+        <h1 class="chapter-title" id="chapter-title">Genesis 1</h1>
+
+        <!-- Two-Column Scripture Display -->
+        <div class="reading-area" id="reading-area">
+            <!-- Verses render here -->
+        </div>
+
+        <!-- Page Navigation Indicators -->
+        <div class="page-indicators">
+            <span id="page-info"></span>
+        </div>
+    </main>
+
+    <!-- Search Results Overlay -->
+    <div class="search-overlay" id="search-overlay" hidden>
+        <div class="search-results-container">
+            <div class="search-results-header">
+                <h2 id="search-results-title">Search Results</h2>
+                <button id="search-close" aria-label="Close search results">&times;</button>
+            </div>
+            <div class="search-results-list" id="search-results-list">
+                <!-- Results render here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Help/Keyboard Shortcuts Modal -->
+    <div class="help-overlay" id="help-overlay" hidden>
+        <div class="help-modal">
+            <div class="help-header">
+                <h2>Keyboard Shortcuts</h2>
+                <button id="help-close" aria-label="Close help">&times;</button>
+            </div>
+            <div class="help-content">
+                <div class="shortcuts-grid">
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>j</kbd> <kbd>↓</kbd></span><span>Next verse</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>k</kbd> <kbd>↑</kbd></span><span>Previous verse</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>l</kbd> <kbd>→</kbd></span><span>Next page</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>h</kbd> <kbd>←</kbd></span><span>Previous page</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>.</kbd></span><span>Next chapter</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>,</kbd></span><span>Previous chapter</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>&gt;</kbd></span><span>Next book</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>&lt;</kbd></span><span>Previous book</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>/</kbd></span><span>Focus search</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>?</kbd></span><span>Toggle help</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>Esc</kbd></span><span>Close overlay</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>b</kbd></span><span>Save/unsave verse</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>t</kbd></span><span>Open tag picker</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>n</kbd></span><span>Add/edit note</span></div>
+                </div>
+                <p class="help-tip">
+                    <strong>Tip:</strong> Enter references like "John 3:16" or "ps 23" in the search bar to jump directly.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Library Modal (Saved Verses) -->
+    <div class="library-overlay" id="library-overlay" hidden>
+        <div class="library-modal">
+            <!-- Header -->
+            <div class="library-header">
+                <h2>Saved Verses</h2>
+                <button id="library-close" aria-label="Close">&times;</button>
+            </div>
+
+            <!-- Filters Bar -->
+            <div class="library-filters">
+                <!-- Search and Sort Row -->
+                <div class="library-filter-row library-search-row">
+                    <input type="text"
+                           id="library-search"
+                           placeholder="Search verses and notes..."
+                           autocomplete="off">
+                    <select id="library-sort" aria-label="Sort by">
+                        <option value="date-desc">Newest First</option>
+                        <option value="date-asc">Oldest First</option>
+                        <option value="canonical">Bible Order</option>
+                    </select>
+                </div>
+
+                <!-- Additional Filters Toggle -->
+                <button class="library-filters-toggle" id="library-filters-toggle" aria-expanded="false">
+                    <span class="filters-toggle-text">More Filters</span>
+                    <span class="filters-toggle-badge" id="filters-toggle-badge" hidden></span>
+                    <span class="filters-toggle-icon">&#9662;</span>
+                </button>
+
+                <!-- Collapsible Additional Filters -->
+                <div class="library-additional-filters" id="library-additional-filters" hidden>
+                    <!-- Categories (combo multi-select) -->
+                    <div class="library-filter-section">
+                        <label class="library-filter-label">Categories</label>
+                        <div class="library-categories" id="library-categories"></div>
+                    </div>
+
+                    <!-- Books (combo multi-select) -->
+                    <div class="library-filter-section">
+                        <label class="library-filter-label">Books</label>
+                        <div class="library-books" id="library-books"></div>
+                    </div>
+
+                    <!-- Tags (combo multi-select) -->
+                    <div class="library-filter-section">
+                        <label class="library-filter-label">Tags</label>
+                        <div class="library-tags" id="library-tags"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Count -->
+            <div class="library-results-count" id="library-results-count">
+                0 saved verses
+            </div>
+
+            <!-- Results List -->
+            <div class="library-results" id="library-results">
+                <!-- Saved verse items render here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Tag Picker Modal -->
+    <div class="tag-picker-overlay" id="tag-picker-overlay" hidden>
+        <div class="tag-picker-modal">
+            <div class="tag-picker-header">
+                <h2>Manage Tags</h2>
+                <button id="tag-picker-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="tag-picker-content">
+                <div class="tag-picker-verse-ref" id="tag-picker-verse-ref"></div>
+                <div class="tag-list" id="tag-list">
+                    <!-- Tags render as checkboxes -->
+                </div>
+                <div class="tag-create">
+                    <input type="text" id="new-tag-input" placeholder="New tag name..." maxlength="20" autocomplete="off">
+                    <button id="create-tag-btn">Add</button>
+                </div>
+                <p class="tag-limit-info">Max 5 tags per verse, 50 total tags</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Note Editor Modal -->
+    <div class="note-editor-overlay" id="note-editor-overlay" hidden>
+        <div class="note-editor-modal">
+            <div class="note-editor-header">
+                <h2>Verse Note</h2>
+                <button id="note-editor-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="note-editor-content">
+                <div class="note-editor-verse-ref" id="note-editor-verse-ref"></div>
+                <textarea id="note-textarea" placeholder="Add a note..." maxlength="500"></textarea>
+                <div class="note-char-count"><span id="note-char-current">0</span>/500</div>
+                <div class="note-actions">
+                    <button id="note-save-btn" class="primary">Save</button>
+                    <button id="note-cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Loading Scripture...</p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
