@@ -80,7 +80,9 @@ public class LuceneIndexService {
 
     /**
      * Performs a full-text search on verse text.
-     * 
+     * Supports OR logic using either "|" or "OR" between terms.
+     * Examples: "vanity | vanities" or "vanity OR vanities"
+     *
      * @param queryString The search query
      * @param maxResults Maximum number of results to return
      * @return SearchResult containing matching verses
@@ -92,9 +94,12 @@ public class LuceneIndexService {
         }
 
         try {
+            // Preprocess query: convert "|" to "OR" for user-friendly syntax
+            String processedQuery = preprocessQuery(queryString);
+
             QueryParser parser = new QueryParser(FIELD_TEXT, analyzer);
             parser.setDefaultOperator(QueryParser.Operator.AND);
-            Query query = parser.parse(queryString);
+            Query query = parser.parse(processedQuery);
 
             TopDocs topDocs = searcher.search(query, maxResults);
             
@@ -140,6 +145,18 @@ public class LuceneIndexService {
             log.error("Search error", e);
             return new SearchResult(queryString, 0, List.of());
         }
+    }
+
+    /**
+     * Preprocesses a query string to support user-friendly syntax.
+     * Converts "|" to "OR" for intuitive OR logic.
+     *
+     * @param queryString The raw query from the user
+     * @return The processed query ready for Lucene parsing
+     */
+    private String preprocessQuery(String queryString) {
+        // Replace "|" with "OR" (handles with/without surrounding spaces)
+        return queryString.replaceAll("\\s*\\|\\s*", " OR ");
     }
 
     /**

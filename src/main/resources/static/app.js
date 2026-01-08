@@ -1808,6 +1808,9 @@
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
             state.tagPickerOpen || state.noteEditorOpen) return;
 
+        // Don't intercept browser shortcuts (Cmd/Ctrl + key)
+        if (e.metaKey || e.ctrlKey) return;
+
         switch (e.key) {
             case 'j':
             case 'ArrowDown':
@@ -1882,6 +1885,9 @@
                 e.preventDefault();
                 handleSearch();
             }
+        });
+        elements.searchInput.addEventListener('focus', () => {
+            elements.searchInput.select();
         });
         elements.searchClose.addEventListener('click', closeSearch);
         elements.searchOverlay.addEventListener('click', (e) => {
