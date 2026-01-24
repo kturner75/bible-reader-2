@@ -39,6 +39,14 @@
 
             <!-- Right Controls -->
             <div class="right-controls">
+                <!-- Audio Controls -->
+                <div class="audio-controls" id="audio-controls" hidden>
+                    <button id="audio-toggle" aria-label="Toggle audio" title="Play audio (p)">
+                        <span class="audio-icon">&#128266;</span>
+                    </button>
+                    <button class="audio-speed-badge" id="audio-speed-badge" title="Change speed (s)">1x</button>
+                </div>
+
                 <!-- Font Size -->
                 <div class="font-controls">
                     <button id="font-decrease" aria-label="Decrease font size" title="Decrease font size">A−</button>
@@ -112,6 +120,8 @@
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>b</kbd></span><span>Save/unsave verse</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>t</kbd></span><span>Open tag picker</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>n</kbd></span><span>Add/edit note</span></div>
+                    <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>p</kbd></span><span>Play/stop audio</span></div>
+                    <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>s</kbd></span><span>Cycle audio speed</span></div>
                 </div>
                 <h3 class="help-section-title">Search Syntax</h3>
                 <div class="search-syntax-list">
@@ -235,6 +245,9 @@
         <div class="loading-spinner"></div>
         <p>Loading Scripture...</p>
     </div>
+
+    <!-- TTS Audio Element -->
+    <audio id="tts-audio" preload="none"></audio>
 
     <script src="app.js"></script>
 </body>

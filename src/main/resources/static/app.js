@@ -45,7 +45,12 @@
         tagPickerOpen: false,      // tag picker modal state
         noteEditorOpen: false,     // note editor modal state
         tagPickerVerseId: null,    // which verse the tag picker is for
-        noteEditorVerseId: null    // which verse the note editor is for
+        noteEditorVerseId: null,   // which verse the note editor is for
+        // TTS Audio
+        audioEnabled: false,       // Feature flag from backend
+        audioPlaying: false,       // Currently playing
+        audioSpeed: 1.0,           // 1, 1.25, 1.5, 1.75, 2
+        audioPendingChapter: null  // { book, chapter } if chapter announcement pending
     };
 
     // ============================================
@@ -98,7 +103,12 @@
         noteTextarea: document.getElementById('note-textarea'),
         noteCharCurrent: document.getElementById('note-char-current'),
         noteSaveBtn: document.getElementById('note-save-btn'),
-        noteCancelBtn: document.getElementById('note-cancel-btn')
+        noteCancelBtn: document.getElementById('note-cancel-btn'),
+        // Audio
+        audioControls: document.getElementById('audio-controls'),
+        audioToggle: document.getElementById('audio-toggle'),
+        audioSpeedBadge: document.getElementById('audio-speed-badge'),
+        ttsAudio: document.getElementById('tts-audio')
     };
 
     // ============================================
@@ -108,7 +118,8 @@
         CURRENT_VERSE: 'kjv_current_verse',
         FONT_SIZE: 'kjv_font_size',
         SAVED_VERSES: 'kjv_saved_verses',
-        TAGS: 'kjv_tags'
+        TAGS: 'kjv_tags',
+        AUDIO_SPEED: 'kjv_audio_speed'
     };
 
     // ============================================
@@ -960,9 +971,10 @@
     }
 
     async function onBookChange() {
+        stopAudioOnUIEvent();
         const bookId = parseInt(elements.bookSelect.value);
         if (!bookId) return;
-        
+
         try {
             state.chapters = await fetchChapters(bookId);
             
@@ -978,9 +990,10 @@
     }
 
     async function onChapterChange() {
+        stopAudioOnUIEvent();
         const firstVerseId = parseInt(elements.chapterSelect.value);
         if (!firstVerseId) return;
-        
+
         // Find chapter info
         const chapter = state.chapters.find(c => c.firstVerseId === firstVerseId);
         if (!chapter) return;
@@ -1126,6 +1139,7 @@
     }
 
     function openSearch() {
+        stopAudioOnUIEvent();
         state.searchOpen = true;
         elements.searchOverlay.hidden = false;
     }
@@ -1140,6 +1154,7 @@
     // ============================================
 
     function openHelp() {
+        stopAudioOnUIEvent();
         state.helpOpen = true;
         elements.helpOverlay.hidden = false;
     }
@@ -1416,6 +1431,7 @@
     }
 
     function openLibrary() {
+        stopAudioOnUIEvent();
         state.libraryOpen = true;
         elements.libraryOverlay.hidden = false;
 
@@ -1629,6 +1645,7 @@
     // ============================================
 
     function openTagPicker(verseId) {
+        stopAudioOnUIEvent();
         if (!state.savedVerses[verseId]) {
             toggleSaveVerse(verseId);
         }
@@ -1710,6 +1727,7 @@
     // ============================================
 
     function openNoteEditor(verseId) {
+        stopAudioOnUIEvent();
         if (!state.savedVerses[verseId]) {
             toggleSaveVerse(verseId);
         }
@@ -1743,6 +1761,210 @@
         const note = elements.noteTextarea.value.trim();
         setVerseNote(state.noteEditorVerseId, note);
         closeNoteEditor();
+    }
+
+    // ============================================
+    // TTS Audio Functions
+    // ============================================
+
+    async function checkTtsStatus() {
+        try {
+            const response = await fetch('/api/tts/status');
+            if (!response.ok) {
+                state.audioEnabled = false;
+                return;
+            }
+            const data = await response.json();
+            state.audioEnabled = data.enabled === true;
+            updateAudioControlsVisibility();
+        } catch (e) {
+            console.error('Failed to check TTS status', e);
+            state.audioEnabled = false;
+        }
+    }
+
+    function updateAudioControlsVisibility() {
+        if (state.audioEnabled) {
+            elements.audioControls.hidden = false;
+            // Show audio shortcuts in help modal
+            document.querySelectorAll('.audio-shortcut').forEach(el => {
+                el.hidden = false;
+            });
+        } else {
+            elements.audioControls.hidden = true;
+            document.querySelectorAll('.audio-shortcut').forEach(el => {
+                el.hidden = true;
+            });
+        }
+    }
+
+    function loadAudioSpeed() {
+        const saved = localStorage.getItem(STORAGE_KEYS.AUDIO_SPEED);
+        if (saved) {
+            state.audioSpeed = parseFloat(saved) || 1.0;
+        }
+        updateAudioSpeedDisplay();
+    }
+
+    function saveAudioSpeed() {
+        localStorage.setItem(STORAGE_KEYS.AUDIO_SPEED, state.audioSpeed.toString());
+    }
+
+    function updateAudioSpeedDisplay() {
+        elements.audioSpeedBadge.textContent = state.audioSpeed + 'x';
+        if (elements.ttsAudio) {
+            elements.ttsAudio.playbackRate = state.audioSpeed;
+        }
+    }
+
+    function cycleAudioSpeed() {
+        const speeds = [1, 1.25, 1.5, 1.75, 2];
+        const currentIndex = speeds.indexOf(state.audioSpeed);
+        const nextIndex = (currentIndex + 1) % speeds.length;
+        state.audioSpeed = speeds[nextIndex];
+        updateAudioSpeedDisplay();
+        saveAudioSpeed();
+    }
+
+    function toggleAudio() {
+        if (state.audioPlaying) {
+            stopAudio();
+        } else {
+            startAudio();
+        }
+    }
+
+    function startAudio() {
+        state.audioPlaying = true;
+        elements.audioToggle.classList.add('playing');
+        playVerseAudio(state.currentVerseId);
+    }
+
+    function stopAudio() {
+        state.audioPlaying = false;
+        state.audioPendingChapter = null;
+        elements.audioToggle.classList.remove('playing');
+        if (elements.ttsAudio) {
+            elements.ttsAudio.pause();
+            elements.ttsAudio.src = '';
+        }
+    }
+
+    async function playVerseAudio(verseId, retryCount = 0) {
+        if (!state.audioPlaying || !elements.ttsAudio) return;
+
+        try {
+            // Get CDN URL from API
+            const response = await fetch(`/api/audio/${verseId}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            elements.ttsAudio.src = data.url;
+            elements.ttsAudio.playbackRate = state.audioSpeed;
+            await elements.ttsAudio.play();
+        } catch (e) {
+            console.error('Failed to play audio', e);
+            if (retryCount < 1) {
+                console.log('Retrying audio playback...');
+                setTimeout(() => playVerseAudio(verseId, retryCount + 1), 500);
+            } else {
+                stopAudio();
+            }
+        }
+    }
+
+    async function playChapterAudio(book, chapter, retryCount = 0) {
+        if (!state.audioPlaying || !elements.ttsAudio) return;
+
+        const encodedBook = encodeURIComponent(book);
+
+        try {
+            // Get CDN URL from API
+            const response = await fetch(`/api/audio/chapter/${encodedBook}/${chapter}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            elements.ttsAudio.src = data.url;
+            elements.ttsAudio.playbackRate = state.audioSpeed;
+            await elements.ttsAudio.play();
+        } catch (e) {
+            console.error('Failed to play chapter audio', e);
+            if (retryCount < 1) {
+                console.log('Retrying chapter audio playback...');
+                setTimeout(() => playChapterAudio(book, chapter, retryCount + 1), 500);
+            } else {
+                stopAudio();
+            }
+        }
+    }
+
+    async function handleAudioEnded() {
+        if (!state.audioPlaying) return;
+
+        // If we just played a chapter announcement, now play the verse
+        if (state.audioPendingChapter) {
+            state.audioPendingChapter = null;
+            playVerseAudio(state.currentVerseId);
+            return;
+        }
+
+        // Get current verse info before advancing
+        const currentVerse = state.pageVerses.find(v => v.id === state.currentVerseId);
+        const prevBook = currentVerse ? currentVerse.book : null;
+        const prevChapter = currentVerse ? currentVerse.chapter : null;
+
+        // Advance to next verse
+        await nextVerse();
+
+        // Get new verse info
+        const newVerse = state.pageVerses.find(v => v.id === state.currentVerseId);
+
+        // Check if we crossed into a new chapter
+        if (newVerse && (newVerse.book !== prevBook || newVerse.chapter !== prevChapter)) {
+            // Play chapter announcement first
+            state.audioPendingChapter = { book: newVerse.book, chapter: newVerse.chapter };
+            playChapterAudio(newVerse.book, newVerse.chapter);
+        } else {
+            // Same chapter, just play the verse
+            playVerseAudio(state.currentVerseId);
+        }
+    }
+
+    function handleAudioError(e) {
+        // Ignore errors when audio was intentionally stopped (src set to '')
+        if (!state.audioPlaying) return;
+        console.error('Audio playback error', e);
+        stopAudio();
+    }
+
+    function stopAudioOnUIEvent() {
+        if (state.audioPlaying) {
+            stopAudio();
+        }
+    }
+
+    function prefetchChapterAudio() {
+        if (!state.audioEnabled) return;
+
+        // Prefetch audio for the next 10 verses using link prefetch
+        const startId = state.currentVerseId;
+        for (let i = 1; i <= 10; i++) {
+            const verseId = startId + i;
+            if (verseId > state.totalVerses) break;
+
+            // Check if link already exists
+            if (document.querySelector(`link[href="/api/audio/${verseId}"]`)) continue;
+
+            const link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.href = `/api/audio/${verseId}`;
+            link.as = 'audio';
+            document.head.appendChild(link);
+        }
     }
 
     // ============================================
@@ -1868,6 +2090,14 @@
                 e.preventDefault();
                 openNoteEditor(state.currentVerseId);
                 break;
+            case 'p':
+                e.preventDefault();
+                if (state.audioEnabled) toggleAudio();
+                break;
+            case 's':
+                e.preventDefault();
+                if (state.audioEnabled) cycleAudioSpeed();
+                break;
         }
     }
 
@@ -1887,6 +2117,7 @@
             }
         });
         elements.searchInput.addEventListener('focus', () => {
+            stopAudioOnUIEvent();
             elements.searchInput.select();
         });
         elements.searchClose.addEventListener('click', closeSearch);
@@ -1940,7 +2171,13 @@
         // Font size
         elements.fontIncrease.addEventListener('click', increaseFontSize);
         elements.fontDecrease.addEventListener('click', decreaseFontSize);
-        
+
+        // Audio controls
+        elements.audioToggle.addEventListener('click', toggleAudio);
+        elements.audioSpeedBadge.addEventListener('click', cycleAudioSpeed);
+        elements.ttsAudio.addEventListener('ended', handleAudioEnded);
+        elements.ttsAudio.addEventListener('error', handleAudioError);
+
         // Click on verse to select it
         elements.readingArea.addEventListener('click', (e) => {
             const verseEl = e.target.closest('.verse');
@@ -1989,6 +2226,10 @@
             loadFontSize();
             loadSavedVerses();
             loadTags();
+            loadAudioSpeed();
+
+            // Check TTS status
+            await checkTtsStatus();
 
             // Initialize dropdowns
             await initDropdowns();
@@ -1998,6 +2239,11 @@
 
             // Load initial page
             await goToVerse(state.currentVerseId);
+
+            // Prefetch audio for upcoming verses if TTS enabled
+            if (state.audioEnabled) {
+                prefetchChapterAudio();
+            }
 
         } catch (error) {
             console.error('Initialization failed:', error);

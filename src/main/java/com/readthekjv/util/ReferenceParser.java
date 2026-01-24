@@ -1,4 +1,4 @@
-package com.biblereader.util;
+package com.readthekjv.util;
 
 import java.util.Map;
 import java.util.regex.Matcher;

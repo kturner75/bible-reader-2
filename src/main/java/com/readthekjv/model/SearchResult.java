@@ -1,4 +1,4 @@
-package com.biblereader.model;
+package com.readthekjv.model;
 
 import java.util.List;
 

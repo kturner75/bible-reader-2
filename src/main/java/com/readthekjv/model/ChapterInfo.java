@@ -1,4 +1,4 @@
-package com.biblereader.model;
+package com.readthekjv.model;
 
 /**
  * Immutable record representing chapter info for dropdowns.
