@@ -50,7 +50,8 @@
         audioEnabled: false,       // Feature flag from backend
         audioPlaying: false,       // Currently playing
         audioSpeed: 1.0,           // 1, 1.25, 1.5, 1.75, 2
-        audioPendingChapter: null  // { book, chapter } if chapter announcement pending
+        audioPendingChapter: null, // { book, chapter } if chapter announcement pending
+        audioWasPlayingBeforeModal: false  // Track if audio was playing when modal opened
     };
 
     // ============================================
@@ -808,10 +809,14 @@
 
     /**
      * Move to next verse (within page or turn page).
+     * @param {boolean} autoAdvance - true if called from audio auto-advance (skip restart)
      */
-    async function nextVerse() {
+    async function nextVerse(autoAdvance = false) {
+        const wasPlaying = !autoAdvance && state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         const currentIndex = state.pageVerses.findIndex(v => v.id === state.currentVerseId);
-        
+
         if (currentIndex < state.pageVerses.length - 1) {
             // Move within page
             state.currentVerseId = state.pageVerses[currentIndex + 1].id;
@@ -821,14 +826,19 @@
             // Turn to next page
             await goToVerse(state.currentVerseId + 1);
         }
+
+        if (wasPlaying) restartAudioIfPlaying(wasPlaying);
     }
 
     /**
      * Move to previous verse (within page or turn page).
      */
     async function prevVerse() {
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         const currentIndex = state.pageVerses.findIndex(v => v.id === state.currentVerseId);
-        
+
         if (currentIndex > 0) {
             // Move within page
             state.currentVerseId = state.pageVerses[currentIndex - 1].id;
@@ -838,11 +848,13 @@
             // Need to load previous page and set current to last verse
             const prevVerseId = state.currentVerseId - 1;
             state.currentVerseId = prevVerseId;
-            
+
             // Load page that would contain the previous verse
             // This is tricky - we need to find where the page would start
             await loadPageEndingAt(prevVerseId);
         }
+
+        if (wasPlaying) restartAudioIfPlaying(wasPlaying);
     }
 
     /**
@@ -878,30 +890,44 @@
      */
     async function nextPage() {
         if (state.pageVerses.length === 0) return;
-        
+
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         const lastVerse = state.pageVerses[state.pageVerses.length - 1];
         if (lastVerse.id < state.totalVerses) {
             await goToVerse(lastVerse.id + 1);
         }
+
+        if (wasPlaying) restartAudioIfPlaying(wasPlaying);
     }
 
     /**
      * Turn to previous page.
      */
     async function prevPage() {
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         if (state.pageStartVerseId > 1) {
             await loadPageEndingAt(state.pageStartVerseId - 1);
         }
+
+        if (wasPlaying) restartAudioIfPlaying(wasPlaying);
     }
 
     /**
      * Go to next chapter.
      */
     async function nextChapter() {
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         try {
             const nav = await fetchNavigation(state.currentVerseId);
             if (nav.nextChapter) {
                 await goToVerse(nav.nextChapter);
+                if (wasPlaying) startAudio();
             }
         } catch (e) {
             console.error('Failed to navigate to next chapter', e);
@@ -912,10 +938,14 @@
      * Go to previous chapter.
      */
     async function prevChapter() {
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         try {
             const nav = await fetchNavigation(state.currentVerseId);
             if (nav.prevChapter) {
                 await goToVerse(nav.prevChapter);
+                if (wasPlaying) startAudio();
             }
         } catch (e) {
             console.error('Failed to navigate to previous chapter', e);
@@ -926,10 +956,14 @@
      * Go to next book.
      */
     async function nextBook() {
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         try {
             const nav = await fetchNavigation(state.currentVerseId);
             if (nav.nextBook) {
                 await goToVerse(nav.nextBook);
+                if (wasPlaying) startAudio();
             }
         } catch (e) {
             console.error('Failed to navigate to next book', e);
@@ -940,10 +974,14 @@
      * Go to previous book.
      */
     async function prevBook() {
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         try {
             const nav = await fetchNavigation(state.currentVerseId);
             if (nav.prevBook) {
                 await goToVerse(nav.prevBook);
+                if (wasPlaying) startAudio();
             }
         } catch (e) {
             console.error('Failed to navigate to previous book', e);
@@ -990,14 +1028,16 @@
     }
 
     async function onChapterChange() {
-        stopAudioOnUIEvent();
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         const firstVerseId = parseInt(elements.chapterSelect.value);
         if (!firstVerseId) return;
 
         // Find chapter info
         const chapter = state.chapters.find(c => c.firstVerseId === firstVerseId);
         if (!chapter) return;
-        
+
         // Populate verse dropdown
         const verses = [];
         for (let i = 0; i < chapter.verseCount; i++) {
@@ -1006,19 +1046,25 @@
                 num: i + 1
             });
         }
-        
+
         elements.verseSelect.innerHTML = '<option value="">V</option>' +
             verses.map(v => `<option value="${v.id}">${v.num}</option>`).join('');
         elements.verseSelect.disabled = false;
-        
+
         // Navigate to first verse of chapter
         await goToVerse(firstVerseId);
+
+        if (wasPlaying) restartAudioIfPlaying(wasPlaying);
     }
 
     async function onVerseChange() {
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) stopAudio();
+
         const verseId = parseInt(elements.verseSelect.value);
         if (verseId) {
             await goToVerse(verseId);
+            if (wasPlaying) restartAudioIfPlaying(wasPlaying);
         }
     }
 
@@ -1086,22 +1132,24 @@
     async function handleSearch() {
         const query = elements.searchInput.value.trim();
         if (!query) return;
-        
+
         // First, check if it's a Bible reference
         try {
             const refResult = await parseReference(query);
             if (refResult.valid && refResult.verseId) {
                 // It's a valid reference, jump directly
+                const wasPlaying = state.audioWasPlayingBeforeModal;
                 closeSearch();
                 await goToVerse(refResult.verseId);
                 elements.searchInput.value = '';
                 elements.searchInput.blur();
+                if (wasPlaying) restartAudioIfPlaying(wasPlaying);
                 return;
             }
         } catch (e) {
             // Not a reference, continue with text search
         }
-        
+
         // Perform full-text search
         try {
             const results = await searchBible(query);
@@ -1112,9 +1160,9 @@
     }
 
     function showSearchResults(results) {
-        elements.searchResultsTitle.textContent = 
+        elements.searchResultsTitle.textContent =
             `${results.count} result${results.count !== 1 ? 's' : ''} for "${results.query}"`;
-        
+
         if (results.verses.length === 0) {
             elements.searchResultsList.innerHTML = '<p class="no-results">No verses found.</p>';
         } else {
@@ -1124,21 +1172,24 @@
                     <div class="search-result-text">${v.highlight || escapeHtml(v.text)}</div>
                 </div>
             `).join('');
-            
+
             // Add click handlers
             elements.searchResultsList.querySelectorAll('.search-result-item').forEach(item => {
                 item.addEventListener('click', async () => {
+                    const wasPlaying = state.audioWasPlayingBeforeModal;
                     const verseId = parseInt(item.dataset.verseId);
                     closeSearch();
                     await goToVerse(verseId);
+                    if (wasPlaying) restartAudioIfPlaying(wasPlaying);
                 });
             });
         }
-        
+
         openSearch();
     }
 
     function openSearch() {
+        state.audioWasPlayingBeforeModal = state.audioPlaying;
         stopAudioOnUIEvent();
         state.searchOpen = true;
         elements.searchOverlay.hidden = false;
@@ -1431,6 +1482,7 @@
     }
 
     function openLibrary() {
+        state.audioWasPlayingBeforeModal = state.audioPlaying;
         stopAudioOnUIEvent();
         state.libraryOpen = true;
         elements.libraryOverlay.hidden = false;
@@ -1620,9 +1672,11 @@
         // Click handlers
         elements.libraryResults.querySelectorAll('.library-item').forEach(item => {
             item.addEventListener('click', async () => {
+                const wasPlaying = state.audioWasPlayingBeforeModal;
                 const verseId = parseInt(item.dataset.verseId);
                 closeLibrary();
                 await goToVerse(verseId);
+                if (wasPlaying) restartAudioIfPlaying(wasPlaying);
             });
         });
     }
@@ -1917,8 +1971,8 @@
         const prevBook = currentVerse ? currentVerse.book : null;
         const prevChapter = currentVerse ? currentVerse.chapter : null;
 
-        // Advance to next verse
-        await nextVerse();
+        // Advance to next verse (autoAdvance=true to skip restart logic)
+        await nextVerse(true);
 
         // Get new verse info
         const newVerse = state.pageVerses.find(v => v.id === state.currentVerseId);
@@ -1944,6 +1998,16 @@
     function stopAudioOnUIEvent() {
         if (state.audioPlaying) {
             stopAudio();
+        }
+    }
+
+    /**
+     * Restart audio from current verse if audio was/is playing.
+     * Call this after navigation completes.
+     */
+    function restartAudioIfPlaying(wasPlaying) {
+        if (wasPlaying) {
+            startAudio();
         }
     }
 
@@ -2117,6 +2181,7 @@
             }
         });
         elements.searchInput.addEventListener('focus', () => {
+            state.audioWasPlayingBeforeModal = state.audioPlaying;
             stopAudioOnUIEvent();
             elements.searchInput.select();
         });
@@ -2184,9 +2249,12 @@
             if (verseEl) {
                 const verseId = parseInt(verseEl.dataset.verseId);
                 if (verseId && verseId !== state.currentVerseId) {
+                    const wasPlaying = state.audioPlaying;
+                    if (wasPlaying) stopAudio();
                     state.currentVerseId = verseId;
                     renderPage();
                     saveState();
+                    if (wasPlaying) restartAudioIfPlaying(wasPlaying);
                 }
             }
         });
