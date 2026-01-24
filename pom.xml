@@ -58,6 +58,13 @@
             <version>${lucene.version}</version>
         </dependency>
 
+        <!-- AWS S3 SDK (for Digital Ocean Spaces) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.24.0</version>
+        </dependency>
+
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

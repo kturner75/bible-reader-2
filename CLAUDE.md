@@ -29,7 +29,7 @@ mvn test -Dtest=ReferenceParserTest#testBookWithChapterAndVerse
 
 ### Backend (Java 21 + Spring Boot 3)
 
-**Package:** `com.biblereader`
+**Package:** `com.readthekjv`
 
 - **BibleController** (`controller/`) - REST API endpoints for verses, books, chapters, search, navigation
 - **BibleService** (`service/`) - In-memory Bible data with O(1) verse lookups by global ID (1-31,102)

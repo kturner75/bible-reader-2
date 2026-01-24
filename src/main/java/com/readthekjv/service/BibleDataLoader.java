@@ -1,6 +1,6 @@
-package com.biblereader.service;
+package com.readthekjv.service;
 
-import com.biblereader.model.Verse;
+import com.readthekjv.model.Verse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;

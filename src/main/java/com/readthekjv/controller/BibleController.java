@@ -1,9 +1,9 @@
-package com.biblereader.controller;
+package com.readthekjv.controller;
 
-import com.biblereader.model.*;
-import com.biblereader.service.BibleService;
-import com.biblereader.service.LuceneIndexService;
-import com.biblereader.util.ReferenceParser;
+import com.readthekjv.model.*;
+import com.readthekjv.service.BibleService;
+import com.readthekjv.service.LuceneIndexService;
+import com.readthekjv.util.ReferenceParser;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

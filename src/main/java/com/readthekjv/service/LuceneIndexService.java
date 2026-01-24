@@ -1,7 +1,7 @@
-package com.biblereader.service;
+package com.readthekjv.service;
 
-import com.biblereader.model.SearchResult;
-import com.biblereader.model.Verse;
+import com.readthekjv.model.SearchResult;
+import com.readthekjv.model.Verse;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;

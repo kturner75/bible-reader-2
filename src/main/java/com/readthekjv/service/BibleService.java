@@ -1,9 +1,9 @@
-package com.biblereader.service;
+package com.readthekjv.service;
 
-import com.biblereader.model.Book;
-import com.biblereader.model.ChapterInfo;
-import com.biblereader.model.Verse;
-import com.biblereader.util.ReferenceParser;
+import com.readthekjv.model.Book;
+import com.readthekjv.model.ChapterInfo;
+import com.readthekjv.model.Verse;
+import com.readthekjv.util.ReferenceParser;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
