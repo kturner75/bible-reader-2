@@ -111,12 +111,15 @@
         audioToggle: document.getElementById('audio-toggle'),
         audioSpeedBadge: document.getElementById('audio-speed-badge'),
         ttsAudio: document.getElementById('tts-audio'),
+        ttsAudioBuffer: document.getElementById('tts-audio-buffer'),
         // Mobile navigation buttons
         mobilePrev: document.getElementById('mobile-prev'),
         mobileNext: document.getElementById('mobile-next'),
         // Mobile quick-actions menu
         mobileMenuOverlay: document.getElementById('mobile-menu-overlay'),
-        mobileMenuBookmarkLabel: document.getElementById('mobile-menu-bookmark-label')
+        mobileMenuBookmarkLabel: document.getElementById('mobile-menu-bookmark-label'),
+        // Mobile search cancel button
+        mobileSearchCancel: document.getElementById('mobile-search-cancel')
     };
 
     // ============================================
@@ -129,6 +132,13 @@
         TAGS: 'kjv_tags',
         AUDIO_SPEED: 'kjv_audio_speed'
     };
+
+    // ============================================
+    // Audio URL Cache
+    // ============================================
+    // Caches resolved CDN URLs so each verse/chapter only needs one API round-trip ever.
+    // Key format: 'verse:{id}' or 'chapter:{book}:{chapter}'
+    const audioUrlCache = new Map();
 
     // ============================================
     // Tag Colors
@@ -1140,6 +1150,9 @@
         const query = elements.searchInput.value.trim();
         if (!query) return;
 
+        // Dismiss the keyboard on mobile
+        elements.searchInput.blur();
+
         // First, check if it's a Bible reference
         try {
             const refResult = await parseReference(query);
@@ -1174,7 +1187,7 @@
             elements.searchResultsList.innerHTML = '<p class="no-results">No verses found.</p>';
         } else {
             elements.searchResultsList.innerHTML = results.verses.map(v => `
-                <div class="search-result-item" data-verse-id="${v.id}">
+                <div class="search-result-item" data-verse-id="${v.id}" tabindex="0">
                     <div class="search-result-ref">${v.book} ${v.chapter}:${v.verse}</div>
                     <div class="search-result-text">${v.highlight || escapeHtml(v.text)}</div>
                 </div>
@@ -1193,6 +1206,8 @@
         }
 
         openSearch();
+        const firstResult = elements.searchResultsList.querySelector('.search-result-item');
+        if (firstResult) firstResult.focus();
     }
 
     function openSearch() {
@@ -1205,6 +1220,8 @@
     function closeSearch() {
         state.searchOpen = false;
         elements.searchOverlay.hidden = true;
+        document.body.classList.remove('mobile-search-open');
+        if (elements.mobileSearchCancel) elements.mobileSearchCancel.hidden = true;
     }
 
     // ============================================
@@ -1891,6 +1908,9 @@
         if (elements.ttsAudio) {
             elements.ttsAudio.playbackRate = state.audioSpeed;
         }
+        if (elements.ttsAudioBuffer) {
+            elements.ttsAudioBuffer.playbackRate = state.audioSpeed;
+        }
     }
 
     function cycleAudioSpeed() {
@@ -1924,22 +1944,25 @@
             elements.ttsAudio.pause();
             elements.ttsAudio.src = '';
         }
+        if (elements.ttsAudioBuffer) {
+            elements.ttsAudioBuffer.pause();
+            elements.ttsAudioBuffer.src = '';
+        }
     }
 
     async function playVerseAudio(verseId, retryCount = 0) {
         if (!state.audioPlaying || !elements.ttsAudio) return;
 
         try {
-            // Get CDN URL from API
-            const response = await fetch(`/api/audio/${verseId}`);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-            elements.ttsAudio.src = data.url;
+            const url = await getAudioUrl(verseId);
+            elements.ttsAudio.src = url;
             elements.ttsAudio.playbackRate = state.audioSpeed;
             await elements.ttsAudio.play();
+
+            // While this verse plays, warm caches for upcoming verses and
+            // pre-buffer the immediate next verse into the browser's media cache.
+            warmUrlCache(verseId);
+            preBufferNextVerse(verseId);
         } catch (e) {
             console.error('Failed to play audio', e);
             if (retryCount < 1) {
@@ -1954,17 +1977,9 @@
     async function playChapterAudio(book, chapter, retryCount = 0) {
         if (!state.audioPlaying || !elements.ttsAudio) return;
 
-        const encodedBook = encodeURIComponent(book);
-
         try {
-            // Get CDN URL from API
-            const response = await fetch(`/api/audio/chapter/${encodedBook}/${chapter}`);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-            elements.ttsAudio.src = data.url;
+            const url = await getChapterAudioUrl(book, chapter);
+            elements.ttsAudio.src = url;
             elements.ttsAudio.playbackRate = state.audioSpeed;
             await elements.ttsAudio.play();
         } catch (e) {
@@ -2033,23 +2048,68 @@
         }
     }
 
-    function prefetchChapterAudio() {
+    // ============================================
+    // Audio URL Helpers & Prefetching
+    // ============================================
+
+    /**
+     * Fetch and cache the CDN URL for a verse. Subsequent calls return the
+     * cached value immediately without a network round-trip.
+     */
+    async function getAudioUrl(verseId) {
+        const key = `verse:${verseId}`;
+        if (audioUrlCache.has(key)) return audioUrlCache.get(key);
+        const response = await fetch(`/api/audio/${verseId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        audioUrlCache.set(key, data.url);
+        return data.url;
+    }
+
+    /**
+     * Fetch and cache the CDN URL for a chapter announcement.
+     */
+    async function getChapterAudioUrl(book, chapter) {
+        const key = `chapter:${book}:${chapter}`;
+        if (audioUrlCache.has(key)) return audioUrlCache.get(key);
+        const encodedBook = encodeURIComponent(book);
+        const response = await fetch(`/api/audio/chapter/${encodedBook}/${chapter}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        audioUrlCache.set(key, data.url);
+        return data.url;
+    }
+
+    /**
+     * Silently warm the URL cache for the next N verses.
+     * Fire-and-forget: errors are ignored.
+     */
+    function warmUrlCache(fromVerseId, count = 5) {
         if (!state.audioEnabled) return;
-
-        // Prefetch audio for the next 10 verses using link prefetch
-        const startId = state.currentVerseId;
-        for (let i = 1; i <= 10; i++) {
-            const verseId = startId + i;
+        for (let i = 1; i <= count; i++) {
+            const verseId = fromVerseId + i;
             if (verseId > state.totalVerses) break;
+            getAudioUrl(verseId).catch(() => {});
+        }
+    }
 
-            // Check if link already exists
-            if (document.querySelector(`link[href="/api/audio/${verseId}"]`)) continue;
-
-            const link = document.createElement('link');
-            link.rel = 'prefetch';
-            link.href = `/api/audio/${verseId}`;
-            link.as = 'audio';
-            document.head.appendChild(link);
+    /**
+     * Pre-buffer the immediate next verse into the hidden buffer audio element.
+     * Once the browser has downloaded it, playing the same URL on the main
+     * element will be served from the browser's media cache with no network wait.
+     */
+    async function preBufferNextVerse(verseId) {
+        if (!state.audioEnabled || !elements.ttsAudioBuffer) return;
+        const nextId = verseId + 1;
+        if (nextId > state.totalVerses) return;
+        try {
+            const url = await getAudioUrl(nextId);
+            if (elements.ttsAudioBuffer.src !== url) {
+                elements.ttsAudioBuffer.src = url;
+                elements.ttsAudioBuffer.load();
+            }
+        } catch (e) {
+            // Non-critical — ignore silently
         }
     }
 
@@ -2065,6 +2125,10 @@
                 closeSearch();
             } else if (e.key === 'Enter') {
                 handleSearch();
+            } else if ((e.key === 'ArrowDown' || e.key === 'j') && state.searchOpen) {
+                e.preventDefault();
+                const first = elements.searchResultsList.querySelector('.search-result-item');
+                if (first) first.focus();
             }
             return;
         }
@@ -2160,6 +2224,10 @@
                 break;
             case '/':
                 e.preventDefault();
+                if (window.innerWidth <= 600) {
+                    document.body.classList.add('mobile-search-open');
+                    if (elements.mobileSearchCancel) elements.mobileSearchCancel.hidden = false;
+                }
                 elements.searchInput.focus();
                 break;
             case '?':
@@ -2215,7 +2283,26 @@
                 closeSearch();
             }
         });
-        
+
+        // Keyboard navigation within search results
+        elements.searchResultsList.addEventListener('keydown', (e) => {
+            const items = Array.from(elements.searchResultsList.querySelectorAll('.search-result-item'));
+            const idx = items.indexOf(document.activeElement);
+            if (idx === -1) return;
+
+            if (e.key === 'ArrowDown' || e.key === 'j') {
+                e.preventDefault();
+                if (idx < items.length - 1) items[idx + 1].focus();
+            } else if (e.key === 'ArrowUp' || e.key === 'k') {
+                e.preventDefault();
+                if (idx > 0) items[idx - 1].focus();
+                else elements.searchInput.focus();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                items[idx].click();
+            }
+        });
+
         // Help
         elements.helpToggle.addEventListener('click', toggleHelp);
         elements.helpClose.addEventListener('click', closeHelp);
@@ -2251,6 +2338,8 @@
             });
             document.getElementById('mobile-menu-search').addEventListener('click', () => {
                 closeMobileMenu();
+                document.body.classList.add('mobile-search-open');
+                if (elements.mobileSearchCancel) elements.mobileSearchCancel.hidden = false;
                 elements.searchInput.focus();
                 elements.searchInput.select();
             });
@@ -2272,6 +2361,15 @@
             });
             document.getElementById('mobile-font-decrease').addEventListener('click', decreaseFontSize);
             document.getElementById('mobile-font-increase').addEventListener('click', increaseFontSize);
+        }
+
+        // Mobile search cancel button
+        if (elements.mobileSearchCancel) {
+            elements.mobileSearchCancel.addEventListener('click', () => {
+                elements.searchInput.value = '';
+                closeSearch();
+                elements.searchInput.blur();
+            });
         }
 
         // Tag picker
@@ -2409,9 +2507,9 @@
             // Load initial page
             await goToVerse(state.currentVerseId);
 
-            // Prefetch audio for upcoming verses if TTS enabled
+            // Warm the audio URL cache for upcoming verses if TTS enabled
             if (state.audioEnabled) {
-                prefetchChapterAudio();
+                warmUrlCache(state.currentVerseId);
             }
 
         } catch (error) {

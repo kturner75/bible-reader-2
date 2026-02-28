@@ -68,6 +68,9 @@
         </nav>
     </header>
 
+    <!-- Mobile Search Cancel (shown only when mobile search is active) -->
+    <button id="mobile-search-cancel" aria-label="Cancel search" hidden>Cancel</button>
+
     <!-- Main Reading Area -->
     <main class="reading-container">
         <!-- Chapter Title -->
@@ -287,6 +290,8 @@
 
     <!-- TTS Audio Element -->
     <audio id="tts-audio" preload="none"></audio>
+    <!-- TTS pre-buffer: silently pre-downloads the next verse so playback is gapless -->
+    <audio id="tts-audio-buffer" preload="auto"></audio>
 
     <script src="app.js"></script>
 </body>
