@@ -51,7 +51,8 @@
         audioPlaying: false,       // Currently playing
         audioSpeed: 1.0,           // 1, 1.25, 1.5, 1.75, 2
         audioPendingChapter: null, // { book, chapter } if chapter announcement pending
-        audioWasPlayingBeforeModal: false  // Track if audio was playing when modal opened
+        audioWasPlayingBeforeModal: false,  // Track if audio was playing when modal opened
+        mobileMenuOpen: false              // Mobile quick-actions sheet
     };
 
     // ============================================
@@ -109,7 +110,13 @@
         audioControls: document.getElementById('audio-controls'),
         audioToggle: document.getElementById('audio-toggle'),
         audioSpeedBadge: document.getElementById('audio-speed-badge'),
-        ttsAudio: document.getElementById('tts-audio')
+        ttsAudio: document.getElementById('tts-audio'),
+        // Mobile navigation buttons
+        mobilePrev: document.getElementById('mobile-prev'),
+        mobileNext: document.getElementById('mobile-next'),
+        // Mobile quick-actions menu
+        mobileMenuOverlay: document.getElementById('mobile-menu-overlay'),
+        mobileMenuBookmarkLabel: document.getElementById('mobile-menu-bookmark-label')
     };
 
     // ============================================
@@ -505,7 +512,7 @@
             visibility: hidden;
             width: ${container.clientWidth}px;
             height: auto;
-            column-count: 2;
+            column-count: ${getComputedStyle(container).columnCount};
             column-gap: ${getComputedStyle(container).columnGap};
             text-align: justify;
             hyphens: auto;
@@ -592,7 +599,7 @@
             visibility: hidden;
             width: ${container.clientWidth}px;
             height: auto;
-            column-count: 2;
+            column-count: ${getComputedStyle(container).columnCount};
             column-gap: ${getComputedStyle(container).columnGap};
             text-align: justify;
             hyphens: auto;
@@ -1524,6 +1531,21 @@
         if (tagCombo) tagCombo.clear();
     }
 
+    function openMobileMenu() {
+        // Reflect current verse's saved state in the bookmark label
+        if (elements.mobileMenuBookmarkLabel) {
+            elements.mobileMenuBookmarkLabel.textContent =
+                state.savedVerses[state.currentVerseId] ? 'Unsave Verse' : 'Save Verse';
+        }
+        state.mobileMenuOpen = true;
+        elements.mobileMenuOverlay.hidden = false;
+    }
+
+    function closeMobileMenu() {
+        state.mobileMenuOpen = false;
+        elements.mobileMenuOverlay.hidden = true;
+    }
+
     function toggleLibraryFilters() {
         state.libraryFiltersExpanded = !state.libraryFiltersExpanded;
         updateLibraryFiltersUI();
@@ -2082,6 +2104,8 @@
                 closeTagPicker();
             } else if (state.libraryOpen) {
                 closeLibrary();
+            } else if (state.mobileMenuOpen) {
+                closeMobileMenu();
             } else if (state.searchOpen) {
                 closeSearch();
             } else if (state.helpOpen) {
@@ -2092,7 +2116,7 @@
 
         // Don't process other keys if overlays are open
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
-            state.tagPickerOpen || state.noteEditorOpen) return;
+            state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
         if (e.metaKey || e.ctrlKey) return;
@@ -2201,8 +2225,14 @@
             }
         });
 
-        // Library (saved verses)
-        elements.libraryToggle.addEventListener('click', openLibrary);
+        // Library (saved verses) — on mobile the hamburger opens the quick-actions menu instead
+        elements.libraryToggle.addEventListener('click', () => {
+            if (window.innerWidth <= 600) {
+                openMobileMenu();
+            } else {
+                openLibrary();
+            }
+        });
         elements.libraryClose.addEventListener('click', closeLibrary);
         elements.libraryOverlay.addEventListener('click', (e) => {
             if (e.target === elements.libraryOverlay) {
@@ -2212,6 +2242,37 @@
         elements.librarySearch.addEventListener('input', handleLibrarySearchInput);
         elements.librarySort.addEventListener('change', handleLibrarySortChange);
         elements.libraryFiltersToggle.addEventListener('click', toggleLibraryFilters);
+
+        // Mobile quick-actions menu
+        if (elements.mobileMenuOverlay) {
+            // Backdrop tap closes the sheet
+            elements.mobileMenuOverlay.addEventListener('click', (e) => {
+                if (e.target === elements.mobileMenuOverlay) closeMobileMenu();
+            });
+            document.getElementById('mobile-menu-search').addEventListener('click', () => {
+                closeMobileMenu();
+                elements.searchInput.focus();
+                elements.searchInput.select();
+            });
+            document.getElementById('mobile-menu-library').addEventListener('click', () => {
+                closeMobileMenu();
+                openLibrary();
+            });
+            document.getElementById('mobile-menu-bookmark').addEventListener('click', () => {
+                closeMobileMenu();
+                toggleSaveVerse(state.currentVerseId);
+            });
+            document.getElementById('mobile-menu-tags').addEventListener('click', () => {
+                closeMobileMenu();
+                openTagPicker(state.currentVerseId);
+            });
+            document.getElementById('mobile-menu-note').addEventListener('click', () => {
+                closeMobileMenu();
+                openNoteEditor(state.currentVerseId);
+            });
+            document.getElementById('mobile-font-decrease').addEventListener('click', decreaseFontSize);
+            document.getElementById('mobile-font-increase').addEventListener('click', increaseFontSize);
+        }
 
         // Tag picker
         elements.tagPickerClose.addEventListener('click', closeTagPicker);
@@ -2267,6 +2328,42 @@
                 loadPage(state.pageStartVerseId);
             }, 200);
         });
+
+        // ── Mobile: swipe left/right on reading area to turn pages ──
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let swipeConsumed = false;
+
+        elements.readingArea.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            swipeConsumed = false;
+        }, { passive: true });
+
+        elements.readingArea.addEventListener('touchend', (e) => {
+            if (swipeConsumed) return;
+            const deltaX = e.changedTouches[0].clientX - touchStartX;
+            const deltaY = e.changedTouches[0].clientY - touchStartY;
+            const absX = Math.abs(deltaX);
+            const absY = Math.abs(deltaY);
+            // Trigger page turn only for a clear horizontal swipe (≥50 px, 1.5× more horizontal than vertical)
+            if (absX >= 50 && absX > absY * 1.5) {
+                swipeConsumed = true;
+                if (deltaX < 0) {
+                    nextPage();   // swipe left  → next page
+                } else {
+                    prevPage();   // swipe right → previous page
+                }
+            }
+        }, { passive: true });
+
+        // ── Mobile: prev/next page buttons in the indicators bar ──
+        if (elements.mobilePrev) {
+            elements.mobilePrev.addEventListener('click', prevPage);
+        }
+        if (elements.mobileNext) {
+            elements.mobileNext.addEventListener('click', nextPage);
+        }
     }
 
     // ============================================
@@ -2304,6 +2401,10 @@
 
             // Setup event listeners
             setupEventListeners();
+
+            // Wait for web fonts before measuring the viewport — font metrics affect
+            // line wrapping and therefore how many verses fit on a page.
+            await document.fonts.ready;
 
             // Load initial page
             await goToVerse(state.currentVerseId);
