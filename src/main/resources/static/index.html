@@ -80,7 +80,9 @@
 
         <!-- Page Navigation Indicators -->
         <div class="page-indicators">
+            <button class="mobile-nav-btn" id="mobile-prev" aria-label="Previous page">&#8249;</button>
             <span id="page-info"></span>
+            <button class="mobile-nav-btn" id="mobile-next" aria-label="Next page">&#8250;</button>
         </div>
     </main>
 
@@ -237,6 +239,43 @@
                     <button id="note-cancel-btn">Cancel</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Mobile Quick-Actions Menu -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay" hidden>
+        <div class="mobile-menu-sheet">
+            <div class="mobile-menu-handle"></div>
+            <nav class="mobile-menu-items">
+                <button class="mobile-menu-item" id="mobile-menu-search">
+                    <span class="mobile-menu-icon">&#128269;</span>
+                    <span class="mobile-menu-label">Search</span>
+                </button>
+                <button class="mobile-menu-item" id="mobile-menu-library">
+                    <span class="mobile-menu-icon">&#128278;</span>
+                    <span class="mobile-menu-label">Saved Verses</span>
+                </button>
+                <button class="mobile-menu-item" id="mobile-menu-bookmark">
+                    <span class="mobile-menu-icon">&#9998;</span>
+                    <span class="mobile-menu-label" id="mobile-menu-bookmark-label">Save Verse</span>
+                </button>
+                <button class="mobile-menu-item" id="mobile-menu-tags">
+                    <span class="mobile-menu-icon">&#127991;</span>
+                    <span class="mobile-menu-label">Tags</span>
+                </button>
+                <button class="mobile-menu-item" id="mobile-menu-note">
+                    <span class="mobile-menu-icon">&#128221;</span>
+                    <span class="mobile-menu-label">Note</span>
+                </button>
+                <div class="mobile-menu-item mobile-menu-font-row">
+                    <span class="mobile-menu-icon">A</span>
+                    <span class="mobile-menu-label">Font Size</span>
+                    <div class="mobile-menu-font-btns">
+                        <button id="mobile-font-decrease" aria-label="Decrease font size">A−</button>
+                        <button id="mobile-font-increase" aria-label="Increase font size">A+</button>
+                    </div>
+                </div>
+            </nav>
         </div>
     </div>
 
