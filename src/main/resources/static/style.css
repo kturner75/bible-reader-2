@@ -421,6 +421,11 @@ body {
     background: var(--color-header-bg);
 }
 
+.search-result-item:focus {
+    background: var(--color-highlight);
+    outline: none;
+}
+
 .search-result-ref {
     font-weight: 600;
     color: var(--color-link);
@@ -1420,6 +1425,55 @@ body {
         height: var(--header-height);
         align-items: center;
         padding: 0 0.6rem;
+    }
+
+    /* Mobile search cancel button — hidden by default, shown via JS */
+    #mobile-search-cancel {
+        display: none;
+    }
+
+    /* Mobile search active: prominent fixed bar covers the header */
+    body.mobile-search-open #search-input {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 4rem;          /* leave room for Cancel button */
+        height: var(--header-height);
+        width: auto;
+        max-width: none;
+        z-index: 101;
+        border: none;
+        border-bottom: 2px solid var(--color-link);
+        border-radius: 0;
+        padding: 0 1rem;
+        font-family: var(--font-primary);
+        font-size: 1rem;
+        background: white;
+        color: var(--color-text);
+        box-shadow: 0 2px 8px rgba(44, 36, 22, 0.15);
+    }
+
+    body.mobile-search-open #mobile-search-cancel {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 4rem;
+        height: var(--header-height);
+        z-index: 101;
+        background: white;
+        border: none;
+        border-bottom: 2px solid var(--color-link);
+        font-family: var(--font-primary);
+        font-size: 0.9rem;
+        color: var(--color-link);
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(44, 36, 22, 0.15);
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .nav-controls {
