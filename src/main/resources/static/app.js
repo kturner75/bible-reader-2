@@ -52,7 +52,9 @@
         audioSpeed: 1.0,           // 1, 1.25, 1.5, 1.75, 2
         audioPendingChapter: null, // { book, chapter } if chapter announcement pending
         audioWasPlayingBeforeModal: false,  // Track if audio was playing when modal opened
-        mobileMenuOpen: false              // Mobile quick-actions sheet
+        mobileMenuOpen: false,             // Mobile quick-actions sheet
+        // Auth
+        currentUser: null                  // null = anonymous; object = { id, email, displayName }
     };
 
     // ============================================
@@ -119,7 +121,12 @@
         mobileMenuOverlay: document.getElementById('mobile-menu-overlay'),
         mobileMenuBookmarkLabel: document.getElementById('mobile-menu-bookmark-label'),
         // Mobile search cancel button
-        mobileSearchCancel: document.getElementById('mobile-search-cancel')
+        mobileSearchCancel: document.getElementById('mobile-search-cancel'),
+        // Auth header area
+        authHeader: document.getElementById('auth-header'),
+        authDisplayName: document.getElementById('auth-display-name'),
+        authLogoutBtn: document.getElementById('auth-logout-btn'),
+        authSigninLink: document.getElementById('auth-signin-link')
     };
 
     // ============================================
@@ -139,6 +146,16 @@
     // Caches resolved CDN URLs so each verse/chapter only needs one API round-trip ever.
     // Key format: 'verse:{id}' or 'chapter:{book}:{chapter}'
     const audioUrlCache = new Map();
+
+    // ============================================
+    // Library API Helper
+    // ============================================
+
+    async function libApi(url, options = {}) {
+        const res = await fetch(url, { credentials: 'include', ...options });
+        if (!res.ok) throw new Error(`API ${res.status} for ${url}`);
+        return res.status === 204 ? null : res.json();
+    }
 
     // ============================================
     // Tag Colors
@@ -1322,6 +1339,128 @@
         localStorage.setItem(STORAGE_KEYS.TAGS, JSON.stringify(state.tags));
     }
 
+    async function loadLibraryFromApi() {
+        try {
+            const [verses, tags] = await Promise.all([
+                libApi('/api/library/verses'),
+                libApi('/api/library/tags')
+            ]);
+            state.savedVerses = {};
+            verses.forEach(v => {
+                state.savedVerses[v.verseId] = {
+                    id: v.verseId,
+                    savedAt: new Date(v.savedAt).getTime(),
+                    tagIds: v.tagIds.map(String),
+                    note: v.note || ''
+                };
+            });
+            state.tags = {};
+            tags.forEach(t => {
+                state.tags[t.id] = {
+                    id: t.id,
+                    name: t.name,
+                    colorIndex: t.colorIndex,
+                    createdAt: new Date(t.createdAt).getTime()
+                };
+            });
+        } catch (err) {
+            console.error('Failed to load library from API:', err);
+        }
+    }
+
+    /**
+     * One-time migration: syncs any localStorage saved verses/tags to the DB.
+     * Called at login time with a snapshot captured before loadLibraryFromApi() overwrites state.
+     * After migration, clears localStorage so data isn't duplicated on subsequent logins.
+     */
+    async function migrateLocalStorageToDb(localVerses, localTags) {
+        if (Object.keys(localVerses).length === 0 && Object.keys(localTags).length === 0) {
+            return; // nothing to migrate
+        }
+
+        // Map old localStorage tag id ("tag-TIMESTAMP") → new DB UUID
+        const tagIdMap = {};
+
+        // 1. Migrate tags (skip if a same-named tag already exists in DB)
+        for (const localTag of Object.values(localTags)) {
+            const existing = Object.values(state.tags).find(
+                t => t.name.toLowerCase() === localTag.name.toLowerCase()
+            );
+            if (existing) {
+                tagIdMap[localTag.id] = existing.id;
+            } else {
+                try {
+                    const tag = await libApi('/api/library/tags', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: localTag.name, colorIndex: localTag.colorIndex })
+                    });
+                    state.tags[tag.id] = {
+                        id: tag.id,
+                        name: tag.name,
+                        colorIndex: tag.colorIndex,
+                        createdAt: new Date(tag.createdAt).getTime()
+                    };
+                    tagIdMap[localTag.id] = tag.id;
+                } catch (err) {
+                    console.error('Migration: failed to create tag', localTag.name, err);
+                }
+            }
+        }
+
+        // 2. Migrate verses not already in DB
+        for (const localVerse of Object.values(localVerses)) {
+            const verseId = localVerse.id;
+            if (state.savedVerses[verseId]) continue; // already in DB
+
+            try {
+                const sv = await libApi('/api/library/verses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ verseId })
+                });
+                state.savedVerses[verseId] = {
+                    id: sv.verseId,
+                    savedAt: new Date(sv.savedAt).getTime(),
+                    tagIds: [],
+                    note: sv.note || ''
+                };
+
+                // Migrate tag links (using remapped UUIDs)
+                for (const localTagId of (localVerse.tagIds || [])) {
+                    const dbTagId = tagIdMap[localTagId];
+                    if (!dbTagId) continue;
+                    try {
+                        await libApi(`/api/library/verses/${verseId}/tags/${dbTagId}`, { method: 'POST' });
+                        state.savedVerses[verseId].tagIds.push(dbTagId);
+                    } catch (err) {
+                        console.error('Migration: failed to add tag to verse', verseId, err);
+                    }
+                }
+
+                // Migrate note
+                if (localVerse.note) {
+                    try {
+                        await libApi(`/api/library/verses/${verseId}/note`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ note: localVerse.note })
+                        });
+                        state.savedVerses[verseId].note = localVerse.note;
+                    } catch (err) {
+                        console.error('Migration: failed to migrate note for verse', verseId, err);
+                    }
+                }
+            } catch (err) {
+                console.error('Migration: failed to save verse', verseId, err);
+            }
+        }
+
+        // Clear localStorage — data now lives in DB
+        localStorage.removeItem(STORAGE_KEYS.SAVED_VERSES);
+        localStorage.removeItem(STORAGE_KEYS.TAGS);
+    }
+
     // ============================================
     // Saved Verses Core Functions
     // ============================================
@@ -1330,19 +1469,51 @@
         return !!state.savedVerses[verseId];
     }
 
-    function toggleSaveVerse(verseId) {
-        if (state.savedVerses[verseId]) {
-            delete state.savedVerses[verseId];
+    async function toggleSaveVerse(verseId) {
+        if (state.currentUser) {
+            if (state.savedVerses[verseId]) {
+                // Optimistic delete
+                delete state.savedVerses[verseId];
+                renderPage();
+                try {
+                    await libApi(`/api/library/verses/${verseId}`, { method: 'DELETE' });
+                } catch (err) {
+                    console.error('Failed to unsave verse:', err);
+                }
+            } else {
+                // Save via API — need the server-assigned savedAt timestamp
+                try {
+                    const sv = await libApi('/api/library/verses', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ verseId })
+                    });
+                    state.savedVerses[verseId] = {
+                        id: sv.verseId,
+                        savedAt: new Date(sv.savedAt).getTime(),
+                        tagIds: sv.tagIds.map(String),
+                        note: sv.note || ''
+                    };
+                } catch (err) {
+                    console.error('Failed to save verse:', err);
+                }
+                renderPage();
+            }
         } else {
-            state.savedVerses[verseId] = {
-                id: verseId,
-                savedAt: Date.now(),
-                tagIds: [],
-                note: ''
-            };
+            // Anonymous — localStorage only
+            if (state.savedVerses[verseId]) {
+                delete state.savedVerses[verseId];
+            } else {
+                state.savedVerses[verseId] = {
+                    id: verseId,
+                    savedAt: Date.now(),
+                    tagIds: [],
+                    note: ''
+                };
+            }
+            saveSavedVerses();
+            renderPage();
         }
-        saveSavedVerses();
-        renderPage();
     }
 
     function getNextTagColorIndex() {
@@ -1353,13 +1524,14 @@
         return Object.keys(state.tags).length % TAG_COLORS.length;
     }
 
-    function createTag(name) {
+    async function createTag(name) {
+        const trimmed = name.trim().substring(0, 20);
+        if (!trimmed) return null;
+
         if (Object.keys(state.tags).length >= 50) {
             alert('Maximum of 50 tags reached');
             return null;
         }
-        const trimmed = name.trim().substring(0, 20);
-        if (!trimmed) return null;
 
         // Check for duplicate name
         const exists = Object.values(state.tags).some(t =>
@@ -1370,15 +1542,36 @@
             return null;
         }
 
-        const id = 'tag-' + Date.now();
-        state.tags[id] = {
-            id,
-            name: trimmed,
-            colorIndex: getNextTagColorIndex(),
-            createdAt: Date.now()
-        };
-        saveTags();
-        return id;
+        if (state.currentUser) {
+            try {
+                const colorIndex = getNextTagColorIndex();
+                const tag = await libApi('/api/library/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: trimmed, colorIndex })
+                });
+                state.tags[tag.id] = {
+                    id: tag.id,
+                    name: tag.name,
+                    colorIndex: tag.colorIndex,
+                    createdAt: new Date(tag.createdAt).getTime()
+                };
+                return tag.id;
+            } catch (err) {
+                console.error('Failed to create tag:', err);
+                return null;
+            }
+        } else {
+            const id = 'tag-' + Date.now();
+            state.tags[id] = {
+                id,
+                name: trimmed,
+                colorIndex: getNextTagColorIndex(),
+                createdAt: Date.now()
+            };
+            saveTags();
+            return id;
+        }
     }
 
     function addTagToVerse(verseId, tagId) {
@@ -1390,7 +1583,12 @@
         }
         if (!verse.tagIds.includes(tagId)) {
             verse.tagIds.push(tagId);
-            saveSavedVerses();
+            if (state.currentUser) {
+                libApi(`/api/library/verses/${verseId}/tags/${tagId}`, { method: 'POST' })
+                    .catch(err => console.error('Failed to add tag to verse:', err));
+            } else {
+                saveSavedVerses();
+            }
         }
     }
 
@@ -1398,14 +1596,27 @@
         const verse = state.savedVerses[verseId];
         if (!verse) return;
         verse.tagIds = verse.tagIds.filter(id => id !== tagId);
-        saveSavedVerses();
+        if (state.currentUser) {
+            libApi(`/api/library/verses/${verseId}/tags/${tagId}`, { method: 'DELETE' })
+                .catch(err => console.error('Failed to remove tag from verse:', err));
+        } else {
+            saveSavedVerses();
+        }
     }
 
     function setVerseNote(verseId, note) {
         const verse = state.savedVerses[verseId];
         if (!verse) return;
         verse.note = note.substring(0, 500);
-        saveSavedVerses();
+        if (state.currentUser) {
+            libApi(`/api/library/verses/${verseId}/note`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ note: verse.note })
+            }).catch(err => console.error('Failed to update note:', err));
+        } else {
+            saveSavedVerses();
+        }
     }
 
     // ============================================
@@ -1737,10 +1948,10 @@
     // Tag Picker
     // ============================================
 
-    function openTagPicker(verseId) {
+    async function openTagPicker(verseId) {
         stopAudioOnUIEvent();
         if (!state.savedVerses[verseId]) {
-            toggleSaveVerse(verseId);
+            await toggleSaveVerse(verseId);
         }
         state.tagPickerVerseId = verseId;
         state.tagPickerOpen = true;
@@ -1819,10 +2030,10 @@
     // Note Editor
     // ============================================
 
-    function openNoteEditor(verseId) {
+    async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
         if (!state.savedVerses[verseId]) {
-            toggleSaveVerse(verseId);
+            await toggleSaveVerse(verseId);
         }
         state.noteEditorVerseId = verseId;
         state.noteEditorOpen = true;
@@ -2477,6 +2688,63 @@
     }
 
     // ============================================
+    // Auth
+    // ============================================
+
+    async function checkAuthState() {
+        try {
+            const res = await fetch('/api/auth/me', { credentials: 'include' });
+            if (res.ok) {
+                state.currentUser = await res.json();
+                // Snapshot localStorage data before loadLibraryFromApi() overwrites state
+                const localVerses = { ...state.savedVerses };
+                const localTags = { ...state.tags };
+                await loadLibraryFromApi();
+                if (!state.currentUser.localStorageMigrated) {
+                    // One-time migration: sync whatever localStorage data existed at login time
+                    await migrateLocalStorageToDb(localVerses, localTags);
+                    // Mark migration complete on the server so it never runs again for this account
+                    await fetch('/api/auth/me/migration-complete', {
+                        method: 'POST', credentials: 'include'
+                    }).catch(() => { /* non-fatal */ });
+                    state.currentUser.localStorageMigrated = true;
+                }
+                updateAuthHeader();
+                renderPage(); // re-render with merged DB + migrated data
+            } else {
+                state.currentUser = null;
+                updateAuthHeader();
+            }
+        } catch (_) {
+            state.currentUser = null;
+            updateAuthHeader();
+        }
+    }
+
+    function updateAuthHeader() {
+        const user = state.currentUser;
+        if (user) {
+            elements.authHeader.hidden = false;
+            elements.authSigninLink.hidden = true;
+            elements.authDisplayName.textContent = user.displayName || user.email;
+            elements.authLogoutBtn.onclick = async () => {
+                try {
+                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                } catch (_) { /* ignore */ }
+                state.currentUser = null;
+                updateAuthHeader();
+                // Revert to localStorage data for anonymous state
+                loadSavedVerses();
+                loadTags();
+                renderPage();
+            };
+        } else {
+            elements.authHeader.hidden = true;
+            elements.authSigninLink.hidden = false;
+        }
+    }
+
+    // ============================================
     // Initialization
     // ============================================
 
@@ -2490,6 +2758,9 @@
             loadSavedVerses();
             loadTags();
             loadAudioSpeed();
+
+            // Check auth state (fire-and-forget — doesn't block page load)
+            checkAuthState();
 
             // Check TTS status
             await checkTtsStatus();

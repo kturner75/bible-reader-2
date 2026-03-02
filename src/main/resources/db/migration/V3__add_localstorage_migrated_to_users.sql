@@ -1,0 +1,2 @@
+ALTER TABLE users
+    ADD COLUMN localstorage_migrated BOOLEAN NOT NULL DEFAULT FALSE;

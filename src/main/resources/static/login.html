@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — KJV Bible Reader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-brand">
+            <a href="/">KJV Bible Reader</a>
+        </div>
+
+        <div class="auth-card">
+            <h2>Sign In</h2>
+
+            <a href="/oauth2/authorization/google" class="google-btn">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo">
+                Sign in with Google
+            </a>
+
+            <div class="auth-divider"><span>or</span></div>
+
+            <form class="auth-form" id="login-form" novalidate>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email"
+                           id="email"
+                           name="username"
+                           autocomplete="email"
+                           required
+                           autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password"
+                           id="password"
+                           name="password"
+                           autocomplete="current-password"
+                           required>
+                </div>
+
+                <button type="submit" class="auth-submit-btn" id="submit-btn">Sign In</button>
+
+                <div class="auth-error" id="error-msg" role="alert"></div>
+            </form>
+        </div>
+
+        <div class="auth-footer">
+            Don't have an account? <a href="/register.html">Register</a>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const form = document.getElementById('login-form');
+            const submitBtn = document.getElementById('submit-btn');
+            const errorMsg = document.getElementById('error-msg');
+
+            // Show error if Google OAuth failed
+            if (new URLSearchParams(window.location.search).get('error') === 'google') {
+                showError('Google sign-in failed. Please try again.');
+            }
+
+            function showError(msg) {
+                errorMsg.textContent = msg;
+                errorMsg.classList.add('visible');
+            }
+
+            function clearError() {
+                errorMsg.textContent = '';
+                errorMsg.classList.remove('visible');
+            }
+
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                clearError();
+
+                const email = document.getElementById('email').value.trim();
+                const password = document.getElementById('password').value;
+
+                if (!email || !password) {
+                    showError('Please enter your email and password.');
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Signing in…';
+
+                try {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'username=' + encodeURIComponent(email) +
+                              '&password=' + encodeURIComponent(password),
+                        credentials: 'include'
+                    });
+
+                    if (res.ok) {
+                        window.location.href = '/';
+                    } else {
+                        const data = await res.json().catch(() => ({}));
+                        showError(data.error || 'Invalid email or password.');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Sign In';
+                    }
+                } catch (err) {
+                    showError('Network error. Please try again.');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Sign In';
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
