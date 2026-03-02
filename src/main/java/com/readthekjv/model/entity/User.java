@@ -31,6 +31,9 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    @Column(name = "localstorage_migrated", nullable = false)
+    private boolean localStorageMigrated = false;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Tag> tags = new ArrayList<>();
 
@@ -59,6 +62,8 @@ public class User {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public boolean isLocalStorageMigrated() { return localStorageMigrated; }
+    public void setLocalStorageMigrated(boolean localStorageMigrated) { this.localStorageMigrated = localStorageMigrated; }
     public List<Tag> getTags() { return tags; }
     public List<SavedVerse> getSavedVerses() { return savedVerses; }
 }

@@ -1758,6 +1758,70 @@ body {
 }
 
 /* ============================================
+   Auth Header (index.html — Sign in / Sign out)
+   ============================================ */
+#auth-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+#auth-header[hidden] {
+    display: none;
+}
+
+#auth-display-name {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+#auth-logout-btn {
+    font-family: var(--font-primary);
+    font-size: 0.8rem;
+    padding: 2px 8px;
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+#auth-logout-btn:hover {
+    border-color: var(--color-text-muted);
+    color: var(--color-text);
+}
+
+#auth-signin-link {
+    font-family: var(--font-primary);
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color var(--transition-fast);
+}
+
+#auth-signin-link:hover {
+    color: var(--color-link);
+    text-decoration: underline;
+}
+
+/* Hide auth controls on narrow mobile — they're not in the mobile menu yet */
+@media (max-width: 600px) {
+    #auth-header,
+    #auth-signin-link {
+        display: none;
+    }
+}
+
+/* ============================================
    Print Styles
    ============================================ */
 @media print {

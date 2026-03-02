@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account — KJV Bible Reader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-brand">
+            <a href="/">KJV Bible Reader</a>
+        </div>
+
+        <div class="auth-card">
+            <h2>Create Account</h2>
+
+            <a href="/oauth2/authorization/google" class="google-btn">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo">
+                Sign up with Google
+            </a>
+
+            <div class="auth-divider"><span>or</span></div>
+
+            <form class="auth-form" id="register-form" novalidate>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email"
+                           id="email"
+                           autocomplete="email"
+                           required
+                           autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="display-name">Display Name <span style="color:var(--color-text-muted);font-size:0.8rem">(optional)</span></label>
+                    <input type="text"
+                           id="display-name"
+                           autocomplete="name"
+                           maxlength="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password <span style="color:var(--color-text-muted);font-size:0.8rem">(min 8 characters)</span></label>
+                    <input type="password"
+                           id="password"
+                           autocomplete="new-password"
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password</label>
+                    <input type="password"
+                           id="confirm-password"
+                           autocomplete="new-password"
+                           required>
+                </div>
+
+                <button type="submit" class="auth-submit-btn" id="submit-btn">Create Account</button>
+
+                <div class="auth-error" id="error-msg" role="alert"></div>
+            </form>
+        </div>
+
+        <div class="auth-footer">
+            Already have an account? <a href="/login.html">Sign in</a>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const form = document.getElementById('register-form');
+            const submitBtn = document.getElementById('submit-btn');
+            const errorMsg = document.getElementById('error-msg');
+
+            function showError(msg) {
+                errorMsg.textContent = msg;
+                errorMsg.classList.add('visible');
+            }
+
+            function clearError() {
+                errorMsg.textContent = '';
+                errorMsg.classList.remove('visible');
+            }
+
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                clearError();
+
+                const email = document.getElementById('email').value.trim();
+                const displayName = document.getElementById('display-name').value.trim();
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirm-password').value;
+
+                // Client-side validation
+                if (!email || !password) {
+                    showError('Please fill in all required fields.');
+                    return;
+                }
+                if (password.length < 8) {
+                    showError('Password must be at least 8 characters.');
+                    return;
+                }
+                if (password !== confirmPassword) {
+                    showError('Passwords do not match.');
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Creating account…';
+
+                try {
+                    // Step 1: Register
+                    const regRes = await fetch('/api/auth/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: email,
+                            password: password,
+                            displayName: displayName || null
+                        }),
+                        credentials: 'include'
+                    });
+
+                    if (!regRes.ok) {
+                        const data = await regRes.json().catch(() => ({}));
+                        if (regRes.status === 409) {
+                            showError('An account with that email already exists.');
+                        } else if (regRes.status === 400) {
+                            showError(data.message || 'Please check your information and try again.');
+                        } else {
+                            showError(data.message || 'Registration failed. Please try again.');
+                        }
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Create Account';
+                        return;
+                    }
+
+                    // Step 2: Auto-login with the new credentials
+                    const loginRes = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'username=' + encodeURIComponent(email) +
+                              '&password=' + encodeURIComponent(password),
+                        credentials: 'include'
+                    });
+
+                    if (loginRes.ok) {
+                        window.location.href = '/';
+                    } else {
+                        // Registered successfully but auto-login failed — send to login page
+                        window.location.href = '/login.html';
+                    }
+
+                } catch (err) {
+                    showError('Network error. Please try again.');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Create Account';
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
