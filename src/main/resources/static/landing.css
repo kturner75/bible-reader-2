@@ -102,18 +102,24 @@ a:hover {
 }
 
 .nav-x-link {
-    font-size: 1rem;
-    font-family: sans-serif;  /* 𝕏 glyph renders best in sans-serif */
     color: var(--color-text-muted);
     text-decoration: none;
     line-height: 1;
     display: inline-flex;
     align-items: center;
+    transition: color 150ms ease;
 }
 
 .nav-x-link:hover {
     color: var(--color-text);
     text-decoration: none;
+}
+
+.nav-x-icon {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    display: block;
 }
 
 .nav-user {
