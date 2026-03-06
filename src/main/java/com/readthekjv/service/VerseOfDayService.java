@@ -129,7 +129,9 @@ public class VerseOfDayService {
             VotdResult result = parseOpenAiResponse(responseBody);
             if (result == null) return;
 
-            Optional<Integer> verseId = bibleService.parseAndResolve(result.reference());
+            // Strip verse ranges (e.g. "4:6-7" → "4:6") — parser handles single verses only
+            String ref = result.reference().replaceAll("-\\d+$", "").trim();
+            Optional<Integer> verseId = bibleService.parseAndResolve(ref);
             if (verseId.isEmpty()) {
                 log.warn("Could not resolve KJV reference '{}' returned by OpenAI — skipping", result.reference());
                 return;
@@ -161,6 +163,7 @@ public class VerseOfDayService {
                 "(Advent, Christmas, Lent, Holy Week, Easter, Pentecost)? " +
                 "Is it a new month, new season, or notable date? " +
                 "Let the theme reflect the time of year naturally.%n" +
+                "- Choose a single verse only — never a range. Write '4:6' not '4:6-7'.%n" +
                 "- Prefer verses that are clear, complete thoughts in a single verse (not fragments).%n" +
                 "- Draw from both Old and New Testaments across the year.%n%n" +
                 "Return ONLY a JSON object with no markdown: " +
