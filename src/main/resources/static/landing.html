@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KJV Bible Reader — Read the King James Bible</title>
+    <meta name="description" content="A distraction-free King James Bible reading experience, designed like a printed book. Page-turn navigation, text-to-speech, save and tag verses.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+
+    <!-- ── Navigation ─────────────────────────────────────────────────────── -->
+    <header class="landing-nav">
+        <a href="/landing.html" class="nav-logo">
+            <span class="logo-mark">✦</span>
+            <span class="logo-text">KJV Bible Reader</span>
+        </a>
+        <nav class="nav-links" id="nav-links">
+            <!-- Populated by JS based on auth state -->
+            <a href="/register.html" class="nav-link" id="nav-register">Register</a>
+            <a href="/login.html" class="btn-nav" id="nav-signin">Sign In</a>
+        </nav>
+    </header>
+
+    <!-- ── Hero ───────────────────────────────────────────────────────────── -->
+    <section class="hero">
+        <div class="hero-inner">
+            <h1 class="hero-heading">
+                Read the<br>King James Bible
+            </h1>
+            <p class="hero-sub">
+                A distraction-free reading experience,<br>
+                designed like a printed book.
+            </p>
+            <div class="hero-cta" id="hero-cta">
+                <a href="/" class="btn-primary" id="start-btn">Start Reading</a>
+                <a href="/" class="btn-secondary hidden" id="continue-btn">
+                    Continue Reading
+                </a>
+            </div>
+        </div>
+        <div class="hero-decoration" aria-hidden="true">
+            <div class="deco-rule"></div>
+            <span class="deco-cross">✦</span>
+            <div class="deco-rule"></div>
+        </div>
+    </section>
+
+    <!-- ── Verse of the Day ───────────────────────────────────────────────── -->
+    <section class="votd-section">
+        <div class="section-label">Verse of the Day</div>
+        <div class="votd-card" id="votd-card">
+            <div class="votd-loading" id="votd-loading">
+                <span class="loading-dots">···</span>
+            </div>
+            <blockquote class="votd-verse hidden" id="votd-verse"></blockquote>
+            <p class="votd-ref hidden" id="votd-ref"></p>
+            <a href="/" class="btn-votd hidden" id="votd-link">Read this passage →</a>
+        </div>
+    </section>
+
+    <!-- ── Features ───────────────────────────────────────────────────────── -->
+    <section class="features-section">
+        <div class="section-label">Features</div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📖</div>
+                <h3 class="feature-title">Page-Turn Navigation</h3>
+                <p class="feature-desc">Navigate like a physical Bible. Two-column layout, no scrolling — just clean, focused pages that turn with a keystroke or swipe.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔖</div>
+                <h3 class="feature-title">Save &amp; Tag Verses</h3>
+                <p class="feature-desc">Build a personal library of saved verses. Organize them with color-coded tags, add notes, and filter your collection any way you like.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔊</div>
+                <h3 class="feature-title">Listen as You Read</h3>
+                <p class="feature-desc">High-quality text-to-speech narration lets you listen to the Scripture while reading along, verse by verse or chapter by chapter.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+    <footer class="landing-footer">
+        <div class="footer-inner">
+            <span class="footer-copy">© 2026 readthekjv.com</span>
+            <nav class="footer-links">
+                <a href="/">Read</a>
+                <a href="/login.html">Sign In</a>
+                <a href="/register.html">Register</a>
+            </nav>
+        </div>
+    </footer>
+
+    <script>
+    (async function () {
+        'use strict';
+
+        const CURRENT_VERSE_KEY = 'kjv_current_verse';
+
+        // ── Auth state ────────────────────────────────────────────────────
+        let currentUser = null;
+        try {
+            const res = await fetch('/api/auth/me');
+            if (res.ok) {
+                currentUser = await res.json();
+            }
+        } catch (_) { /* offline or unauthenticated — no-op */ }
+
+        if (currentUser) {
+            const navLinks = document.getElementById('nav-links');
+            const displayName = currentUser.name || currentUser.email || 'My Account';
+            navLinks.innerHTML = `
+                <span class="nav-user">${escapeHtml(displayName)}</span>
+                <a href="/" class="btn-nav">Open Reader</a>
+                <button class="nav-link nav-signout" id="nav-signout">Sign Out</button>
+            `;
+            document.getElementById('nav-signout').addEventListener('click', async () => {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.reload();
+            });
+        }
+
+        // ── Continue Reading button ───────────────────────────────────────
+        const savedVerseId = localStorage.getItem(CURRENT_VERSE_KEY);
+        if (savedVerseId && parseInt(savedVerseId, 10) > 1) {
+            try {
+                const res = await fetch(`/api/verses?from=${savedVerseId}&count=1`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const verses = data.verses || data;
+                    if (verses && verses.length > 0) {
+                        const v = verses[0];
+                        const btn = document.getElementById('continue-btn');
+                        btn.href = `/?v=${savedVerseId}`;
+                        btn.textContent = `Continue in ${v.book} ${v.chapter} →`;
+                        btn.classList.remove('hidden');
+                        // Also de-emphasize the start button when continuing
+                        document.getElementById('start-btn').classList.add('btn-secondary-soft');
+                        document.getElementById('start-btn').classList.remove('btn-primary');
+                    }
+                }
+            } catch (_) { /* silently ignore — start button remains primary */ }
+        }
+
+        // ── Verse of the Day ──────────────────────────────────────────────
+        // Slice 2 will implement GET /api/verse-of-day (AI-generated, daily).
+        // For now, fall back to a curated featured verse.
+        let votdVerseId = null;
+        let votdBlurb = null;
+
+        try {
+            const res = await fetch('/api/verse-of-day');
+            if (res.ok) {
+                const data = await res.json();
+                votdVerseId = data.verseId;
+                votdBlurb   = data.blurb || null;
+            }
+        } catch (_) { /* not yet implemented */ }
+
+        // If no verse-of-day endpoint yet, pick today's verse from a curated list
+        if (!votdVerseId) {
+            const curated = [
+                { ref: 'John 3:16' },
+                { ref: 'Psalm 23:1' },
+                { ref: 'Proverbs 3:5' },
+                { ref: 'Isaiah 40:31' },
+                { ref: 'Romans 8:28' },
+                { ref: 'Philippians 4:13' },
+                { ref: 'Genesis 1:1' },
+                { ref: 'Psalm 119:105' },
+                { ref: 'Matthew 5:3' },
+                { ref: 'John 1:1' },
+                { ref: '2 Timothy 3:16' },
+                { ref: 'Hebrews 11:1' },
+                { ref: 'Revelation 21:4' },
+                { ref: 'Romans 3:23' },
+                { ref: 'Ephesians 2:8' },
+                { ref: 'Matthew 11:28' },
+                { ref: 'Psalm 46:1' },
+                { ref: 'John 14:6' },
+                { ref: 'Romans 5:8' },
+                { ref: '1 Corinthians 13:4' },
+                { ref: 'Joshua 1:9' },
+                { ref: 'Jeremiah 29:11' },
+                { ref: 'Psalm 91:1' },
+                { ref: 'Lamentations 3:22' },
+                { ref: 'Micah 6:8' },
+                { ref: 'Mark 16:15' },
+                { ref: 'Acts 1:8' },
+                { ref: 'Galatians 5:22' },
+            ];
+            // Deterministic daily rotation based on epoch day
+            const dayIndex = Math.floor(Date.now() / 86400000) % curated.length;
+            const chosen = curated[dayIndex];
+            try {
+                const res = await fetch(`/api/reference?ref=${encodeURIComponent(chosen.ref)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    votdVerseId = data.id || data.verseId || data.verse_id;
+                }
+            } catch (_) { /* silently ignore */ }
+        }
+
+        if (votdVerseId) {
+            try {
+                const res = await fetch(`/api/verses?from=${votdVerseId}&count=1`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const verses = data.verses || data;
+                    if (verses && verses.length > 0) {
+                        const v = verses[0];
+                        document.getElementById('votd-loading').classList.add('hidden');
+                        const verseEl = document.getElementById('votd-verse');
+                        verseEl.textContent = v.text;
+                        verseEl.classList.remove('hidden');
+                        const refEl = document.getElementById('votd-ref');
+                        refEl.textContent = `${v.book} ${v.chapter}:${v.verse}`;
+                        refEl.classList.remove('hidden');
+                        const linkEl = document.getElementById('votd-link');
+                        linkEl.href = `/?v=${votdVerseId}`;
+                        linkEl.classList.remove('hidden');
+                        if (votdBlurb) {
+                            const blurbEl = document.createElement('p');
+                            blurbEl.className = 'votd-blurb';
+                            blurbEl.textContent = votdBlurb;
+                            document.getElementById('votd-card').insertBefore(blurbEl, linkEl);
+                        }
+                    }
+                }
+            } catch (_) { /* silently hide verse of day section */ }
+        }
+
+        if (votdVerseId === null) {
+            // Nothing loaded — hide the whole section gracefully
+            document.getElementById('votd-loading').textContent = '';
+        }
+
+        // ── Utilities ─────────────────────────────────────────────────────
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.appendChild(document.createTextNode(str));
+            return d.innerHTML;
+        }
+
+    })();
+    </script>
+
+</body>
+</html>
