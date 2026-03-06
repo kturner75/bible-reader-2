@@ -36,6 +36,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/", "/index.html",
+                    "/landing.html", "/landing.css",       // public landing page
                     "/login.html", "/register.html",
                     "/auth.css",
                     "/style.css", "/app.js",
@@ -43,7 +44,8 @@ public class SecurityConfig {
                     "/api/verses", "/api/books/**", "/api/search",
                     "/api/reference", "/api/navigate/**",
                     "/api/audio/**", "/api/tts/status",   // audio + TTS feature detection
-                    "/api/auth/**"
+                    "/api/auth/**",
+                    "/api/verse-of-day"                    // public — same verse shown to all visitors
                 ).permitAll()
                 .anyRequest().authenticated()
             )
