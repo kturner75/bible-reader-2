@@ -115,6 +115,16 @@ public class LibraryService {
         return TagResponse.from(tagRepository.save(tag));
     }
 
+    /**
+     * Deletes a tag and all its verse associations (cascade handled by DB).
+     * Idempotent — no-op if the tag doesn't exist or doesn't belong to this user.
+     */
+    public void deleteTag(Long userId, UUID tagId) {
+        tagRepository.findById(tagId)
+                .filter(t -> t.getUser().getId().equals(userId))
+                .ifPresent(tagRepository::delete);
+    }
+
     // ─── Tag ↔ Verse Links ────────────────────────────────────────────────────
 
     /**

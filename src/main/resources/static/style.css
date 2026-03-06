@@ -1153,6 +1153,27 @@ body {
     flex: 1;
 }
 
+.tag-delete-btn {
+    opacity: 0;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: opacity 0.15s, color 0.15s;
+}
+
+.tag-checkbox-item:hover .tag-delete-btn {
+    opacity: 1;
+}
+
+.tag-delete-btn:hover {
+    color: var(--color-text);
+}
+
 .tag-create {
     display: flex;
     gap: 0.5rem;

@@ -1604,6 +1604,24 @@
         }
     }
 
+    function deleteTag(tagId) {
+        // Remove from tag registry
+        delete state.tags[tagId];
+        // Scrub tagId from every saved verse
+        Object.values(state.savedVerses).forEach(v => {
+            v.tagIds = v.tagIds.filter(id => id !== tagId);
+        });
+        if (state.currentUser) {
+            libApi(`/api/library/tags/${tagId}`, { method: 'DELETE' })
+                .catch(err => console.error('Failed to delete tag:', err));
+        } else {
+            saveTags();
+            saveSavedVerses();
+        }
+        renderTagPicker();
+        renderPage();
+    }
+
     function setVerseNote(verseId, note) {
         const verse = state.savedVerses[verseId];
         if (!verse) return;
@@ -1993,6 +2011,7 @@
                                ${isDisabled ? 'disabled' : ''}>
                         <span class="tag-color-dot"></span>
                         <span class="tag-name">${escapeHtml(tag.name)}</span>
+                        <button class="tag-delete-btn" data-tag-id="${tag.id}" title="Delete tag" aria-label="Delete tag ${escapeHtml(tag.name)}">×</button>
                     </label>
                 `;
             }).join('');
@@ -2010,14 +2029,26 @@
                     renderPage();
                 });
             });
+
+            // Delete tag handlers
+            elements.tagList.querySelectorAll('.tag-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const tagId = btn.dataset.tagId;
+                    const tagName = state.tags[tagId]?.name || 'this tag';
+                    if (confirm(`Delete tag "${tagName}"? It will be removed from all saved verses.`)) {
+                        deleteTag(tagId);
+                    }
+                });
+            });
         }
     }
 
-    function handleCreateTag() {
+    async function handleCreateTag() {
         const name = elements.newTagInput.value.trim();
         if (!name) return;
 
-        const tagId = createTag(name);
+        const tagId = await createTag(name);
         if (tagId && state.tagPickerVerseId) {
             addTagToVerse(state.tagPickerVerseId, tagId);
             elements.newTagInput.value = '';

@@ -79,6 +79,13 @@ public class LibraryController {
         return libraryService.createTag(resolveUser(ud).getId(), req.name(), req.colorIndex());
     }
 
+    @DeleteMapping("/tags/{tagId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTag(@AuthenticationPrincipal UserDetails ud,
+                          @PathVariable UUID tagId) {
+        libraryService.deleteTag(resolveUser(ud).getId(), tagId);
+    }
+
     // ─── Tag ↔ Verse Links ────────────────────────────────────────────────────
 
     @PostMapping("/verses/{verseId}/tags/{tagId}")

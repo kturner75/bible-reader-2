@@ -41,7 +41,8 @@ public class SecurityConfig {
                     "/style.css", "/app.js",
                     "/error",                              // Spring Boot error controller — must be public
                     "/api/verses", "/api/books/**", "/api/search",
-                    "/api/reference", "/api/navigate/**", "/api/audio/**",
+                    "/api/reference", "/api/navigate/**",
+                    "/api/audio/**", "/api/tts/status",   // audio + TTS feature detection
                     "/api/auth/**"
                 ).permitAll()
                 .anyRequest().authenticated()
@@ -81,14 +82,20 @@ public class SecurityConfig {
                 .loginPage("/login.html")
                 .userInfoEndpoint(info -> info.userService(oAuth2UserService))
                 .successHandler(oAuth2SuccessHandler)
-                .failureHandler((req, res, ex) -> res.sendRedirect("/login.html?error=google"))
+                .failureHandler((req, res, ex) -> {
+                    res.setStatus(HttpServletResponse.SC_FOUND);
+                    res.setHeader("Location", "/login.html?error=google");
+                })
             )
 
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
             )
 
-            // For API calls, return 401 JSON instead of redirecting to login page
+            // For API calls, return 401 JSON instead of redirecting to login page.
+            // Use relative Location header (not sendRedirect) so the browser resolves
+            // the correct protocol — sendRedirect() builds an absolute http:// URL
+            // because Nginx terminates SSL before reaching Spring Boot.
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, exception) -> {
                     if (req.getRequestURI().startsWith("/api/")) {
@@ -96,7 +103,8 @@ public class SecurityConfig {
                         res.setContentType("application/json");
                         res.getWriter().write("{\"error\":\"Unauthorized\"}");
                     } else {
-                        res.sendRedirect("/login.html");
+                        res.setStatus(HttpServletResponse.SC_FOUND);
+                        res.setHeader("Location", "/login.html");
                     }
                 })
             );
