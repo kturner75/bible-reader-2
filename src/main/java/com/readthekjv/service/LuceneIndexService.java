@@ -9,8 +9,8 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.highlight.*;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -39,8 +39,9 @@ public class LuceneIndexService {
     private DirectoryReader reader;
     private IndexSearcher searcher;
 
-    public LuceneIndexService() {
-        this.directory = new ByteBuffersDirectory();
+    public LuceneIndexService() throws IOException {
+        this.directory = FSDirectory.open(
+                java.nio.file.Files.createTempDirectory("kjv-lucene-"));
         this.analyzer = new StandardAnalyzer();
     }
 
