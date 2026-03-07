@@ -41,8 +41,8 @@
                 designed like a printed book.
             </p>
             <div class="hero-cta" id="hero-cta">
-                <a href="/" class="btn-primary" id="start-btn">Start Reading</a>
-                <a href="/" class="btn-secondary hidden" id="continue-btn">
+                <a href="/read" class="btn-primary" id="start-btn">Start Reading</a>
+                <a href="/read" class="btn-secondary hidden" id="continue-btn">
                     Continue Reading
                 </a>
             </div>
@@ -94,7 +94,7 @@
         <div class="footer-inner">
             <span class="footer-copy">© 2026 readthekjv.com</span>
             <nav class="footer-links">
-                <a href="/">Read</a>
+                <a href="/read">Read</a>
                 <a href="/login.html">Sign In</a>
                 <a href="/register.html">Register</a>
                 <a href="https://x.com/readthekjv1" target="_blank" rel="noopener">Follow on X</a>
@@ -122,7 +122,7 @@
             const displayName = currentUser.name || currentUser.email || 'My Account';
             navLinks.innerHTML = `
                 <span class="nav-user">${escapeHtml(displayName)}</span>
-                <a href="/" class="btn-nav">Open Reader</a>
+                <a href="/read" class="btn-nav">Open Reader</a>
                 <button class="nav-link nav-signout" id="nav-signout">Sign Out</button>
             `;
             document.getElementById('nav-signout').addEventListener('click', async () => {
@@ -142,7 +142,7 @@
                     if (verses && verses.length > 0) {
                         const v = verses[0];
                         const btn = document.getElementById('continue-btn');
-                        btn.href = `/?v=${savedVerseId}`;
+                        btn.href = `/read?vid=${savedVerseId}`;
                         btn.textContent = `Continue in ${v.book} ${v.chapter} →`;
                         btn.classList.remove('hidden');
                         // Also de-emphasize the start button when continuing
@@ -157,14 +157,12 @@
         // Slice 2 will implement GET /api/verse-of-day (AI-generated, daily).
         // For now, fall back to a curated featured verse.
         let votdVerseId = null;
-        let votdBlurb = null;
 
         try {
             const res = await fetch('/api/verse-of-day');
             if (res.ok) {
                 const data = await res.json();
                 votdVerseId = data.verseId;
-                votdBlurb   = data.blurb || null;
             }
         } catch (_) { /* not yet implemented */ }
 
@@ -228,14 +226,8 @@
                         refEl.textContent = `${v.book} ${v.chapter}:${v.verse}`;
                         refEl.classList.remove('hidden');
                         const linkEl = document.getElementById('votd-link');
-                        linkEl.href = `/?v=${votdVerseId}`;
+                        linkEl.href = `/read?vid=${votdVerseId}`;
                         linkEl.classList.remove('hidden');
-                        if (votdBlurb) {
-                            const blurbEl = document.createElement('p');
-                            blurbEl.className = 'votd-blurb';
-                            blurbEl.textContent = votdBlurb;
-                            document.getElementById('votd-card').insertBefore(blurbEl, linkEl);
-                        }
                     }
                 }
             } catch (_) { /* silently hide verse of day section */ }
