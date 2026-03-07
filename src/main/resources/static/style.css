@@ -615,6 +615,18 @@ body {
 }
 
 /* ============================================
+   Memorized Verse Indicator
+   ============================================ */
+.verse.memorized .verse-number::after {
+    content: '\25C6';   /* ♦ filled diamond */
+    font-size: 0.55em;
+    vertical-align: super;
+    margin-left: 0.2em;
+    color: #7b5e3a;
+    opacity: 0.7;
+}
+
+/* ============================================
    Library Modal (Full-Screen Saved Verses)
    ============================================ */
 .library-overlay {
@@ -1387,6 +1399,174 @@ body {
 }
 
 /* ============================================
+   Memorization Queue Modal
+   ============================================ */
+.memorization-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--color-overlay-bg);
+    z-index: 250;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.memorization-overlay[hidden] {
+    display: none;
+}
+
+.memorization-modal {
+    background: var(--color-bg);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 700px;
+    height: 80vh;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.memorization-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.memorization-header h2 {
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+#memorization-close {
+    font-size: 1.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: 0.25rem;
+    line-height: 1;
+}
+
+#memorization-close:hover {
+    color: var(--color-text);
+}
+
+.memorization-results-count {
+    padding: 0.5rem 1.5rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.memorization-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+}
+
+.memorization-empty {
+    padding: 2rem 1.5rem;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-style: italic;
+    line-height: 1.6;
+}
+
+.memorization-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: background var(--transition-normal);
+}
+
+.memorization-item:hover {
+    background: var(--color-highlight);
+}
+
+.memorization-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.memorization-item-ref {
+    font-weight: 500;
+    font-size: 0.95rem;
+    margin-bottom: 0.2rem;
+}
+
+.memorization-item-text {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.memorization-item-mastery {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    margin-top: 0.3rem;
+}
+
+.mastery-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-border);
+    flex-shrink: 0;
+}
+
+.memorization-item-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 1.2rem;
+    padding: 0.15rem 0.3rem;
+    line-height: 1;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+.memorization-item-remove:hover {
+    color: var(--color-text);
+}
+
+/* ============================================
+   Toast Notification
+   ============================================ */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-text);
+    color: var(--color-bg);
+    padding: 0.6rem 1.25rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    z-index: 500;
+    opacity: 1;
+    transition: opacity 400ms ease, transform 400ms ease;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.toast.toast-hiding {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0.5rem);
+}
+
+/* ============================================
    Responsive Adjustments
    ============================================ */
 
@@ -1605,6 +1785,14 @@ body {
     }
 
     .library-modal {
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        border-radius: 0;
+    }
+
+    .memorization-modal {
         width: 100%;
         height: 100%;
         max-width: none;

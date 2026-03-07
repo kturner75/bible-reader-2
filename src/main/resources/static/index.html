@@ -17,6 +17,8 @@
             <div class="left-controls">
                 <!-- Library Toggle -->
                 <button id="library-toggle" aria-label="Open saved verses library" title="Saved verses">&#9776;</button>
+                <!-- Memorization Toggle -->
+                <button id="memorization-toggle" aria-label="Open memorization queue" title="Memorization queue (m)">&#9830;</button>
 
                 <!-- Book/Chapter/Verse Dropdowns -->
                 <div class="nav-dropdowns">
@@ -132,6 +134,7 @@
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>b</kbd></span><span>Save/unsave verse</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>t</kbd></span><span>Open tag picker</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>n</kbd></span><span>Add/edit note</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>m</kbd></span><span>Memorize/unmemorize verse</span></div>
                     <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>p</kbd></span><span>Play/stop audio</span></div>
                     <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>s</kbd></span><span>Cycle audio speed</span></div>
                 </div>
@@ -252,6 +255,18 @@
         </div>
     </div>
 
+    <!-- Memorization Queue Modal -->
+    <div class="memorization-overlay" id="memorization-overlay" hidden>
+        <div class="memorization-modal">
+            <div class="memorization-header">
+                <h2>Memorization Queue</h2>
+                <button id="memorization-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="memorization-results-count" id="memorization-results-count">0 passages</div>
+            <div class="memorization-list" id="memorization-list"></div>
+        </div>
+    </div>
+
     <!-- Mobile Quick-Actions Menu -->
     <div class="mobile-menu-overlay" id="mobile-menu-overlay" hidden>
         <div class="mobile-menu-sheet">
@@ -264,6 +279,10 @@
                 <button class="mobile-menu-item" id="mobile-menu-library">
                     <span class="mobile-menu-icon">&#128278;</span>
                     <span class="mobile-menu-label">Saved Verses</span>
+                </button>
+                <button class="mobile-menu-item" id="mobile-menu-memorization">
+                    <span class="mobile-menu-icon">&#9830;</span>
+                    <span class="mobile-menu-label">Memorization</span>
                 </button>
                 <button class="mobile-menu-item" id="mobile-menu-bookmark">
                     <span class="mobile-menu-icon">&#9998;</span>
