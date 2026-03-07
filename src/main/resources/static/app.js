@@ -53,6 +53,9 @@
         audioPendingChapter: null, // { book, chapter } if chapter announcement pending
         audioWasPlayingBeforeModal: false,  // Track if audio was playing when modal opened
         mobileMenuOpen: false,             // Mobile quick-actions sheet
+        // Memorization
+        memorizationOpen: false,           // memorization queue modal state
+        memorizedPassages: {},             // { naturalKey: entryId } e.g. { "26930": "uuid" }
         // Auth
         currentUser: null                  // null = anonymous; object = { id, email, displayName }
     };
@@ -126,7 +129,13 @@
         authHeader: document.getElementById('auth-header'),
         authDisplayName: document.getElementById('auth-display-name'),
         authLogoutBtn: document.getElementById('auth-logout-btn'),
-        authSigninLink: document.getElementById('auth-signin-link')
+        authSigninLink: document.getElementById('auth-signin-link'),
+        // Memorization queue modal
+        memorizationToggle: document.getElementById('memorization-toggle'),
+        memorizationOverlay: document.getElementById('memorization-overlay'),
+        memorizationClose: document.getElementById('memorization-close'),
+        memorizationResultsCount: document.getElementById('memorization-results-count'),
+        memorizationList: document.getElementById('memorization-list')
     };
 
     // ============================================
@@ -155,6 +164,27 @@
         const res = await fetch(url, { credentials: 'include', ...options });
         if (!res.ok) throw new Error(`API ${res.status} for ${url}`);
         return res.status === 204 ? null : res.json();
+    }
+
+    function buildNaturalKey(fromVerseId, toVerseId) {
+        return fromVerseId === toVerseId
+            ? String(fromVerseId)
+            : `${fromVerseId}:${toVerseId}`;
+    }
+
+    let _toastTimer = null;
+    function showToast(message, durationMs = 2500) {
+        const existing = document.querySelector('.toast');
+        if (existing) existing.remove();
+        if (_toastTimer) clearTimeout(_toastTimer);
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        _toastTimer = setTimeout(() => {
+            toast.classList.add('toast-hiding');
+            setTimeout(() => toast.remove(), 400);
+        }, durationMs);
     }
 
     // ============================================
@@ -686,9 +716,14 @@
     /**
      * Create HTML for a single verse.
      */
+    function isVerseMemorized(verseId) {
+        return !!state.memorizedPassages[buildNaturalKey(verseId, verseId)];
+    }
+
     function createVerseHTML(verse, isCurrent) {
         const currentClass = isCurrent ? ' current' : '';
         const savedClass = isVerseSaved(verse.id) ? ' saved' : '';
+        const memorizedClass = isVerseMemorized(verse.id) ? ' memorized' : '';
 
         let tagDotsHtml = '';
         const savedVerse = state.savedVerses[verse.id];
@@ -703,7 +738,7 @@
         }
 
         return `
-            <p class="verse${currentClass}${savedClass}" data-verse-id="${verse.id}">
+            <p class="verse${currentClass}${savedClass}${memorizedClass}" data-verse-id="${verse.id}">
                 ${tagDotsHtml}
                 <span class="verse-number">${verse.verse}</span>
                 <span class="verse-text">${escapeHtml(verse.text)}</span>
@@ -1368,6 +1403,18 @@
         }
     }
 
+    async function loadMemorizationFromApi() {
+        try {
+            const entries = await libApi('/api/memorization/queue');
+            state.memorizedPassages = {};
+            entries.forEach(entry => {
+                state.memorizedPassages[entry.passage.naturalKey] = entry.id;
+            });
+        } catch (err) {
+            console.error('Failed to load memorization queue:', err);
+        }
+    }
+
     /**
      * One-time migration: syncs any localStorage saved verses/tags to the DB.
      * Called at login time with a snapshot captured before loadLibraryFromApi() overwrites state.
@@ -1513,6 +1560,38 @@
             }
             saveSavedVerses();
             renderPage();
+        }
+    }
+
+    async function toggleMemorizeVerse(verseId) {
+        if (!state.currentUser) {
+            showToast('Sign in to memorize verses');
+            return;
+        }
+        const key = buildNaturalKey(verseId, verseId);
+        const entryId = state.memorizedPassages[key];
+        if (entryId) {
+            // Optimistic remove
+            delete state.memorizedPassages[key];
+            renderPage();
+            try {
+                await libApi(`/api/memorization/queue/${entryId}`, { method: 'DELETE' });
+            } catch (err) {
+                console.error('Failed to remove from memorization queue:', err);
+            }
+        } else {
+            // Add via API — need server-assigned entry ID
+            try {
+                const entry = await libApi('/api/memorization/queue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fromVerseId: verseId, toVerseId: verseId })
+                });
+                state.memorizedPassages[entry.passage.naturalKey] = entry.id;
+                renderPage();
+            } catch (err) {
+                console.error('Failed to add to memorization queue:', err);
+            }
         }
     }
 
@@ -1775,6 +1854,99 @@
         if (categoryCombo) categoryCombo.clear();
         if (bookCombo) bookCombo.clear();
         if (tagCombo) tagCombo.clear();
+    }
+
+    async function openMemorization() {
+        state.audioWasPlayingBeforeModal = state.audioPlaying;
+        stopAudioOnUIEvent();
+        state.memorizationOpen = true;
+        elements.memorizationOverlay.hidden = false;
+        await renderMemorizationList();
+    }
+
+    function closeMemorization() {
+        state.memorizationOpen = false;
+        elements.memorizationOverlay.hidden = true;
+    }
+
+    async function renderMemorizationList() {
+        let entries;
+        try {
+            entries = await libApi('/api/memorization/queue');
+        } catch (_) {
+            entries = [];
+        }
+
+        const count = entries.length;
+        elements.memorizationResultsCount.textContent =
+            count === 0 ? '0 passages' :
+            count === 1 ? '1 passage' :
+            `${count} passages`;
+
+        if (count === 0) {
+            elements.memorizationList.innerHTML =
+                '<p class="memorization-empty">No passages memorized yet.<br>' +
+                'Press <kbd>m</kbd> while reading to add the current verse.</p>';
+            return;
+        }
+
+        const masteryDotsHtml = Array.from({ length: 5 }, () =>
+            '<span class="mastery-dot"></span>').join('');
+
+        elements.memorizationList.innerHTML = entries.map(entry => `
+            <div class="memorization-item" data-entry-id="${escapeHtml(entry.id)}"
+                 data-verse-id="${entry.passage.fromVerseId}">
+                <div class="memorization-item-body">
+                    <div class="memorization-item-ref">${escapeHtml(entry.fromVerseRef)}</div>
+                    <div class="memorization-item-text">${escapeHtml(entry.fromVerseText)}</div>
+                    <div class="memorization-item-mastery">${masteryDotsHtml}</div>
+                </div>
+                <button class="memorization-item-remove" data-entry-id="${escapeHtml(entry.id)}"
+                        aria-label="Remove from queue">&times;</button>
+            </div>
+        `).join('');
+
+        // Navigate on row click
+        elements.memorizationList.querySelectorAll('.memorization-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('.memorization-item-remove')) return;
+                const verseId = parseInt(item.dataset.verseId, 10);
+                closeMemorization();
+                goToVerse(verseId);
+            });
+        });
+
+        // Remove buttons
+        elements.memorizationList.querySelectorAll('.memorization-item-remove').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const entryId = btn.dataset.entryId;
+                // Remove from local state map
+                Object.keys(state.memorizedPassages).forEach(key => {
+                    if (state.memorizedPassages[key] === entryId) {
+                        delete state.memorizedPassages[key];
+                    }
+                });
+                // Remove from DOM immediately
+                btn.closest('.memorization-item').remove();
+                const remaining = elements.memorizationList.querySelectorAll('.memorization-item').length;
+                elements.memorizationResultsCount.textContent =
+                    remaining === 0 ? '0 passages' :
+                    remaining === 1 ? '1 passage' :
+                    `${remaining} passages`;
+                if (remaining === 0) {
+                    elements.memorizationList.innerHTML =
+                        '<p class="memorization-empty">No passages memorized yet.<br>' +
+                        'Press <kbd>m</kbd> while reading to add the current verse.</p>';
+                }
+                renderPage();
+                try {
+                    await libApi(`/api/memorization/queue/${entryId}`, { method: 'DELETE' });
+                } catch (err) {
+                    console.error('Failed to remove memorization entry:', err);
+                }
+            });
+        });
     }
 
     function openMobileMenu() {
@@ -2408,6 +2580,8 @@
                 closeNoteEditor();
             } else if (state.tagPickerOpen) {
                 closeTagPicker();
+            } else if (state.memorizationOpen) {
+                closeMemorization();
             } else if (state.libraryOpen) {
                 closeLibrary();
             } else if (state.mobileMenuOpen) {
@@ -2422,7 +2596,8 @@
 
         // Don't process other keys if overlays are open
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
-            state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen) return;
+            state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen ||
+            state.memorizationOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
         if (e.metaKey || e.ctrlKey) return;
@@ -2487,6 +2662,10 @@
             case 'n':
                 e.preventDefault();
                 openNoteEditor(state.currentVerseId);
+                break;
+            case 'm':
+                e.preventDefault();
+                toggleMemorizeVerse(state.currentVerseId);
                 break;
             case 'p':
                 e.preventDefault();
@@ -2554,6 +2733,19 @@
             }
         });
 
+        // Memorization queue
+        elements.memorizationToggle.addEventListener('click', () => {
+            if (!state.currentUser) {
+                showToast('Sign in to use memorization');
+                return;
+            }
+            openMemorization();
+        });
+        elements.memorizationClose.addEventListener('click', closeMemorization);
+        elements.memorizationOverlay.addEventListener('click', (e) => {
+            if (e.target === elements.memorizationOverlay) closeMemorization();
+        });
+
         // Library (saved verses) — on mobile the hamburger opens the quick-actions menu instead
         elements.libraryToggle.addEventListener('click', () => {
             if (window.innerWidth <= 600) {
@@ -2588,6 +2780,14 @@
             document.getElementById('mobile-menu-library').addEventListener('click', () => {
                 closeMobileMenu();
                 openLibrary();
+            });
+            document.getElementById('mobile-menu-memorization').addEventListener('click', () => {
+                closeMobileMenu();
+                if (!state.currentUser) {
+                    showToast('Sign in to use memorization');
+                    return;
+                }
+                openMemorization();
             });
             document.getElementById('mobile-menu-bookmark').addEventListener('click', () => {
                 closeMobileMenu();
@@ -2731,6 +2931,7 @@
                 const localVerses = { ...state.savedVerses };
                 const localTags = { ...state.tags };
                 await loadLibraryFromApi();
+                await loadMemorizationFromApi();
                 if (!state.currentUser.localStorageMigrated) {
                     // One-time migration: sync whatever localStorage data existed at login time
                     await migrateLocalStorageToDb(localVerses, localTags);
@@ -2767,6 +2968,7 @@
                 // Revert to localStorage data for anonymous state
                 loadSavedVerses();
                 loadTags();
+                state.memorizedPassages = {};
                 renderPage();
             };
         } else {
