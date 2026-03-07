@@ -23,6 +23,7 @@
     
     /* Spacing */
     --header-height: 48px;
+    --footer-height: 40px;
     --reading-padding: 3rem;
     --column-gap: 3rem;
     --verse-spacing: 0.75em;
@@ -70,6 +71,35 @@ body {
     z-index: 100;
     display: flex;
     align-items: center;
+    padding: 0 1rem;
+}
+
+.site-wordmark {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    padding: 0 0.25rem;
+    flex-shrink: 0;
+}
+.site-wordmark:hover {
+    color: var(--color-link);
+}
+
+.reading-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--footer-height);
+    background: var(--color-header-bg);
+    border-top: 1px solid var(--color-border);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     padding: 0 1rem;
 }
 
@@ -255,7 +285,7 @@ body {
     top: var(--header-height);
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--footer-height);
     padding: var(--reading-padding);
     padding-top: calc(var(--reading-padding) / 2);
     overflow: hidden;
@@ -2027,6 +2057,12 @@ body {
     #auth-header,
     #auth-signin-link {
         display: none;
+    }
+    .reading-footer {
+        display: none;
+    }
+    .reading-container {
+        bottom: 0;
     }
 }
 

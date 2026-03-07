@@ -15,6 +15,8 @@
         <nav class="nav-controls">
             <!-- Left Controls -->
             <div class="left-controls">
+                <!-- Home / Wordmark -->
+                <a href="/" class="site-wordmark" title="Home">KJV</a>
                 <!-- Library Toggle -->
                 <button id="library-toggle" aria-label="Open saved verses library" title="Saved verses">&#9776;</button>
                 <!-- Memorization Toggle -->
@@ -41,31 +43,14 @@
 
             <!-- Right Controls -->
             <div class="right-controls">
-                <!-- Audio Controls -->
-                <div class="audio-controls" id="audio-controls" hidden>
-                    <button id="audio-toggle" aria-label="Toggle audio" title="Play audio (p)">
-                        <span class="audio-icon">&#128266;</span>
-                    </button>
-                    <button class="audio-speed-badge" id="audio-speed-badge" title="Change speed (s)">1x</button>
-                </div>
-
-                <!-- Font Size -->
-                <div class="font-controls">
-                    <button id="font-decrease" aria-label="Decrease font size" title="Decrease font size">A−</button>
-                    <button id="font-increase" aria-label="Increase font size" title="Increase font size">A+</button>
-                </div>
-
                 <!-- Search -->
                 <div class="search-container">
-                    <input type="text" 
-                           id="search-input" 
-                           placeholder="Search or reference..." 
+                    <input type="text"
+                           id="search-input"
+                           placeholder="Search or reference..."
                            aria-label="Search Bible"
                            autocomplete="off">
                 </div>
-
-                <!-- Help Toggle -->
-                <button id="help-toggle" aria-label="Show keyboard shortcuts" title="Keyboard shortcuts (?)">&quest;</button>
 
                 <!-- Auth Area -->
                 <div id="auth-header" hidden>
@@ -76,6 +61,21 @@
             </div>
         </nav>
     </header>
+
+    <!-- Reading Footer: secondary controls -->
+    <footer class="reading-footer">
+        <div class="audio-controls" id="audio-controls" hidden>
+            <button id="audio-toggle" aria-label="Toggle audio" title="Play audio (p)">
+                <span class="audio-icon">&#128266;</span>
+            </button>
+            <button class="audio-speed-badge" id="audio-speed-badge" title="Change speed (s)">1x</button>
+        </div>
+        <div class="font-controls">
+            <button id="font-decrease" aria-label="Decrease font size" title="Decrease font size">A−</button>
+            <button id="font-increase" aria-label="Increase font size" title="Increase font size">A+</button>
+        </div>
+        <button id="help-toggle" aria-label="Show keyboard shortcuts" title="Keyboard shortcuts (?)">&quest;</button>
+    </footer>
 
     <!-- Mobile Search Cancel (shown only when mobile search is active) -->
     <button id="mobile-search-cancel" aria-label="Cancel search" hidden>Cancel</button>
