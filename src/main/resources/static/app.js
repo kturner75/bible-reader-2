@@ -1924,8 +1924,10 @@
                 }
             } else {
                 const blank = shouldBlank(wordIdx);
-                const expected = token.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
-                segments.push({ text: token, isBlank: blank, expected: blank ? expected : null });
+                const prefix = token.match(/^[^a-zA-Z0-9]*/)[0];
+                const suffix = token.match(/[^a-zA-Z0-9]*$/)[0];
+                const expected = token.slice(prefix.length, token.length - suffix.length);
+                segments.push({ text: token, isBlank: blank, expected: blank ? expected : null, prefix, suffix });
                 wordIdx++;
             }
         }
@@ -1943,7 +1945,7 @@
         elements.trainingVerse.innerHTML = segments.map(seg => {
             if (seg.isBlank) {
                 const sz = Math.max(3, seg.expected.length + 1);
-                return `<input class="blank-input" size="${sz}" data-expected="${escapeHtml(seg.expected)}" autocomplete="off" spellcheck="false">`;
+                return `${escapeHtml(seg.prefix)}<input class="blank-input" size="${sz}" data-expected="${escapeHtml(seg.expected)}" autocomplete="off" spellcheck="false">${escapeHtml(seg.suffix)}`;
             }
             return `<span>${escapeHtml(seg.text)}</span>`;
         }).join('');

@@ -1601,7 +1601,7 @@ body {
 .training-overlay {
     position: fixed;
     inset: 0;
-    background: var(--color-overlay-bg);
+    background: rgba(44, 36, 22, 0.92);
     z-index: 260;
     display: flex;
     align-items: center;
