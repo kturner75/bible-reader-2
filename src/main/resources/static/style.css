@@ -1571,6 +1571,29 @@ body {
     color: var(--color-text);
 }
 
+.mastery-dot.filled {
+    background: var(--color-link);
+}
+
+.memorization-practice-btn {
+    font-family: var(--font-primary);
+    font-size: 0.78rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    background: white;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    margin-top: 0.35rem;
+    transition: all var(--transition-fast);
+}
+
+.memorization-practice-btn:hover {
+    background: var(--color-link);
+    border-color: var(--color-link);
+    color: white;
+}
+
 /* ============================================
    Toast Notification
    ============================================ */

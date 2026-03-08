@@ -2,6 +2,7 @@ package com.readthekjv.controller;
 
 import com.readthekjv.model.dto.AddToQueueRequest;
 import com.readthekjv.model.dto.MemorizationEntryResponse;
+import com.readthekjv.model.dto.ReviewRequest;
 import com.readthekjv.model.entity.User;
 import com.readthekjv.repository.UserRepository;
 import com.readthekjv.service.MemorizationService;
@@ -59,5 +60,14 @@ public class MemorizationController {
     public void removeFromQueue(@AuthenticationPrincipal UserDetails ud,
                                 @PathVariable UUID entryId) {
         memorizationService.removeFromQueue(resolveUser(ud).getId(), entryId);
+    }
+
+    // ─── Training ─────────────────────────────────────────────────────────────
+
+    @PostMapping("/queue/{entryId}/review")
+    public MemorizationEntryResponse submitReview(@AuthenticationPrincipal UserDetails ud,
+                                                  @PathVariable UUID entryId,
+                                                  @Valid @RequestBody ReviewRequest req) {
+        return memorizationService.submitReview(resolveUser(ud).getId(), entryId, req.quality());
     }
 }

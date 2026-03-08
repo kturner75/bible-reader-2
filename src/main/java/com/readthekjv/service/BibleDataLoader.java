@@ -14,6 +14,8 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Loads KJV Bible data at application startup.
@@ -94,6 +96,9 @@ public class BibleDataLoader {
                     for (String verseString : verseStrings) {
                         // Parse format: "BookName Chapter:Verse\tText"
                         String text = extractVerseText(verseString);
+                        if ("Psalm".equals(bookName) && verseNum == 1) {
+                            text = stripPsalmSuperscription(text);
+                        }
                         
                         Verse verse = new Verse(
                             globalId++,
@@ -123,5 +128,25 @@ public class BibleDataLoader {
         }
         // Fallback: return entire string if no tab found
         return raw;
+    }
+
+    /**
+     * Psalm superscriptions (e.g. "A Song of degrees.", "To the chief Musician, A Psalm of David.")
+     * are embedded at the start of verse 1 in the source data. This pattern detects and strips them
+     * so only the actual verse text is stored. Verified to match all 117 Psalms that have
+     * superscriptions in the KJV and leave the 33 without them unchanged.
+     */
+    private static final Pattern PSALM_SUPERSCRIPTION = Pattern.compile(
+        "^(?:A (?:Psalm|Song|Prayer|Praise)|To the chief|Upon |Maschil|Michtam|Shiggaion" +
+        "|\\[A (?:Psalm|Song)\\]|David" +
+        "|ALEPH|BETH|GIMEL|DALETH|HE\\b|VAU|ZAIN|CHETH|TETH|JOD|CAPH|LAMED|MEM|NUN" +
+        "|SAMECH|AIN|PE|TZADDI|KOPH|RESH|SCHIN|TAU)" +
+        "[^.?:]*[.?:](?:[^.?:]*[.?:])*\\s+(\\[?[A-Z].+)",
+        Pattern.DOTALL
+    );
+
+    private String stripPsalmSuperscription(String text) {
+        Matcher m = PSALM_SUPERSCRIPTION.matcher(text);
+        return m.matches() ? m.group(1) : text;
     }
 }

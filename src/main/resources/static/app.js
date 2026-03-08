@@ -1890,29 +1890,46 @@
             return;
         }
 
-        const masteryDotsHtml = Array.from({ length: 5 }, () =>
-            '<span class="mastery-dot"></span>').join('');
-
-        elements.memorizationList.innerHTML = entries.map(entry => `
+        elements.memorizationList.innerHTML = entries.map(entry => {
+            const dots = Array.from({ length: 5 }, (_, i) =>
+                `<span class="mastery-dot${i < entry.masteryLevel ? ' filled' : ''}"></span>`
+            ).join('');
+            return `
             <div class="memorization-item" data-entry-id="${escapeHtml(entry.id)}"
                  data-verse-id="${entry.passage.fromVerseId}">
                 <div class="memorization-item-body">
                     <div class="memorization-item-ref">${escapeHtml(entry.fromVerseRef)}</div>
                     <div class="memorization-item-text">${escapeHtml(entry.fromVerseText)}</div>
-                    <div class="memorization-item-mastery">${masteryDotsHtml}</div>
+                    <div class="memorization-item-mastery">${dots}</div>
+                    <button class="memorization-practice-btn" data-entry-id="${escapeHtml(entry.id)}"
+                            aria-label="Practice this verse">Practice</button>
                 </div>
                 <button class="memorization-item-remove" data-entry-id="${escapeHtml(entry.id)}"
                         aria-label="Remove from queue">&times;</button>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
 
-        // Navigate on row click
+        // Navigate on row click (but not Practice or Remove buttons)
         elements.memorizationList.querySelectorAll('.memorization-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 if (e.target.closest('.memorization-item-remove')) return;
+                if (e.target.closest('.memorization-practice-btn')) return;
                 const verseId = parseInt(item.dataset.verseId, 10);
                 closeMemorization();
                 goToVerse(verseId);
+            });
+        });
+
+        // Practice buttons — open training modal
+        elements.memorizationList.querySelectorAll('.memorization-practice-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const entryId = btn.dataset.entryId;
+                const entry = entries.find(en => en.id === entryId);
+                if (entry) {
+                    sessionStorage.setItem('kjv_training_entry', JSON.stringify(entry));
+                    window.location.href = '/train';
+                }
             });
         });
 
@@ -2666,6 +2683,11 @@
             case 'm':
                 e.preventDefault();
                 toggleMemorizeVerse(state.currentVerseId);
+                break;
+            case 'M':
+                e.preventDefault();
+                if (state.currentUser) openMemorization();
+                else showToast('Sign in to use memorization');
                 break;
             case 'p':
                 e.preventDefault();
