@@ -1951,6 +1951,7 @@
         elements.trainingCheckBtn.hidden = false;
         elements.trainingCheckBtn.disabled = false;
         elements.trainingRatings.hidden = true;
+        elements.trainingRatings.querySelectorAll('.rating-btn').forEach(b => b.disabled = false);
         elements.trainingOverlay.hidden = false;
 
         // Focus first blank
