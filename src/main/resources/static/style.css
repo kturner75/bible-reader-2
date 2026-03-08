@@ -1571,6 +1571,179 @@ body {
     color: var(--color-text);
 }
 
+.mastery-dot.filled {
+    background: var(--color-link);
+}
+
+.memorization-practice-btn {
+    font-family: var(--font-primary);
+    font-size: 0.78rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    background: white;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    margin-top: 0.35rem;
+    transition: all var(--transition-fast);
+}
+
+.memorization-practice-btn:hover {
+    background: var(--color-link);
+    border-color: var(--color-link);
+    color: white;
+}
+
+/* ============================================
+   Training Modal
+   ============================================ */
+
+.training-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--color-overlay-bg);
+    z-index: 260;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.training-overlay[hidden] {
+    display: none;
+}
+
+.training-modal {
+    background: var(--color-bg);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 640px;
+}
+
+.training-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.training-header h2 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--color-link);
+}
+
+#training-close {
+    font-size: 1.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: 0.25rem;
+    line-height: 1;
+}
+
+#training-close:hover {
+    color: var(--color-text);
+}
+
+.training-body {
+    padding: 1.5rem;
+}
+
+.training-verse {
+    font-family: var(--font-primary);
+    font-size: 1.05rem;
+    line-height: 2;
+    margin-bottom: 1.5rem;
+}
+
+.blank-input {
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    border: none;
+    border-bottom: 2px solid var(--color-link);
+    background: transparent;
+    padding: 0 2px;
+    min-width: 3ch;
+    outline: none;
+    vertical-align: baseline;
+    color: var(--color-text);
+    transition: border-color var(--transition-fast);
+}
+
+.blank-input.blank-correct {
+    border-color: #4a7c4e;
+    color: #4a7c4e;
+    background: #f0f7f0;
+}
+
+.blank-input.blank-wrong {
+    border-color: #b05040;
+    color: #b05040;
+    background: #fdf0ee;
+}
+
+.training-action-btn {
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    padding: 0.5rem 1.5rem;
+    background: var(--color-link);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.training-action-btn:hover {
+    background: var(--color-text);
+}
+
+.training-action-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.training-ratings {
+    margin-top: 1.25rem;
+}
+
+.training-ratings-label {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.training-rating-btns {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.rating-btn {
+    font-family: var(--font-primary);
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    cursor: pointer;
+    background: white;
+    color: var(--color-text);
+    flex: 1;
+    transition: all var(--transition-fast);
+}
+
+.rating-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.rating-again:hover:not(:disabled) { background: #fdf0ee; border-color: #b05040; color: #b05040; }
+.rating-hard:hover:not(:disabled)  { background: #fdf5e6; border-color: #a07030; color: #a07030; }
+.rating-good:hover:not(:disabled)  { background: #f0f7f0; border-color: #4a7c4e; color: #4a7c4e; }
+.rating-easy:hover:not(:disabled)  { background: #e8f4e8; border-color: #2e6b35; color: #2e6b35; }
+
 /* ============================================
    Toast Notification
    ============================================ */
@@ -1828,6 +2001,18 @@ body {
         max-width: none;
         max-height: none;
         border-radius: 0;
+    }
+
+    .training-modal {
+        width: 95%;
+    }
+
+    .training-rating-btns {
+        flex-wrap: wrap;
+    }
+
+    .rating-btn {
+        flex: 1 1 40%;
     }
 
     .help-overlay {
