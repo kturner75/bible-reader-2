@@ -1971,7 +1971,7 @@
         elements.trainingCheckBtn.disabled = true;
         elements.trainingVerse.querySelectorAll('.blank-input').forEach(input => {
             input.disabled = true;
-            const answer = input.value.trim().toLowerCase();
+            const answer = input.value.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toLowerCase();
             const expected = input.dataset.expected.toLowerCase();
             if (answer === expected) {
                 input.classList.add('blank-correct');
