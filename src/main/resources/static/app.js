@@ -2810,6 +2810,11 @@
                 e.preventDefault();
                 toggleMemorizeVerse(state.currentVerseId);
                 break;
+            case 'M':
+                e.preventDefault();
+                if (state.currentUser) openMemorization();
+                else showToast('Sign in to use memorization');
+                break;
             case 'p':
                 e.preventDefault();
                 if (state.audioEnabled) toggleAudio();
