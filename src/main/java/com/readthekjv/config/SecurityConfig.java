@@ -39,6 +39,7 @@ public class SecurityConfig {
                     "/landing.html", "/landing.css",       // public landing page
                     "/login.html", "/register.html",
                     "/auth.css",
+                    "/train", "/train.html", "/train.js", "/train.css",
                     "/style.css", "/app.js",
                     "/error",                              // Spring Boot error controller — must be public
                     "/api/verses", "/api/books/**", "/api/search",

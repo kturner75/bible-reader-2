@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Memory Training — KJV Bible Reader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="train.css">
+</head>
+<body>
+    <header class="train-header">
+        <a class="train-back" href="/read">&#8592; Back to reading</a>
+        <a class="train-brand" href="/">KJV</a>
+    </header>
+    <main class="train-main">
+        <div class="train-card">
+            <h1 class="train-ref" id="train-ref"></h1>
+            <div class="train-verse" id="train-verse"></div>
+            <div class="train-actions">
+                <button class="train-btn-check" id="train-check-btn">Check</button>
+            </div>
+            <div class="train-ratings" id="train-ratings" hidden>
+                <p class="train-ratings-label">How well did you know it?</p>
+                <div class="train-rating-btns">
+                    <button class="rating-btn rating-again" data-quality="0">Again</button>
+                    <button class="rating-btn rating-hard"  data-quality="3">Hard</button>
+                    <button class="rating-btn rating-good"  data-quality="4">Good</button>
+                    <button class="rating-btn rating-easy"  data-quality="5">Easy</button>
+                </div>
+            </div>
+            <p class="train-error" id="train-error" hidden></p>
+        </div>
+    </main>
+    <script src="train.js"></script>
+</body>
+</html>

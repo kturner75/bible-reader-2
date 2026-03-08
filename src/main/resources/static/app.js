@@ -56,9 +56,6 @@
         // Memorization
         memorizationOpen: false,           // memorization queue modal state
         memorizedPassages: {},             // { naturalKey: entryId } e.g. { "26930": "uuid" }
-        // Training
-        trainingOpen: false,
-        trainingEntryId: null,
         // Auth
         currentUser: null                  // null = anonymous; object = { id, email, displayName }
     };
@@ -138,14 +135,7 @@
         memorizationOverlay: document.getElementById('memorization-overlay'),
         memorizationClose: document.getElementById('memorization-close'),
         memorizationResultsCount: document.getElementById('memorization-results-count'),
-        memorizationList: document.getElementById('memorization-list'),
-        // Training modal
-        trainingOverlay: document.getElementById('training-overlay'),
-        trainingClose: document.getElementById('training-close'),
-        trainingVerseRef: document.getElementById('training-verse-ref'),
-        trainingVerse: document.getElementById('training-verse'),
-        trainingCheckBtn: document.getElementById('training-check-btn'),
-        trainingRatings: document.getElementById('training-ratings')
+        memorizationList: document.getElementById('memorization-list')
     };
 
     // ============================================
@@ -1879,126 +1869,6 @@
         elements.memorizationOverlay.hidden = true;
     }
 
-    // ─── Training ─────────────────────────────────────────────────────────────
-
-    /**
-     * Returns an array of segment objects: { text, isBlank, expected }
-     * Non-blank segments have isBlank=false; blank segments have isBlank=true and
-     * expected = the word (leading/trailing punctuation stripped) for comparison.
-     *
-     * Blank selection is index-based (deterministic) based on masteryLevel:
-     *   0 → every 7th word (~14%)
-     *   1 → every 4th  (~25%)
-     *   2 → every 2nd  (~50%)
-     *   3 → 2 of every 3 (~67%)
-     *   4 → 6 of every 7 (~86%)
-     *   5 → all words  (100%)
-     */
-    function computeBlankedSegments(text, masteryLevel) {
-        // Split into tokens preserving whitespace
-        const tokens = text.split(/(\s+)/);
-        const wordTokens = tokens.filter(t => t.trim().length > 0);
-        const blankSet = new Set();
-        const n = wordTokens.length;
-
-        const shouldBlank = (i) => {
-            switch (masteryLevel) {
-                case 0: return i % 7 === 0;
-                case 1: return i % 4 === 0;
-                case 2: return i % 2 === 0;
-                case 3: return i % 3 !== 2;
-                case 4: return i % 7 !== 6;
-                default: return true; // 5 = all
-            }
-        };
-
-        let wordIdx = 0;
-        const segments = [];
-        for (const token of tokens) {
-            if (token.trim().length === 0) {
-                // whitespace — preserve as-is
-                if (segments.length > 0 && !segments[segments.length - 1].isBlank) {
-                    segments[segments.length - 1].text += token;
-                } else {
-                    segments.push({ text: token, isBlank: false, expected: null });
-                }
-            } else {
-                const blank = shouldBlank(wordIdx);
-                const prefix = token.match(/^[^a-zA-Z0-9]*/)[0];
-                const suffix = token.match(/[^a-zA-Z0-9]*$/)[0];
-                const expected = token.slice(prefix.length, token.length - suffix.length);
-                segments.push({ text: token, isBlank: blank, expected: blank ? expected : null, prefix, suffix });
-                wordIdx++;
-            }
-        }
-        return segments;
-    }
-
-    function openTraining(entry) {
-        closeMemorization();
-        state.trainingOpen = true;
-        state.trainingEntryId = entry.id;
-        elements.trainingVerseRef.textContent = entry.fromVerseRef;
-
-        // Render blanked verse
-        const segments = computeBlankedSegments(entry.fromVerseText, entry.masteryLevel);
-        elements.trainingVerse.innerHTML = segments.map(seg => {
-            if (seg.isBlank) {
-                const sz = Math.max(3, seg.expected.length + 1);
-                return `${escapeHtml(seg.prefix)}<input class="blank-input" size="${sz}" data-expected="${escapeHtml(seg.expected)}" autocomplete="off" spellcheck="false">${escapeHtml(seg.suffix)}`;
-            }
-            return `<span>${escapeHtml(seg.text)}</span>`;
-        }).join('');
-
-        elements.trainingCheckBtn.hidden = false;
-        elements.trainingCheckBtn.disabled = false;
-        elements.trainingRatings.hidden = true;
-        elements.trainingRatings.querySelectorAll('.rating-btn').forEach(b => b.disabled = false);
-        elements.trainingOverlay.hidden = false;
-
-        // Focus first blank
-        const first = elements.trainingVerse.querySelector('.blank-input');
-        if (first) first.focus();
-    }
-
-    function closeTraining() {
-        state.trainingOpen = false;
-        state.trainingEntryId = null;
-        elements.trainingOverlay.hidden = true;
-    }
-
-    function checkAnswers() {
-        elements.trainingCheckBtn.disabled = true;
-        elements.trainingVerse.querySelectorAll('.blank-input').forEach(input => {
-            input.disabled = true;
-            const answer = input.value.trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toLowerCase();
-            const expected = input.dataset.expected.toLowerCase();
-            if (answer === expected) {
-                input.classList.add('blank-correct');
-            } else {
-                input.classList.add('blank-wrong');
-                input.value = input.dataset.expected; // show correct answer
-            }
-        });
-        elements.trainingCheckBtn.hidden = true;
-        elements.trainingRatings.hidden = false;
-    }
-
-    async function submitRating(quality) {
-        elements.trainingRatings.querySelectorAll('.rating-btn').forEach(b => b.disabled = true);
-        try {
-            await libApi(`/api/memorization/queue/${state.trainingEntryId}/review`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quality })
-            });
-        } catch (err) {
-            console.error('Failed to submit review:', err);
-        }
-        closeTraining();
-        openMemorization();
-    }
-
     async function renderMemorizationList() {
         let entries;
         try {
@@ -2056,7 +1926,10 @@
                 e.stopPropagation();
                 const entryId = btn.dataset.entryId;
                 const entry = entries.find(en => en.id === entryId);
-                if (entry) openTraining(entry);
+                if (entry) {
+                    sessionStorage.setItem('kjv_training_entry', JSON.stringify(entry));
+                    window.location.href = '/train';
+                }
             });
         });
 
@@ -2724,8 +2597,6 @@
                 closeNoteEditor();
             } else if (state.tagPickerOpen) {
                 closeTagPicker();
-            } else if (state.trainingOpen) {
-                closeTraining();
             } else if (state.memorizationOpen) {
                 closeMemorization();
             } else if (state.libraryOpen) {
@@ -2743,7 +2614,7 @@
         // Don't process other keys if overlays are open
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
             state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen ||
-            state.memorizationOpen || state.trainingOpen) return;
+            state.memorizationOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
         if (e.metaKey || e.ctrlKey) return;
@@ -2895,17 +2766,6 @@
         elements.memorizationClose.addEventListener('click', closeMemorization);
         elements.memorizationOverlay.addEventListener('click', (e) => {
             if (e.target === elements.memorizationOverlay) closeMemorization();
-        });
-
-        // Training modal
-        elements.trainingClose.addEventListener('click', closeTraining);
-        elements.trainingOverlay.addEventListener('click', (e) => {
-            if (e.target === elements.trainingOverlay) closeTraining();
-        });
-        elements.trainingCheckBtn.addEventListener('click', checkAnswers);
-        document.querySelector('.training-rating-btns').addEventListener('click', (e) => {
-            const btn = e.target.closest('.rating-btn');
-            if (btn) submitRating(parseInt(btn.dataset.quality));
         });
 
         // Library (saved verses) — on mobile the hamburger opens the quick-actions menu instead

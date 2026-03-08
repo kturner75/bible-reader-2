@@ -24,4 +24,10 @@ public class WebController {
     public String reader() {
         return "forward:/index.html";
     }
+
+    /** Serve the training page at /train (forwards to the static train.html). */
+    @GetMapping("/train")
+    public String train() {
+        return "forward:/train.html";
+    }
 }
