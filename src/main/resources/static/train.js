@@ -137,14 +137,25 @@
         const first = verseEl.querySelector('.blank-input');
         if (first) first.focus();
 
+        // Normalize for comparison: collapse smart apostrophes/quotes, strip
+        // leading/trailing punctuation, lowercase.  Applied to both sides so
+        // curly ' (U+2019) in the KJV text matches a straight ' typed by the user.
+        function normalizeAnswer(s) {
+            return s
+                .replace(/[\u2018\u2019\u02BC]/g, "'")   // curly/modifier apostrophes → '
+                .replace(/[\u201C\u201D]/g, '"')           // curly double-quotes → "
+                .trim()
+                .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '')
+                .toLowerCase();
+        }
+
         // --- Check ---
         function checkAnswers() {
             checkBtn.disabled = true;
             verseEl.querySelectorAll('.blank-input').forEach(input => {
                 input.disabled = true;
-                const answer   = input.value.trim()
-                    .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').toLowerCase();
-                const expected = input.dataset.expected.toLowerCase();
+                const answer   = normalizeAnswer(input.value);
+                const expected = normalizeAnswer(input.dataset.expected);
                 if (answer === expected) {
                     input.classList.add('blank-correct');
                 } else {
