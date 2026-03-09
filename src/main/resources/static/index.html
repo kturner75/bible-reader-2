@@ -134,7 +134,7 @@
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>b</kbd></span><span>Save/unsave verse</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>t</kbd></span><span>Open tag picker</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>n</kbd></span><span>Add/edit note</span></div>
-                    <div class="shortcut-item"><span class="shortcut-key"><kbd>m</kbd></span><span>Add/remove verse from memory queue</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>m</kbd></span><span>Select passage to memorize</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>M</kbd></span><span>Open memorization queue</span></div>
                     <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>p</kbd></span><span>Play/stop audio</span></div>
                     <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>s</kbd></span><span>Cycle audio speed</span></div>
@@ -256,6 +256,25 @@
         </div>
     </div>
 
+    <!-- Passage Picker Modal -->
+    <div class="passage-picker-overlay" id="passage-picker-overlay" hidden>
+        <div class="passage-picker-modal">
+            <div class="passage-picker-header">
+                <h2>Select Passage</h2>
+                <button id="passage-picker-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="passage-picker-count" id="passage-picker-count">0 verses selected</div>
+            <div class="passage-picker-chapters" id="passage-picker-chapters">
+                <div class="passage-picker-loading">Loading…</div>
+            </div>
+            <div class="passage-picker-actions">
+                <button id="passage-picker-remove" class="passage-picker-btn-remove" hidden>Remove</button>
+                <button id="passage-picker-cancel" class="passage-picker-btn-cancel">Cancel</button>
+                <button id="passage-picker-add" class="passage-picker-btn-add" disabled>Add to Queue</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Memorization Queue Modal -->
     <div class="memorization-overlay" id="memorization-overlay" hidden>
         <div class="memorization-modal">
@@ -264,6 +283,10 @@
                 <button id="memorization-close" aria-label="Close">&times;</button>
             </div>
             <div class="memorization-results-count" id="memorization-results-count">0 passages</div>
+            <div class="memorization-due-bar" id="memorization-due-bar" hidden>
+                <span id="memorization-due-count"></span>
+                <button id="memorization-train-btn">Train due today</button>
+            </div>
             <div class="memorization-list" id="memorization-list"></div>
         </div>
     </div>
