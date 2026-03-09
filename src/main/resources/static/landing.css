@@ -126,6 +126,11 @@ a:hover {
     font-size: 0.9rem;
     color: var(--color-text-muted);
     font-style: italic;
+    text-decoration: none;
+}
+.nav-user:hover {
+    color: var(--color-text);
+    text-decoration: none;
 }
 
 .nav-signout {

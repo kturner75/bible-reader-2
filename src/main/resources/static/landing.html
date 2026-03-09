@@ -119,9 +119,10 @@
 
         if (currentUser) {
             const navLinks = document.getElementById('nav-links');
-            const displayName = currentUser.name || currentUser.email || 'My Account';
+            const displayName = currentUser.displayName || currentUser.name || currentUser.email || 'My Account';
             navLinks.innerHTML = `
-                <span class="nav-user">${escapeHtml(displayName)}</span>
+                <a href="/dashboard" class="nav-user">${escapeHtml(displayName)}</a>
+                <a href="/dashboard" class="nav-link">Dashboard</a>
                 <a href="/read" class="btn-nav">Open Reader</a>
                 <button class="nav-link nav-signout" id="nav-signout">Sign Out</button>
             `;

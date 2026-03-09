@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — KJV Bible Reader</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+
+    <!-- ── Navigation ──────────────────────────────────────────────────────── -->
+    <header class="dash-nav">
+        <a href="/landing.html" class="nav-logo">
+            <span class="logo-mark">✦</span>
+            <span class="logo-text">KJV Bible Reader</span>
+        </a>
+        <nav class="nav-links" id="nav-links">
+            <!-- Populated by dashboard.js -->
+        </nav>
+    </header>
+
+    <!-- ── Main ────────────────────────────────────────────────────────────── -->
+    <main class="dash-main">
+
+        <!-- Page heading -->
+        <div class="dash-heading">
+            <h1 class="dash-title" id="dash-greeting">Dashboard</h1>
+            <p class="dash-date" id="dash-date"></p>
+        </div>
+
+        <!-- Top cards -->
+        <div class="dash-cards">
+
+            <div class="dash-card" id="due-card">
+                <div class="card-label">Due for Review</div>
+                <div class="card-value" id="due-count">—</div>
+                <div class="card-sub" id="due-sub"></div>
+                <button class="btn-primary card-action" id="train-now-btn" hidden>Train Now</button>
+            </div>
+
+            <div class="dash-card" id="reading-card">
+                <div class="card-label">Continue Reading</div>
+                <div class="card-value" id="reading-ref">—</div>
+                <a href="/read" class="btn-secondary card-action" id="reading-link">Open Reader</a>
+            </div>
+
+        </div>
+
+        <!-- Memorization queue -->
+        <section class="dash-section" id="queue-section" hidden>
+            <div class="section-header">
+                <h2 class="section-title">Memorization Queue</h2>
+                <span class="section-badge" id="queue-badge"></span>
+            </div>
+            <div class="queue-list" id="queue-list"></div>
+            <div class="queue-empty" id="queue-empty" hidden>
+                <p>No passages in your queue yet.</p>
+                <a href="/read" class="btn-secondary">Open the reader and press <kbd>m</kbd> on any verse to add a passage.</a>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
