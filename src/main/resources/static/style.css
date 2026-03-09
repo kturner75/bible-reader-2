@@ -2249,10 +2249,15 @@ body {
 #auth-display-name {
     font-size: 0.8rem;
     color: var(--color-text-muted);
+    text-decoration: none;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 120px;
+}
+
+#auth-display-name:hover {
+    color: var(--color-text);
 }
 
 #auth-logout-btn {
