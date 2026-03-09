@@ -2,9 +2,11 @@ package com.readthekjv.service;
 
 import com.readthekjv.model.dto.MemorizationEntryResponse;
 import com.readthekjv.model.dto.PassageResponse;
+import com.readthekjv.model.dto.StreakResponse;
 import com.readthekjv.model.dto.VerseSnippet;
 import com.readthekjv.model.entity.MemorizationEntry;
 import com.readthekjv.model.entity.Passage;
+import com.readthekjv.model.entity.User;
 import com.readthekjv.repository.MemorizationEntryRepository;
 import com.readthekjv.repository.PassageRepository;
 import com.readthekjv.repository.UserRepository;
@@ -194,8 +196,36 @@ public class MemorizationService {
         entry.setEaseFactor(BigDecimal.valueOf(Math.max(1.30, newEase))
                 .setScale(2, RoundingMode.HALF_UP));
 
-        entry.setNextReviewAt(LocalDate.now().plusDays(entry.getIntervalDays()));
+        LocalDate today = LocalDate.now();
+        entry.setNextReviewAt(today.plusDays(entry.getIntervalDays()));
+        MemorizationEntryResponse response = toResponse(entryRepo.save(entry));
 
-        return toResponse(entryRepo.save(entry));
+        // Update review streak on the user
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        LocalDate last = user.getLastReviewDate();
+        if (last == null || last.isBefore(today.minusDays(1))) {
+            // Never reviewed before, or missed at least one day — restart at 1
+            user.setCurrentStreak(1);
+        } else if (last.isBefore(today)) {
+            // Reviewed yesterday — extend the streak
+            user.setCurrentStreak(user.getCurrentStreak() + 1);
+        }
+        // If last == today the streak is already counted; no change needed
+        if (user.getCurrentStreak() > user.getLongestStreak()) {
+            user.setLongestStreak(user.getCurrentStreak());
+        }
+        user.setLastReviewDate(today);
+        userRepo.save(user);
+
+        return response;
+    }
+
+    // ─── Streak ───────────────────────────────────────────────────────────────
+
+    public StreakResponse getStreak(Long userId) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        return new StreakResponse(user.getCurrentStreak(), user.getLongestStreak(), user.getLastReviewDate());
     }
 }

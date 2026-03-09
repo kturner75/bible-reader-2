@@ -5,6 +5,7 @@ import com.readthekjv.model.Verse;
 import com.readthekjv.model.dto.AddToQueueRequest;
 import com.readthekjv.model.dto.MemorizationEntryResponse;
 import com.readthekjv.model.dto.PassageContextResponse;
+import com.readthekjv.model.dto.StreakResponse;
 import com.readthekjv.model.dto.PassageContextResponse.ChapterContext;
 import com.readthekjv.model.dto.ReviewRequest;
 import com.readthekjv.model.dto.VerseSnippet;
@@ -75,6 +76,13 @@ public class MemorizationController {
     public void removeFromQueue(@AuthenticationPrincipal UserDetails ud,
                                 @PathVariable UUID entryId) {
         memorizationService.removeFromQueue(resolveUser(ud).getId(), entryId);
+    }
+
+    // ─── Streak ───────────────────────────────────────────────────────────────
+
+    @GetMapping("/streak")
+    public StreakResponse getStreak(@AuthenticationPrincipal UserDetails ud) {
+        return memorizationService.getStreak(resolveUser(ud).getId());
     }
 
     // ─── Training ─────────────────────────────────────────────────────────────

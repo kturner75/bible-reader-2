@@ -97,13 +97,32 @@
         document.getElementById('reading-ref').textContent = 'Genesis 1';
     }
 
-    // ── Memorization Queue ────────────────────────────────────────────────────
+    // ── Memorization Queue + Streak (parallel) ────────────────────────────────
 
     let allEntries = [];
+    let streakData = null;
     try {
-        const res = await fetch('/api/memorization/queue', { credentials: 'include' });
-        if (res.ok) allEntries = await res.json();
-    } catch (_) { /* queue stays empty */ }
+        const [queueRes, streakRes] = await Promise.all([
+            fetch('/api/memorization/queue',  { credentials: 'include' }),
+            fetch('/api/memorization/streak', { credentials: 'include' }),
+        ]);
+        if (queueRes.ok)  allEntries = await queueRes.json();
+        if (streakRes.ok) streakData = await streakRes.json();
+    } catch (_) { /* stay with defaults */ }
+
+    // Streak card
+    const streakCountEl = document.getElementById('streak-count');
+    const streakSubEl   = document.getElementById('streak-sub');
+    if (streakData && streakData.currentStreak > 0) {
+        const days = streakData.currentStreak;
+        streakCountEl.textContent = `${days} day${days === 1 ? '' : 's'}`;
+        streakCountEl.classList.add('streak-nonzero');
+        const best = streakData.longestStreak;
+        streakSubEl.textContent = `Best: ${best} day${best === 1 ? '' : 's'}`;
+    } else {
+        streakCountEl.textContent = '—';
+        streakSubEl.textContent   = 'Complete a review to start';
+    }
 
     const dueEntries = allEntries.filter(isDue);
     const dueCount   = dueEntries.length;

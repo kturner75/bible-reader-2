@@ -1,6 +1,7 @@
 package com.readthekjv.model.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,15 @@ public class User {
     @Column(name = "localstorage_migrated", nullable = false)
     private boolean localStorageMigrated = false;
 
+    @Column(name = "current_streak", nullable = false)
+    private int currentStreak = 0;
+
+    @Column(name = "longest_streak", nullable = false)
+    private int longestStreak = 0;
+
+    @Column(name = "last_review_date")
+    private LocalDate lastReviewDate;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Tag> tags = new ArrayList<>();
 
@@ -66,4 +76,10 @@ public class User {
     public void setLocalStorageMigrated(boolean localStorageMigrated) { this.localStorageMigrated = localStorageMigrated; }
     public List<Tag> getTags() { return tags; }
     public List<SavedVerse> getSavedVerses() { return savedVerses; }
+    public int getCurrentStreak() { return currentStreak; }
+    public void setCurrentStreak(int currentStreak) { this.currentStreak = currentStreak; }
+    public int getLongestStreak() { return longestStreak; }
+    public void setLongestStreak(int longestStreak) { this.longestStreak = longestStreak; }
+    public LocalDate getLastReviewDate() { return lastReviewDate; }
+    public void setLastReviewDate(LocalDate lastReviewDate) { this.lastReviewDate = lastReviewDate; }
 }
