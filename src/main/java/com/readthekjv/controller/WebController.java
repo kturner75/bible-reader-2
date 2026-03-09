@@ -30,4 +30,10 @@ public class WebController {
     public String train() {
         return "forward:/train.html";
     }
+
+    /** Serve the dashboard at /dashboard (forwards to the static dashboard.html). */
+    @GetMapping("/dashboard")
+    public String dashboard() {
+        return "forward:/dashboard.html";
+    }
 }

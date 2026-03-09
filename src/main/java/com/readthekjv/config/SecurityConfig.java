@@ -40,6 +40,7 @@ public class SecurityConfig {
                     "/login.html", "/register.html",
                     "/auth.css",
                     "/train", "/train.html", "/train.js", "/train.css",
+                    "/dashboard", "/dashboard.html", "/dashboard.css", "/dashboard.js",
                     "/style.css", "/app.js",
                     "/error",                              // Spring Boot error controller — must be public
                     "/api/verses", "/api/books/**", "/api/search",
