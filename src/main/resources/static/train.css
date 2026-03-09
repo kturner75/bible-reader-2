@@ -75,6 +75,20 @@ html, body {
     margin-bottom: 1.5rem;
 }
 
+/* Multi-verse: each verse on its own line with a superscript number */
+.train-verse-line {
+    margin-bottom: .5rem;
+}
+.train-verse-line:last-child { margin-bottom: 0; }
+
+.train-verse-num {
+    font-size: .65rem;
+    vertical-align: super;
+    color: var(--color-text-muted);
+    margin-right: .2rem;
+    user-select: none;
+}
+
 .blank-input {
     font-family: var(--font-primary);
     font-size: 1rem;
@@ -137,6 +151,56 @@ html, body {
     margin-top: 1rem;
 }
 .train-error[hidden] { display: none; }
+
+/* Progress indicator */
+.train-progress {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.75rem;
+}
+.train-progress[hidden] { display: none; }
+
+/* Completion screen */
+.train-done {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.08);
+    width: 100%;
+    max-width: 720px;
+    padding: 3rem 2.5rem;
+    text-align: center;
+}
+.train-done[hidden] { display: none; }
+
+.train-done-icon {
+    font-size: 2.5rem;
+    color: #4a7c4e;
+    margin-bottom: 0.5rem;
+}
+.train-done-title {
+    font-size: 1.4rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+}
+.train-done-sub {
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1.5rem;
+}
+.train-done-link {
+    display: inline-block;
+    padding: 0.5rem 1.5rem;
+    background: var(--color-link);
+    color: white;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+.train-done-link:hover { background: var(--color-text); }
+
+/* First-letter hint placeholder */
+.blank-input::placeholder { color: var(--color-text-muted); opacity: 1; }
 
 /* Mobile */
 @media (max-width: 600px) {

@@ -15,7 +15,10 @@
         <a class="train-brand" href="/">KJV</a>
     </header>
     <main class="train-main">
-        <div class="train-card">
+        <div class="train-progress" id="train-progress" hidden>
+            <span id="train-progress-current"></span> of <span id="train-progress-total"></span>
+        </div>
+        <div class="train-card" id="train-card">
             <h1 class="train-ref" id="train-ref"></h1>
             <div class="train-verse" id="train-verse"></div>
             <div class="train-actions">
@@ -31,6 +34,12 @@
                 </div>
             </div>
             <p class="train-error" id="train-error" hidden></p>
+        </div>
+        <div class="train-done" id="train-done" hidden>
+            <p class="train-done-icon">&#10003;</p>
+            <h2 class="train-done-title">All done for today!</h2>
+            <p class="train-done-sub">Your reviews are saved. Come back tomorrow for the next session.</p>
+            <a class="train-done-link" href="/read">Back to reading</a>
         </div>
     </main>
     <script src="train.js"></script>

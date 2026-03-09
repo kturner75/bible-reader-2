@@ -56,6 +56,9 @@
         // Memorization
         memorizationOpen: false,           // memorization queue modal state
         memorizedPassages: {},             // { naturalKey: entryId } e.g. { "26930": "uuid" }
+        memorizedEntries: [],              // full entry list [{id, fromVerseId, toVerseId, naturalKey}]
+        memorizationDueEntries: [],        // entries due today, set on each queue render
+        passagePickerOpen: false,          // passage picker modal state
         // Auth
         currentUser: null                  // null = anonymous; object = { id, email, displayName }
     };
@@ -134,7 +137,19 @@
         memorizationToggle: document.getElementById('memorization-toggle'),
         memorizationOverlay: document.getElementById('memorization-overlay'),
         memorizationClose: document.getElementById('memorization-close'),
+        // Passage picker modal
+        passagePickerOverlay: document.getElementById('passage-picker-overlay'),
+        passagePickerChapters: document.getElementById('passage-picker-chapters'),
+        passagePickerCount: document.getElementById('passage-picker-count'),
+        passagePickerAdd: document.getElementById('passage-picker-add'),
+        passagePickerRemove: document.getElementById('passage-picker-remove'),
+        passagePickerClose: document.getElementById('passage-picker-close'),
+        passagePickerCancel: document.getElementById('passage-picker-cancel'),
+        // Memorization queue modal
         memorizationResultsCount: document.getElementById('memorization-results-count'),
+        memorizationDueBar: document.getElementById('memorization-due-bar'),
+        memorizationDueCount: document.getElementById('memorization-due-count'),
+        memorizationTrainBtn: document.getElementById('memorization-train-btn'),
         memorizationList: document.getElementById('memorization-list')
     };
 
@@ -717,7 +732,9 @@
      * Create HTML for a single verse.
      */
     function isVerseMemorized(verseId) {
-        return !!state.memorizedPassages[buildNaturalKey(verseId, verseId)];
+        return state.memorizedEntries.some(
+            e => verseId >= e.fromVerseId && verseId <= e.toVerseId
+        );
     }
 
     function createVerseHTML(verse, isCurrent) {
@@ -1407,8 +1424,15 @@
         try {
             const entries = await libApi('/api/memorization/queue');
             state.memorizedPassages = {};
+            state.memorizedEntries = [];
             entries.forEach(entry => {
                 state.memorizedPassages[entry.passage.naturalKey] = entry.id;
+                state.memorizedEntries.push({
+                    id:          entry.id,
+                    fromVerseId: entry.passage.fromVerseId,
+                    toVerseId:   entry.passage.toVerseId,
+                    naturalKey:  entry.passage.naturalKey
+                });
             });
         } catch (err) {
             console.error('Failed to load memorization queue:', err);
@@ -1563,35 +1587,222 @@
         }
     }
 
-    async function toggleMemorizeVerse(verseId) {
-        if (!state.currentUser) {
-            showToast('Sign in to memorize verses');
+    // ─── Passage Picker ───────────────────────────────────────────────────────
+
+    /** Parse a natural key string into [{from,to}] segments (mirrors NaturalKeyParser.java) */
+    function parseNaturalKey(key) {
+        return key.split(',').map(part => {
+            part = part.trim();
+            if (part.includes(':')) {
+                const [f, t] = part.split(':').map(Number);
+                return { from: f, to: t };
+            }
+            const v = Number(part);
+            return { from: v, to: v };
+        });
+    }
+
+    /** Build a natural key string from a sorted array of verse IDs (consecutive runs → ranges). */
+    function buildNaturalKeyFromIds(ids) {
+        if (!ids.length) return null;
+        const sorted = [...ids].sort((a, b) => a - b);
+        const segs = [];
+        let start = sorted[0], end = sorted[0];
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i] === end + 1) { end = sorted[i]; }
+            else {
+                segs.push(start === end ? `${start}` : `${start}:${end}`);
+                start = end = sorted[i];
+            }
+        }
+        segs.push(start === end ? `${start}` : `${start}:${end}`);
+        return segs.join(',');
+    }
+
+    /** Returns true if verseId falls within any segment of the given natural key. */
+    function verseInNaturalKey(verseId, naturalKey) {
+        return parseNaturalKey(naturalKey).some(s => verseId >= s.from && verseId <= s.to);
+    }
+
+    async function openPassagePicker(verseId) {
+        if (!state.currentUser) { showToast('Sign in to memorize verses'); return; }
+
+        state.passagePickerOpen = true;
+        elements.passagePickerOverlay.hidden = false;
+        elements.passagePickerOverlay.dataset.editEntryId = '';
+        elements.passagePickerChapters.innerHTML = '<div class="passage-picker-loading">Loading…</div>';
+        elements.passagePickerAdd.disabled = true;
+        elements.passagePickerAdd.textContent = 'Add to Queue';
+        elements.passagePickerRemove.hidden = true;
+
+        // Find existing entry covering this verse (edit mode)
+        const existingEntry = state.memorizedEntries.find(e =>
+            verseId >= e.fromVerseId && verseId <= e.toVerseId
+        ) || null;
+
+        let context;
+        try {
+            context = await libApi(`/api/memorization/context/${verseId}`);
+        } catch (err) {
+            elements.passagePickerChapters.innerHTML =
+                '<div class="passage-picker-loading">Could not load verses.</div>';
             return;
         }
-        const key = buildNaturalKey(verseId, verseId);
-        const entryId = state.memorizedPassages[key];
-        if (entryId) {
-            // Optimistic remove
-            delete state.memorizedPassages[key];
-            renderPage();
-            try {
-                await libApi(`/api/memorization/queue/${entryId}`, { method: 'DELETE' });
-            } catch (err) {
-                console.error('Failed to remove from memorization queue:', err);
-            }
+
+        // Build initial checked set
+        const checkedIds = new Set();
+        if (existingEntry) {
+            // Pre-check all verses in the existing passage
+            parseNaturalKey(existingEntry.naturalKey).forEach(seg => {
+                for (let id = seg.from; id <= seg.to; id++) checkedIds.add(id);
+            });
+            elements.passagePickerRemove.hidden = false;
+            elements.passagePickerAdd.textContent = 'Update';
+            elements.passagePickerOverlay.dataset.editEntryId = existingEntry.id;
         } else {
-            // Add via API — need server-assigned entry ID
-            try {
-                const entry = await libApi('/api/memorization/queue', {
+            checkedIds.add(verseId);
+        }
+
+        renderPickerChapters(context, checkedIds, existingEntry, verseId);
+    }
+
+    function renderPickerChapters(context, checkedIds, existingEntry, anchorVerseId) {
+        const sections = [context.prevChapter, context.currentChapter, context.nextChapter]
+            .filter(Boolean);
+
+        elements.passagePickerChapters.innerHTML = sections.map(ch => {
+            const allIds = ch.verses.map(v => v.id);
+            const headerLabel = `${ch.bookName} ${ch.chapter}`;
+            const verseRows = ch.verses.map(v => `
+                <label class="pp-verse-row">
+                    <input type="checkbox" class="pp-verse-cb" data-verse-id="${v.id}"
+                           ${checkedIds.has(v.id) ? 'checked' : ''}>
+                    <span class="pp-verse-num">${v.verseNum}</span>
+                    <span class="pp-verse-text">${escapeHtml(v.text)}</span>
+                </label>`).join('');
+            return `
+                <div class="pp-chapter-section" data-all-ids="${allIds.join(',')}">
+                    <div class="pp-chapter-header">
+                        <span class="pp-chapter-label">${escapeHtml(headerLabel)}</span>
+                        <label class="pp-select-all-label">
+                            <input type="checkbox" class="pp-select-all-cb">
+                            Select all
+                        </label>
+                    </div>
+                    ${verseRows}
+                </div>`;
+        }).join('');
+
+        updatePickerSelectAllStates();
+        updatePickerAddButton(existingEntry);
+
+        // Scroll current verse into view
+        const anchorCb = elements.passagePickerChapters
+            .querySelector(`[data-verse-id="${anchorVerseId}"]`);
+        if (anchorCb) anchorCb.closest('.pp-verse-row').scrollIntoView({ block: 'center' });
+
+        // Verse checkbox events
+        elements.passagePickerChapters.querySelectorAll('.pp-verse-cb').forEach(cb => {
+            cb.addEventListener('change', () => {
+                updatePickerSelectAllStates();
+                updatePickerAddButton(existingEntry);
+            });
+        });
+
+        // Select-all per chapter
+        elements.passagePickerChapters.querySelectorAll('.pp-select-all-cb').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const section = cb.closest('.pp-chapter-section');
+                section.querySelectorAll('.pp-verse-cb')
+                    .forEach(v => { v.checked = cb.checked; });
+                updatePickerAddButton(existingEntry);
+            });
+        });
+    }
+
+    function updatePickerSelectAllStates() {
+        elements.passagePickerChapters.querySelectorAll('.pp-chapter-section').forEach(section => {
+            const all  = section.querySelectorAll('.pp-verse-cb');
+            const chk  = section.querySelectorAll('.pp-verse-cb:checked');
+            const sa   = section.querySelector('.pp-select-all-cb');
+            if (!sa) return;
+            sa.checked       = chk.length === all.length;
+            sa.indeterminate = chk.length > 0 && chk.length < all.length;
+        });
+    }
+
+    function updatePickerAddButton(existingEntry) {
+        const checked = [...elements.passagePickerChapters
+            .querySelectorAll('.pp-verse-cb:checked')]
+            .map(cb => parseInt(cb.dataset.verseId, 10));
+        const count = checked.length;
+        elements.passagePickerAdd.disabled = count === 0;
+        elements.passagePickerCount.textContent =
+            count === 0 ? '0 verses selected' :
+            count === 1 ? '1 verse selected' :
+            `${count} verses selected`;
+    }
+
+    function closePassagePicker() {
+        state.passagePickerOpen = false;
+        elements.passagePickerOverlay.hidden = true;
+    }
+
+    async function submitPassagePicker(existingEntry) {
+        const checkedIds = [...elements.passagePickerChapters
+            .querySelectorAll('.pp-verse-cb:checked')]
+            .map(cb => parseInt(cb.dataset.verseId, 10));
+        if (!checkedIds.length) return;
+
+        const naturalKey = buildNaturalKeyFromIds(checkedIds);
+        elements.passagePickerAdd.disabled = true;
+
+        try {
+            let entry;
+            if (existingEntry) {
+                entry = await libApi(`/api/memorization/queue/${existingEntry.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ naturalKey })
+                });
+            } else {
+                entry = await libApi('/api/memorization/queue', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ fromVerseId: verseId, toVerseId: verseId })
+                    body: JSON.stringify({ naturalKey })
                 });
-                state.memorizedPassages[entry.passage.naturalKey] = entry.id;
-                renderPage();
-            } catch (err) {
-                console.error('Failed to add to memorization queue:', err);
             }
+            // Update local state
+            state.memorizedPassages[entry.passage.naturalKey] = entry.id;
+            state.memorizedEntries = state.memorizedEntries.filter(e => e.id !== entry.id);
+            state.memorizedEntries.push({
+                id: entry.id,
+                fromVerseId: entry.passage.fromVerseId,
+                toVerseId:   entry.passage.toVerseId,
+                naturalKey:  entry.passage.naturalKey
+            });
+            renderPage();
+            closePassagePicker();
+        } catch (err) {
+            console.error('Failed to save passage:', err);
+            elements.passagePickerAdd.disabled = false;
+        }
+    }
+
+    async function removePassageFromPicker(entryId) {
+        elements.passagePickerRemove.disabled = true;
+        try {
+            await libApi(`/api/memorization/queue/${entryId}`, { method: 'DELETE' });
+            // Update local state
+            state.memorizedEntries = state.memorizedEntries.filter(e => e.id !== entryId);
+            Object.keys(state.memorizedPassages).forEach(k => {
+                if (state.memorizedPassages[k] === entryId) delete state.memorizedPassages[k];
+            });
+            renderPage();
+            closePassagePicker();
+        } catch (err) {
+            console.error('Failed to remove passage:', err);
+            elements.passagePickerRemove.disabled = false;
         }
     }
 
@@ -1877,11 +2088,35 @@
             entries = [];
         }
 
+        // Sync richer state cache
+        state.memorizedPassages = {};
+        state.memorizedEntries = [];
+        entries.forEach(e => {
+            state.memorizedPassages[e.passage.naturalKey] = e.id;
+            state.memorizedEntries.push({
+                id: e.id, fromVerseId: e.passage.fromVerseId,
+                toVerseId: e.passage.toVerseId, naturalKey: e.passage.naturalKey
+            });
+        });
+
         const count = entries.length;
         elements.memorizationResultsCount.textContent =
             count === 0 ? '0 passages' :
             count === 1 ? '1 passage' :
             `${count} passages`;
+
+        // Compute entries due today (nextReviewAt null = never reviewed, counts as due)
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const dueEntries = entries.filter(e => !e.nextReviewAt || e.nextReviewAt <= todayStr);
+        const dueCount = dueEntries.length;
+        state.memorizationDueEntries = dueEntries;
+        if (dueCount > 0) {
+            elements.memorizationDueCount.textContent =
+                dueCount === 1 ? '1 due today' : `${dueCount} due today`;
+            elements.memorizationDueBar.hidden = false;
+        } else {
+            elements.memorizationDueBar.hidden = true;
+        }
 
         if (count === 0) {
             elements.memorizationList.innerHTML =
@@ -1894,15 +2129,24 @@
             const dots = Array.from({ length: 5 }, (_, i) =>
                 `<span class="mastery-dot${i < entry.masteryLevel ? ' filled' : ''}"></span>`
             ).join('');
+            // Range reference: show "John 3:16" or "John 3:16 – 21"
+            const isMulti = entry.fromVerseRef !== entry.toVerseRef;
+            const refDisplay = isMulti
+                ? `${escapeHtml(entry.fromVerseRef)} &ndash; ${escapeHtml(entry.toVerseRef)}`
+                : escapeHtml(entry.fromVerseRef);
+            // Preview: first verse text
+            const previewText = entry.verses && entry.verses.length
+                ? entry.verses[0].text
+                : '';
             return `
             <div class="memorization-item" data-entry-id="${escapeHtml(entry.id)}"
                  data-verse-id="${entry.passage.fromVerseId}">
                 <div class="memorization-item-body">
-                    <div class="memorization-item-ref">${escapeHtml(entry.fromVerseRef)}</div>
-                    <div class="memorization-item-text">${escapeHtml(entry.fromVerseText)}</div>
+                    <div class="memorization-item-ref">${refDisplay}</div>
+                    <div class="memorization-item-text">${escapeHtml(previewText)}</div>
                     <div class="memorization-item-mastery">${dots}</div>
                     <button class="memorization-practice-btn" data-entry-id="${escapeHtml(entry.id)}"
-                            aria-label="Practice this verse">Practice</button>
+                            aria-label="Practice this passage">Practice</button>
                 </div>
                 <button class="memorization-item-remove" data-entry-id="${escapeHtml(entry.id)}"
                         aria-label="Remove from queue">&times;</button>
@@ -1938,12 +2182,13 @@
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const entryId = btn.dataset.entryId;
-                // Remove from local state map
+                // Remove from local state maps
                 Object.keys(state.memorizedPassages).forEach(key => {
                     if (state.memorizedPassages[key] === entryId) {
                         delete state.memorizedPassages[key];
                     }
                 });
+                state.memorizedEntries = state.memorizedEntries.filter(e => e.id !== entryId);
                 // Remove from DOM immediately
                 btn.closest('.memorization-item').remove();
                 const remaining = elements.memorizationList.querySelectorAll('.memorization-item').length;
@@ -2597,6 +2842,8 @@
                 closeNoteEditor();
             } else if (state.tagPickerOpen) {
                 closeTagPicker();
+            } else if (state.passagePickerOpen) {
+                closePassagePicker();
             } else if (state.memorizationOpen) {
                 closeMemorization();
             } else if (state.libraryOpen) {
@@ -2614,7 +2861,7 @@
         // Don't process other keys if overlays are open
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
             state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen ||
-            state.memorizationOpen) return;
+            state.memorizationOpen || state.passagePickerOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
         if (e.metaKey || e.ctrlKey) return;
@@ -2682,7 +2929,7 @@
                 break;
             case 'm':
                 e.preventDefault();
-                toggleMemorizeVerse(state.currentVerseId);
+                openPassagePicker(state.currentVerseId);
                 break;
             case 'M':
                 e.preventDefault();
@@ -2755,6 +3002,25 @@
             }
         });
 
+        // Passage picker modal
+        elements.passagePickerClose.addEventListener('click', closePassagePicker);
+        elements.passagePickerCancel.addEventListener('click', closePassagePicker);
+        elements.passagePickerOverlay.addEventListener('click', (e) => {
+            if (e.target === elements.passagePickerOverlay) closePassagePicker();
+        });
+        // Add / Update — existingEntry captured on open; stored on overlay as dataset
+        elements.passagePickerAdd.addEventListener('click', () => {
+            const existingId = elements.passagePickerOverlay.dataset.editEntryId || null;
+            const existingEntry = existingId
+                ? state.memorizedEntries.find(e => e.id === existingId) || null
+                : null;
+            submitPassagePicker(existingEntry);
+        });
+        elements.passagePickerRemove.addEventListener('click', () => {
+            const entryId = elements.passagePickerOverlay.dataset.editEntryId;
+            if (entryId) removePassageFromPicker(entryId);
+        });
+
         // Memorization queue
         elements.memorizationToggle.addEventListener('click', () => {
             if (!state.currentUser) {
@@ -2766,6 +3032,12 @@
         elements.memorizationClose.addEventListener('click', closeMemorization);
         elements.memorizationOverlay.addEventListener('click', (e) => {
             if (e.target === elements.memorizationOverlay) closeMemorization();
+        });
+        elements.memorizationTrainBtn.addEventListener('click', () => {
+            const due = state.memorizationDueEntries;
+            if (!due || due.length === 0) return;
+            sessionStorage.setItem('kjv_training_session', JSON.stringify({ entries: due, index: 0 }));
+            window.location.href = '/train';
         });
 
         // Library (saved verses) — on mobile the hamburger opens the quick-actions menu instead
@@ -2991,6 +3263,7 @@
                 loadSavedVerses();
                 loadTags();
                 state.memorizedPassages = {};
+                state.memorizedEntries = [];
                 renderPage();
             };
         } else {
