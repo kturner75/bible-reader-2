@@ -41,7 +41,8 @@ public class GlobalPassageSeeder {
         new SeedPassage("Proverbs 3:5–6",    "Proverbs 3:5",    "Proverbs 3:6",    5),
         new SeedPassage("Philippians 4:6–7", "Philippians 4:6", "Philippians 4:7", 6),
         new SeedPassage("Romans 8:38–39",    "Romans 8:38",     "Romans 8:39",     7),
-        new SeedPassage("John 1:1–5",        "John 1:1",        "John 1:5",        8)
+        new SeedPassage("John 1:1–5",          "John 1:1",        "John 1:5",        8),
+        new SeedPassage("The Ten Commandments", "Exodus 20:1",     "Exodus 20:17",    9)
     );
 
     @EventListener(ApplicationReadyEvent.class)
