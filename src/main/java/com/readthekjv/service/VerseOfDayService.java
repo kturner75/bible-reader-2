@@ -22,8 +22,10 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.TextStyle;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Generates a daily AI-selected Bible verse using OpenAI Chat Completions.
@@ -122,7 +124,14 @@ public class VerseOfDayService {
 
         log.info("Generating verse of the day for {}", date);
         try {
-            String prompt = buildPrompt(date);
+            // Collect references used in the last 60 days so the model avoids repeats
+            List<String> recentRefs = repository.findTop60ByOrderByDateDesc().stream()
+                    .map(v -> bibleService.getVerse(v.getVerseId()))
+                    .filter(Optional::isPresent)
+                    .map(opt -> opt.get().reference())
+                    .collect(Collectors.toList());
+
+            String prompt = buildPrompt(date, recentRefs);
             String responseBody = callOpenAiChat(prompt);
             if (responseBody == null) return;
 
@@ -148,11 +157,15 @@ public class VerseOfDayService {
 
     // ── Prompt building ───────────────────────────────────────────────────────
 
-    private String buildPrompt(LocalDate date) {
+    private String buildPrompt(LocalDate date, List<String> recentRefs) {
         String dayOfWeek  = date.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
         String monthName  = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
         int    day        = date.getDayOfMonth();
         int    year       = date.getYear();
+
+        String exclusion = recentRefs.isEmpty() ? "" :
+                "%n- Do NOT select any of the following verses, which have already been used recently:%n" +
+                "  " + String.join(", ", recentRefs) + "%n";
 
         return String.format(
                 "Select one verse from the King James Bible for %s, %s %d, %d.%n%n" +
@@ -165,7 +178,8 @@ public class VerseOfDayService {
                 "Let the theme reflect the time of year naturally.%n" +
                 "- Choose a single verse only — never a range. Write '4:6' not '4:6-7'.%n" +
                 "- Prefer verses that are clear, complete thoughts in a single verse (not fragments).%n" +
-                "- Draw from both Old and New Testaments across the year.%n%n" +
+                "- Draw from both Old and New Testaments across the year." +
+                exclusion + "%n" +
                 "Return ONLY a JSON object with no markdown: " +
                 "{\"reference\": \"Book Chapter:Verse\", " +
                 "\"blurb\": \"2-3 sentences connecting this verse to the season or theme and why it is worth meditating on today.\"}",
