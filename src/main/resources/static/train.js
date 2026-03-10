@@ -115,6 +115,7 @@
         const recordBtn       = document.getElementById('record-btn');
         const recordingStatus = document.getElementById('recording-status');
         const transcriptPanel = document.getElementById('transcript-panel');
+        const transcriptHeard = document.getElementById('transcript-heard');
         const transcriptDiff  = document.getElementById('transcript-diff');
         const accuracyDisplay = document.getElementById('accuracy-display');
 
@@ -147,6 +148,7 @@
 
         function resetTranscriptPanel() {
             transcriptPanel.hidden = true;
+            transcriptHeard.textContent = '';
             transcriptDiff.innerHTML = '';
             accuracyDisplay.textContent = '';
             ratingsEl.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('suggested'));
@@ -308,6 +310,7 @@
                 ? Math.round((matched / expWords.length) * 100)
                 : 0;
 
+            transcriptHeard.textContent = transcript;
             transcriptDiff.innerHTML = html.join(' ');
 
             const color = accuracy >= 90 ? '#2e6b35'
