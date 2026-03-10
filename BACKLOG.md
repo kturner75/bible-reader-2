@@ -6,11 +6,12 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 ## Memorization
 
-- **Streak tracking** — daily review streak, shown on dashboard
-- **Review history** — per-passage history of quality ratings over time
+- **Streak tracking** *(done)* — daily review streak, shown on dashboard
+- **Review history** *(done)* — per-passage history of quality ratings over time; color-coded dots (green/orange/red) on dashboard queue rows
 - **Test mode** — hides verse numbers and reference; pure recall from memory
-- **Global/shared passages** — pre-built passages (Psalm 23, Lord's Prayer, etc.) available to all users without adding them manually
-- **Voice recitation mode** *(low priority)* — microphone input via Web Speech API (or a server-side STT service like OpenAI Whisper); user speaks the verse aloud, app transcribes it and checks accuracy against the expected text (stripping punctuation on both sides before comparing). Particularly useful on mobile. Accuracy scoring would follow the same quality-rating model as fill-in-the-blank. Fallback gracefully when browser lacks speech support.
+- **Global/shared passages** *(done)* — 9 curated passages (Psalm 23, Lord's Prayer, Beatitudes, etc.) surfaced as a "Featured Passages" card on the dashboard with one-click Add
+- **AI verse suggestions** *(Phase 3 Part 2)* — use OpenAI to suggest verses to memorize based on the user's existing saved/memorized passages
+- **Voice recitation mode** *(done — Phase 3 Part 1)* — OpenAI Whisper server-side STT; word-level diff with accuracy score; quality suggestion pre-highlighted on SM-2 rating buttons
 
 ---
 
@@ -57,6 +58,13 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 - **Donation button** — Stripe or Buy Me a Coffee integration on landing/dashboard
 - **Email notifications** — optional daily reminder to review due passages or read today's plan passage
 - **Mobile app** — React Native shell wrapping the web reader + push notifications for due reviews
+
+---
+
+## Prayer
+
+- **Prayer list** — personal prayer requests with optional notes and a status (active, answered, archived). Local-only by default (stored in DB under the user's account) for privacy. Each item can have threaded comments/updates over time.
+- **Prayer Circle** *(dependent on Prayer list)* — opt-in sharing of a prayer list (or subset of items) with a named group of users. Members can see each other's requests and add encouragement/comments. Each request retains its status so the circle can celebrate answered prayers together. Privacy model TBD (invite-only vs. open groups).
 
 ---
 
