@@ -8,7 +8,7 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 - **Streak tracking** *(done)* — daily review streak, shown on dashboard
 - **Review history** *(done)* — per-passage history of quality ratings over time; color-coded dots (green/orange/red) on dashboard queue rows
-- **Test mode** — hides verse numbers and reference; pure recall from memory
+- **Test mode** *(done)* — hides verse numbers and reference; pure recall from memory; toggle button on training card, preference persisted in localStorage
 - **Global/shared passages** *(done)* — 9 curated passages (Psalm 23, Lord's Prayer, Beatitudes, etc.) surfaced as a "Featured Passages" card on the dashboard with one-click Add
 - **AI verse suggestions** *(Phase 3 Part 2)* — use OpenAI to suggest verses to memorize based on the user's existing saved/memorized passages
 - **Voice recitation mode** *(done — Phase 3 Part 1)* — OpenAI Whisper server-side STT; word-level diff with accuracy score; quality suggestion pre-highlighted on SM-2 rating buttons
