@@ -10,6 +10,7 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 - **Review history** — per-passage history of quality ratings over time
 - **Test mode** — hides verse numbers and reference; pure recall from memory
 - **Global/shared passages** — pre-built passages (Psalm 23, Lord's Prayer, etc.) available to all users without adding them manually
+- **Voice recitation mode** *(low priority)* — microphone input via Web Speech API (or a server-side STT service like OpenAI Whisper); user speaks the verse aloud, app transcribes it and checks accuracy against the expected text (stripping punctuation on both sides before comparing). Particularly useful on mobile. Accuracy scoring would follow the same quality-rating model as fill-in-the-blank. Fallback gracefully when browser lacks speech support.
 
 ---
 
