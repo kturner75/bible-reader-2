@@ -3,6 +3,7 @@ package com.readthekjv.controller;
 import com.readthekjv.model.ChapterInfo;
 import com.readthekjv.model.Verse;
 import com.readthekjv.model.dto.AddToQueueRequest;
+import com.readthekjv.model.dto.GlobalPassageResponse;
 import com.readthekjv.model.dto.MemorizationEntryResponse;
 import com.readthekjv.model.dto.PassageContextResponse;
 import com.readthekjv.model.dto.ReciteResponse;
@@ -97,6 +98,13 @@ public class MemorizationController {
     @GetMapping("/streak")
     public StreakResponse getStreak(@AuthenticationPrincipal UserDetails ud) {
         return memorizationService.getStreak(resolveUser(ud).getId());
+    }
+
+    // ─── Global Passages ──────────────────────────────────────────────────────
+
+    @GetMapping("/global-passages")
+    public List<GlobalPassageResponse> getGlobalPassages(@AuthenticationPrincipal UserDetails ud) {
+        return memorizationService.getGlobalPassages(resolveUser(ud).getId());
     }
 
     // ─── Training ─────────────────────────────────────────────────────────────

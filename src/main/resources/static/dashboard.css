@@ -285,6 +285,61 @@ a:hover { text-decoration: underline; }
     padding: 0.05em 0.35em;
 }
 
+/* ── Featured Passages ─────────────────────────────────────── */
+.section-sub {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.featured-list { display: flex; flex-direction: column; }
+
+.featured-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.featured-row:last-child { border-bottom: none; }
+
+.featured-title {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.featured-ref {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.featured-add-btn {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    padding: 0.25rem 0.85rem;
+    border-radius: 4px;
+    border: 1px solid var(--color-link);
+    background: transparent;
+    color: var(--color-link);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 150ms ease, color 150ms ease;
+    min-width: 5.5rem;
+    text-align: center;
+}
+.featured-add-btn:hover:not(:disabled) {
+    background: var(--color-accent-light, #f0ebe3);
+}
+.featured-add-btn.is-added,
+.featured-add-btn:disabled {
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+    cursor: default;
+    background: transparent;
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 640px) {
     .dash-main { padding: 2rem 1.25rem 4rem; }
@@ -300,4 +355,13 @@ a:hover { text-decoration: underline; }
     .queue-practice-btn { grid-column: 2; grid-row: 1; }
     .queue-mastery      { grid-column: 1; grid-row: 2; }
     .queue-due          { grid-column: 2; grid-row: 2; text-align: right; }
+
+    .featured-row {
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto auto;
+        row-gap: 0.25rem;
+    }
+    .featured-title   { grid-column: 1; grid-row: 1; }
+    .featured-add-btn { grid-column: 2; grid-row: 1; }
+    .featured-ref     { grid-column: 1; grid-row: 2; }
 }

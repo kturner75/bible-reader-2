@@ -1,5 +1,6 @@
 package com.readthekjv.service;
 
+import com.readthekjv.model.dto.GlobalPassageResponse;
 import com.readthekjv.model.dto.MemorizationEntryResponse;
 import com.readthekjv.model.dto.PassageResponse;
 import com.readthekjv.model.dto.StreakResponse;
@@ -21,7 +22,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -101,7 +104,10 @@ public class MemorizationService {
         int fromVerseId = NaturalKeyParser.outerFrom(segments);
         int toVerseId   = NaturalKeyParser.outerTo(segments);
 
-        Passage passage = passageRepo.findByUserIdAndNaturalKey(userId, naturalKey)
+        // Prefer a global passage (user IS NULL) with this key so all users share one row.
+        // Fall back to the user's own per-user passage, creating it if needed.
+        Passage passage = passageRepo.findByUserIsNullAndNaturalKey(naturalKey)
+                .or(() -> passageRepo.findByUserIdAndNaturalKey(userId, naturalKey))
                 .orElseGet(() -> {
                     Passage p = new Passage();
                     p.setUser(userRepo.getReferenceById(userId));
@@ -219,6 +225,38 @@ public class MemorizationService {
         userRepo.save(user);
 
         return response;
+    }
+
+    // ─── Global Passages ──────────────────────────────────────────────────────
+
+    /**
+     * Returns the curated global passages with an alreadyQueued flag for this user.
+     * The check is by naturalKey (not passage UUID) so users who manually added the
+     * same passage reference before this feature was introduced also show as "Added".
+     */
+    public List<GlobalPassageResponse> getGlobalPassages(Long userId) {
+        List<Passage> globals = passageRepo.findByUserIsNullOrderBySortOrderAsc();
+        if (globals.isEmpty()) return List.of();
+
+        Set<String> queuedKeys = entryRepo.findByUserIdWithPassage(userId)
+                .stream()
+                .map(e -> e.getPassage().getNaturalKey())
+                .collect(Collectors.toSet());
+
+        return globals.stream().map(p -> {
+            String fromRef = bibleService.getVerse(p.getFromVerseId())
+                    .map(v -> v.reference()).orElse(p.getNaturalKey());
+            String toRef = bibleService.getVerse(p.getToVerseId())
+                    .map(v -> v.reference()).orElse(p.getNaturalKey());
+            return new GlobalPassageResponse(
+                    p.getId(),
+                    p.getNaturalKey(),
+                    p.getTitle(),
+                    fromRef,
+                    toRef,
+                    queuedKeys.contains(p.getNaturalKey())
+            );
+        }).toList();
     }
 
     // ─── Streak ───────────────────────────────────────────────────────────────
