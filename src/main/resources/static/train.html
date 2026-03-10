@@ -21,9 +21,29 @@
         <div class="train-card" id="train-card">
             <div class="train-ref-row">
                 <h1 class="train-ref" id="train-ref"></h1>
-                <button class="train-test-toggle" id="train-test-toggle">Test mode</button>
+                <div class="train-toggle-group">
+                    <button class="train-test-toggle" id="train-test-toggle">Test mode</button>
+                    <button class="train-recite-toggle" id="train-recite-toggle">Recite</button>
+                </div>
             </div>
             <div class="train-verse" id="train-verse"></div>
+            <div id="recite-panel" hidden>
+                <p class="recite-instruction">Speak the verse from memory</p>
+                <div class="recite-controls">
+                    <button id="record-btn" class="record-btn" aria-label="Start recording">
+                        <span class="record-icon"></span>
+                        <span class="record-label">Tap to record</span>
+                    </button>
+                    <span id="recording-status" class="recording-status" hidden>
+                        <span class="recording-dot"></span> Recording&hellip;
+                    </span>
+                </div>
+            </div>
+            <div id="transcript-panel" hidden>
+                <p class="transcript-label">Your recitation</p>
+                <div id="transcript-diff" class="transcript-diff"></div>
+                <p id="accuracy-display" class="accuracy-display"></p>
+            </div>
             <div class="train-actions">
                 <button class="train-btn-check" id="train-check-btn">Check</button>
             </div>

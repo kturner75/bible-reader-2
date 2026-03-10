@@ -103,15 +103,22 @@
             document.getElementById('train-progress-total').textContent   = session.entries.length;
         }
 
-        const refEl       = document.getElementById('train-ref');
-        const verseEl     = document.getElementById('train-verse');
-        const checkBtn    = document.getElementById('train-check-btn');
-        const ratingsEl   = document.getElementById('train-ratings');
-        const errorEl     = document.getElementById('train-error');
-        const testToggle  = document.getElementById('train-test-toggle');
-        const card        = document.getElementById('train-card');
+        const refEl           = document.getElementById('train-ref');
+        const verseEl         = document.getElementById('train-verse');
+        const checkBtn        = document.getElementById('train-check-btn');
+        const ratingsEl       = document.getElementById('train-ratings');
+        const errorEl         = document.getElementById('train-error');
+        const testToggle      = document.getElementById('train-test-toggle');
+        const card            = document.getElementById('train-card');
+        const reciteToggle    = document.getElementById('train-recite-toggle');
+        const recitePanel     = document.getElementById('recite-panel');
+        const recordBtn       = document.getElementById('record-btn');
+        const recordingStatus = document.getElementById('recording-status');
+        const transcriptPanel = document.getElementById('transcript-panel');
+        const transcriptDiff  = document.getElementById('transcript-diff');
+        const accuracyDisplay = document.getElementById('accuracy-display');
 
-        // Test mode — persisted across passages
+        // --- Test mode ---
         const TEST_MODE_KEY = 'kjv_test_mode';
         let testMode = localStorage.getItem(TEST_MODE_KEY) === 'true';
 
@@ -129,7 +136,47 @@
 
         applyTestMode();
 
-        // Normalise: support both old {fromVerseText} and new {verses:[]}
+        // --- Recite mode ---
+        const RECITE_MODE_KEY = 'kjv_recite_mode';
+        let reciteMode = localStorage.getItem(RECITE_MODE_KEY) === 'true';
+
+        // Recite mode state
+        let mediaRecorder = null;
+        let audioChunks   = [];
+        let isRecording   = false;
+
+        function resetTranscriptPanel() {
+            transcriptPanel.hidden = true;
+            transcriptDiff.innerHTML = '';
+            accuracyDisplay.textContent = '';
+            ratingsEl.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('suggested'));
+        }
+
+        function applyReciteMode() {
+            card.classList.toggle('recite-mode', reciteMode);
+            reciteToggle.classList.toggle('active', reciteMode);
+            reciteToggle.textContent = reciteMode ? 'Recite: on' : 'Recite';
+            recitePanel.hidden = !reciteMode;
+            // Reset panels on mode toggle
+            resetTranscriptPanel();
+            ratingsEl.hidden = true;
+            checkBtn.hidden  = false;
+        }
+
+        reciteToggle.addEventListener('click', () => {
+            reciteMode = !reciteMode;
+            localStorage.setItem(RECITE_MODE_KEY, String(reciteMode));
+            applyReciteMode();
+        });
+
+        // Browser compatibility guard
+        if (reciteMode && typeof MediaRecorder === 'undefined') {
+            recitePanel.innerHTML = '<p class="train-error" style="display:block">Voice recitation is not supported in this browser. Please use Chrome, Firefox, or Edge.</p>';
+        }
+
+        applyReciteMode();
+
+        // --- Normalise: support both old {fromVerseText} and new {verses:[]} ---
         const verses = entry.verses && entry.verses.length
             ? entry.verses
             : [{ verseNum: 1, reference: entry.fromVerseRef, text: entry.fromVerseText || '' }];
@@ -154,22 +201,24 @@
             }).join('');
         }
 
-        const first = verseEl.querySelector('.blank-input');
-        if (first) first.focus();
+        // Only focus blank inputs in fill-in-blank mode
+        if (!reciteMode) {
+            const first = verseEl.querySelector('.blank-input');
+            if (first) first.focus();
+        }
 
         // Normalize for comparison: collapse smart apostrophes/quotes, strip
-        // leading/trailing punctuation, lowercase.  Applied to both sides so
-        // curly ' (U+2019) in the KJV text matches a straight ' typed by the user.
+        // leading/trailing punctuation, lowercase.
         function normalizeAnswer(s) {
             return s
-                .replace(/[\u2018\u2019\u02BC]/g, "'")   // curly/modifier apostrophes → '
-                .replace(/[\u201C\u201D]/g, '"')           // curly double-quotes → "
+                .replace(/[\u2018\u2019\u02BC]/g, "'")
+                .replace(/[\u201C\u201D]/g, '"')
                 .trim()
                 .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '')
                 .toLowerCase();
         }
 
-        // --- Check ---
+        // --- Check (fill-in-blank mode) ---
         function checkAnswers() {
             checkBtn.disabled = true;
             verseEl.querySelectorAll('.blank-input').forEach(input => {
@@ -219,14 +268,186 @@
             }
         }
 
+        // --- Recite: word diff ---
+        function normalizeWord(w) {
+            return w
+                .replace(/[\u2018\u2019\u02BC]/g, "'")
+                .replace(/[\u201C\u201D]/g, '"')
+                .toLowerCase()
+                .replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, '');
+        }
+
+        function showTranscriptResult(transcript, expectedText) {
+            const expWords = expectedText.split(/\s+/).filter(w => w.length > 0);
+            const gotWords = transcript.split(/\s+/).filter(w => w.length > 0);
+
+            let matched = 0;
+            const html  = [];
+            let gi = 0; // index into gotWords
+
+            for (let ei = 0; ei < expWords.length; ei++) {
+                const expNorm = normalizeWord(expWords[ei]);
+                // Greedy scan with lookahead of 2 to handle Whisper filler words
+                let foundAt = -1;
+                for (let la = 0; la <= 2 && gi + la < gotWords.length; la++) {
+                    if (normalizeWord(gotWords[gi + la]) === expNorm) {
+                        foundAt = gi + la;
+                        break;
+                    }
+                }
+                if (foundAt >= 0) {
+                    gi = foundAt + 1;
+                    matched++;
+                    html.push('<span class="word-correct">' + escapeHtml(expWords[ei]) + '</span>');
+                } else {
+                    html.push('<span class="word-wrong">' + escapeHtml(expWords[ei]) + '</span>');
+                }
+            }
+
+            const accuracy = expWords.length > 0
+                ? Math.round((matched / expWords.length) * 100)
+                : 0;
+
+            transcriptDiff.innerHTML = html.join(' ');
+
+            const color = accuracy >= 90 ? '#2e6b35'
+                        : accuracy >= 70 ? '#4a7c4e'
+                        : accuracy >= 50 ? '#a07030'
+                        : '#b05040';
+            accuracyDisplay.style.color = color;
+            accuracyDisplay.textContent = accuracy + '% accuracy';
+            transcriptPanel.hidden = false;
+
+            // Pre-highlight suggested quality
+            const suggested = accuracy >= 90 ? 5
+                             : accuracy >= 70 ? 4
+                             : accuracy >= 50 ? 3
+                             : 0;
+            ratingsEl.querySelectorAll('.rating-btn').forEach(btn => {
+                btn.classList.toggle('suggested', parseInt(btn.dataset.quality) === suggested);
+            });
+            ratingsEl.hidden = false;
+            checkBtn.hidden  = true;
+        }
+
+        // --- Recite: recording ---
+        async function startRecording() {
+            if (isRecording) return;
+            errorEl.hidden = true;
+            resetTranscriptPanel();
+
+            const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus',
+                              'audio/ogg', 'audio/mp4']
+                .find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (err) {
+                errorEl.textContent = 'Microphone access denied. Please allow microphone use in your browser settings.';
+                errorEl.hidden = false;
+                return;
+            }
+
+            audioChunks = [];
+            let recorder;
+            try {
+                recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+            } catch (err) {
+                recorder = new MediaRecorder(stream);
+            }
+            mediaRecorder = recorder;
+
+            recorder.addEventListener('dataavailable', e => {
+                if (e.data && e.data.size > 0) audioChunks.push(e.data);
+            });
+
+            recorder.addEventListener('stop', () => {
+                stream.getTracks().forEach(t => t.stop());
+                sendRecording(recorder.mimeType || mimeType || 'audio/webm');
+            });
+
+            recorder.start(250); // 250ms timeslice — ensures chunks on short recordings
+            isRecording = true;
+            recordBtn.classList.add('recording');
+            recordBtn.querySelector('.record-label').textContent = 'Tap to stop';
+            recordingStatus.hidden = false;
+        }
+
+        function stopRecording() {
+            if (!isRecording || !mediaRecorder) return;
+            mediaRecorder.stop();
+            isRecording = false;
+            recordBtn.classList.remove('recording');
+            recordBtn.querySelector('.record-label').textContent = 'Tap to record';
+            recordingStatus.hidden = true;
+        }
+
+        async function sendRecording(mimeType) {
+            recordBtn.disabled = true;
+
+            const ext = mimeType.includes('ogg') ? 'ogg'
+                      : mimeType.includes('mp4') ? 'mp4'
+                      : 'webm';
+
+            const blob = new Blob(audioChunks, { type: mimeType });
+            audioChunks = [];
+
+            const formData = new FormData();
+            // Do NOT set Content-Type manually — browser sets multipart boundary automatically
+            formData.append('audio', blob, 'recitation.' + ext);
+
+            let data;
+            try {
+                const res = await fetch('/api/memorization/queue/' + entry.id + '/recite', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+
+                if (res.status === 401) { window.location.href = '/login.html'; return; }
+                if (res.status === 503) {
+                    errorEl.textContent = 'Voice recitation is not available on this server.';
+                    errorEl.hidden = false;
+                    return;
+                }
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    errorEl.textContent = err.message || 'Transcription failed. Please try again.';
+                    errorEl.hidden = false;
+                    return;
+                }
+
+                data = await res.json();
+            } catch (e) {
+                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.hidden = false;
+                return;
+            } finally {
+                recordBtn.disabled = false;
+            }
+
+            showTranscriptResult(data.transcript, data.expectedText);
+        }
+
         // --- Event listeners ---
         checkBtn.addEventListener('click', checkAnswers);
+
         ratingsEl.addEventListener('click', (e) => {
             const btn = e.target.closest('.rating-btn');
             if (btn && !btn.disabled) submitRating(parseInt(btn.dataset.quality));
         });
+
         verseEl.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !checkBtn.disabled && !checkBtn.hidden) checkAnswers();
+        });
+
+        recordBtn.addEventListener('click', () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
         });
     }
 })();
