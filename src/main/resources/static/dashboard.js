@@ -37,6 +37,21 @@
         window.location.href = '/train';
     }
 
+    // recentHistory arrives newest-first; dots render oldest→newest (left→right)
+    function historyDots(recentHistory) {
+        if (!recentHistory || recentHistory.length === 0) return '';
+        const dots = [...recentHistory].reverse().map(h => {
+            const cls   = h.quality >= 4 ? 'hist-good'
+                        : h.quality === 3 ? 'hist-hard'
+                        : 'hist-again';
+            const label = h.quality >= 4 ? 'Good/Easy'
+                        : h.quality === 3 ? 'Hard'
+                        : 'Again';
+            return `<span class="hist-dot ${cls}" title="${label} — ${h.reviewedAt}"></span>`;
+        }).join('');
+        return `<div class="queue-history">${dots}</div>`;
+    }
+
     // ── Auth ─────────────────────────────────────────────────────────────────
 
     let currentUser = null;
@@ -168,6 +183,7 @@
                 <span class="queue-mastery" title="Mastery level ${entry.masteryLevel} of 5">${masteryDots(entry.masteryLevel)}</span>
                 <span class="queue-due${due ? ' is-due' : ''}">${escapeHtml(formatDueDate(entry.nextReviewAt))}</span>
                 <button class="queue-practice-btn">Practice</button>
+                ${historyDots(entry.recentHistory)}
             `;
             row.querySelector('.queue-practice-btn').addEventListener('click', () => {
                 launchTraining([entry]);

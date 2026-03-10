@@ -13,5 +13,6 @@ public record MemorizationEntryResponse(
         List<VerseSnippet> verses,   // all verses in passage (replaces fromVerseText)
         int masteryLevel,
         LocalDate nextReviewAt,
-        OffsetDateTime addedAt
+        OffsetDateTime addedAt,
+        List<ReviewHistorySnippet> recentHistory  // last 10 reviews, newest-first
 ) {}
