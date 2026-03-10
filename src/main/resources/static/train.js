@@ -103,11 +103,31 @@
             document.getElementById('train-progress-total').textContent   = session.entries.length;
         }
 
-        const refEl     = document.getElementById('train-ref');
-        const verseEl   = document.getElementById('train-verse');
-        const checkBtn  = document.getElementById('train-check-btn');
-        const ratingsEl = document.getElementById('train-ratings');
-        const errorEl   = document.getElementById('train-error');
+        const refEl       = document.getElementById('train-ref');
+        const verseEl     = document.getElementById('train-verse');
+        const checkBtn    = document.getElementById('train-check-btn');
+        const ratingsEl   = document.getElementById('train-ratings');
+        const errorEl     = document.getElementById('train-error');
+        const testToggle  = document.getElementById('train-test-toggle');
+        const card        = document.getElementById('train-card');
+
+        // Test mode — persisted across passages
+        const TEST_MODE_KEY = 'kjv_test_mode';
+        let testMode = localStorage.getItem(TEST_MODE_KEY) === 'true';
+
+        function applyTestMode() {
+            card.classList.toggle('test-mode', testMode);
+            testToggle.classList.toggle('active', testMode);
+            testToggle.textContent = testMode ? 'Test mode: on' : 'Test mode';
+        }
+
+        testToggle.addEventListener('click', () => {
+            testMode = !testMode;
+            localStorage.setItem(TEST_MODE_KEY, String(testMode));
+            applyTestMode();
+        });
+
+        applyTestMode();
 
         // Normalise: support both old {fromVerseText} and new {verses:[]}
         const verses = entry.verses && entry.verses.length

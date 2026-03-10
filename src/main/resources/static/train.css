@@ -60,13 +60,40 @@ html, body {
 }
 
 /* Verse reference */
+.train-ref-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+}
+
 .train-ref {
     font-size: 1.1rem;
     font-weight: 500;
     color: var(--color-link);
-    margin-bottom: 1.5rem;
     font-style: normal;
 }
+
+.train-test-toggle {
+    font-family: var(--font-primary);
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    padding: 0.15rem 0.55rem;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 120ms, border-color 120ms, background 120ms;
+}
+.train-test-toggle:hover { color: var(--color-text); border-color: var(--color-text-muted); }
+.train-test-toggle.active { background: var(--color-link); color: white; border-color: var(--color-link); }
+
+/* Test mode: hide reference and verse numbers */
+.train-card.test-mode .train-ref { visibility: hidden; }
+.train-card.test-mode .train-verse-num { visibility: hidden; }
 
 /* Blanked verse */
 .train-verse {
