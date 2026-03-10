@@ -97,17 +97,20 @@
         document.getElementById('reading-ref').textContent = 'Genesis 1';
     }
 
-    // ── Memorization Queue + Streak (parallel) ────────────────────────────────
+    // ── Memorization Queue + Streak + Featured Passages (parallel) ───────────
 
-    let allEntries = [];
-    let streakData = null;
+    let allEntries     = [];
+    let streakData     = null;
+    let globalPassages = [];
     try {
-        const [queueRes, streakRes] = await Promise.all([
-            fetch('/api/memorization/queue',  { credentials: 'include' }),
-            fetch('/api/memorization/streak', { credentials: 'include' }),
+        const [queueRes, streakRes, globalRes] = await Promise.all([
+            fetch('/api/memorization/queue',           { credentials: 'include' }),
+            fetch('/api/memorization/streak',          { credentials: 'include' }),
+            fetch('/api/memorization/global-passages', { credentials: 'include' }),
         ]);
-        if (queueRes.ok)  allEntries = await queueRes.json();
-        if (streakRes.ok) streakData = await streakRes.json();
+        if (queueRes.ok)  allEntries     = await queueRes.json();
+        if (streakRes.ok) streakData     = await streakRes.json();
+        if (globalRes.ok) globalPassages = await globalRes.json();
     } catch (_) { /* stay with defaults */ }
 
     // Streak card
@@ -172,5 +175,61 @@
             list.appendChild(row);
         });
     }
+
+    // ── Featured Passages ──────────────────────────────────────────────────────
+
+    function renderFeaturedPassages(passages) {
+        if (!passages || passages.length === 0) return;
+
+        const section = document.getElementById('featured-section');
+        const list    = document.getElementById('featured-list');
+        section.hidden = false;
+
+        passages.forEach(p => {
+            const ref = p.fromVerseRef === p.toVerseRef
+                ? p.fromVerseRef
+                : `${p.fromVerseRef} – ${p.toVerseRef}`;
+
+            const row = document.createElement('div');
+            row.className = 'featured-row';
+            row.innerHTML = `
+                <span class="featured-title">${escapeHtml(p.title)}</span>
+                <span class="featured-ref">${escapeHtml(ref)}</span>
+                <button class="featured-add-btn${p.alreadyQueued ? ' is-added' : ''}"
+                        ${p.alreadyQueued ? 'disabled' : ''}>
+                    ${p.alreadyQueued ? '✓ Added' : '+ Add'}
+                </button>
+            `;
+
+            if (!p.alreadyQueued) {
+                row.querySelector('.featured-add-btn').addEventListener('click', async function () {
+                    this.disabled = true;
+                    this.textContent = 'Adding…';
+                    try {
+                        const res = await fetch('/api/memorization/queue', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ naturalKey: p.naturalKey }),
+                        });
+                        if (res.ok) {
+                            this.textContent = '✓ Added';
+                            this.classList.add('is-added');
+                        } else {
+                            this.disabled = false;
+                            this.textContent = '+ Add';
+                        }
+                    } catch (_) {
+                        this.disabled = false;
+                        this.textContent = '+ Add';
+                    }
+                });
+            }
+
+            list.appendChild(row);
+        });
+    }
+
+    renderFeaturedPassages(globalPassages);
 
 })();

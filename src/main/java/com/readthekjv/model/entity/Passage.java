@@ -13,8 +13,9 @@ public class Passage {
     @Column(columnDefinition = "uuid")
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    // nullable = true: global passages (user_id IS NULL) have no owner
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "user_id", nullable = true)
     private User user;
 
     @Column(name = "from_verse_id", nullable = false)
@@ -23,8 +24,17 @@ public class Passage {
     @Column(name = "to_verse_id", nullable = false)
     private int toVerseId;
 
-    @Column(name = "natural_key", nullable = false, length = 100)
+    // V6 widened the DB column to VARCHAR(500); match here
+    @Column(name = "natural_key", nullable = false, length = 500)
     private String naturalKey;
+
+    // Non-null only for global passages (user IS NULL)
+    @Column(name = "title", length = 100)
+    private String title;
+
+    // Display order for global passages on the dashboard
+    @Column(name = "sort_order")
+    private Integer sortOrder;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -43,5 +53,9 @@ public class Passage {
     public void setToVerseId(int toVerseId) { this.toVerseId = toVerseId; }
     public String getNaturalKey() { return naturalKey; }
     public void setNaturalKey(String naturalKey) { this.naturalKey = naturalKey; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public Integer getSortOrder() { return sortOrder; }
+    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
 }
