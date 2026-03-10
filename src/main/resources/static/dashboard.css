@@ -365,3 +365,24 @@ a:hover { text-decoration: underline; }
     .featured-add-btn { grid-column: 2; grid-row: 1; }
     .featured-ref     { grid-column: 1; grid-row: 2; }
 }
+
+/* ── Review History Dots ──────────────────────────────────────────────────── */
+
+.queue-history {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-bottom: 0.35rem;
+}
+
+.hist-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.hist-good  { background: #5a9e6a; }   /* muted green  — Good / Easy */
+.hist-hard  { background: #c8893a; }   /* muted orange — Hard        */
+.hist-again { background: #b85050; }   /* muted red    — Again       */

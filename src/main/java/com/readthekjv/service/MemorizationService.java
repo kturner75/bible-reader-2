@@ -3,13 +3,16 @@ package com.readthekjv.service;
 import com.readthekjv.model.dto.GlobalPassageResponse;
 import com.readthekjv.model.dto.MemorizationEntryResponse;
 import com.readthekjv.model.dto.PassageResponse;
+import com.readthekjv.model.dto.ReviewHistorySnippet;
 import com.readthekjv.model.dto.StreakResponse;
 import com.readthekjv.model.dto.VerseSnippet;
 import com.readthekjv.model.entity.MemorizationEntry;
 import com.readthekjv.model.entity.Passage;
+import com.readthekjv.model.entity.ReviewHistory;
 import com.readthekjv.model.entity.User;
 import com.readthekjv.repository.MemorizationEntryRepository;
 import com.readthekjv.repository.PassageRepository;
+import com.readthekjv.repository.ReviewHistoryRepository;
 import com.readthekjv.repository.UserRepository;
 import com.readthekjv.util.NaturalKeyParser;
 import jakarta.transaction.Transactional;
@@ -34,15 +37,18 @@ public class MemorizationService {
     private final PassageRepository passageRepo;
     private final UserRepository userRepo;
     private final BibleService bibleService;
+    private final ReviewHistoryRepository historyRepo;
 
     public MemorizationService(MemorizationEntryRepository entryRepo,
                                PassageRepository passageRepo,
                                UserRepository userRepo,
-                               BibleService bibleService) {
+                               BibleService bibleService,
+                               ReviewHistoryRepository historyRepo) {
         this.entryRepo = entryRepo;
         this.passageRepo = passageRepo;
         this.userRepo = userRepo;
         this.bibleService = bibleService;
+        this.historyRepo = historyRepo;
     }
 
     // ─── Response Enrichment ──────────────────────────────────────────────────
@@ -69,6 +75,14 @@ public class MemorizationService {
         String fromRef = verses.isEmpty() ? naturalKey : verses.get(0).reference();
         String toRef   = verses.isEmpty() ? naturalKey : verses.get(verses.size() - 1).reference();
 
+        List<ReviewHistorySnippet> recentHistory = historyRepo
+                .findTop10ByEntryIdOrderByReviewedAtDesc(entry.getId())
+                .stream()
+                .map(h -> new ReviewHistorySnippet(
+                        h.getQuality(), h.getMasteryAfter(),
+                        h.getReviewedAt().toLocalDate()))
+                .toList();
+
         return new MemorizationEntryResponse(
                 entry.getId(),
                 PassageResponse.from(entry.getPassage()),
@@ -77,7 +91,8 @@ public class MemorizationService {
                 verses,
                 entry.getMasteryLevel(),
                 entry.getNextReviewAt(),
-                entry.getAddedAt()
+                entry.getAddedAt(),
+                recentHistory
         );
     }
 
@@ -204,7 +219,17 @@ public class MemorizationService {
 
         LocalDate today = LocalDate.now();
         entry.setNextReviewAt(today.plusDays(entry.getIntervalDays()));
-        MemorizationEntryResponse response = toResponse(entryRepo.save(entry));
+        entryRepo.save(entry);
+
+        // Persist history row
+        ReviewHistory rh = new ReviewHistory();
+        rh.setEntry(entry);
+        rh.setUserId(userId);
+        rh.setQuality((short) quality);
+        rh.setMasteryAfter(entry.getMasteryLevel());
+        historyRepo.save(rh);
+
+        MemorizationEntryResponse response = toResponse(entry);
 
         // Update review streak on the user
         User user = userRepo.findById(userId)
