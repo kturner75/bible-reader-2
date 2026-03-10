@@ -8,5 +8,5 @@ import java.util.List;
 
 public interface VerseOfDayRepository extends JpaRepository<VerseOfDay, LocalDate> {
     // findById(LocalDate) inherited — covers all lookup needs
-    List<VerseOfDay> findTop60ByOrderByDateDesc();
+    List<VerseOfDay> findTop365ByOrderByDateDesc();
 }

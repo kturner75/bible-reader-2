@@ -125,7 +125,7 @@ public class VerseOfDayService {
         log.info("Generating verse of the day for {}", date);
         try {
             // Collect references used in the last 60 days so the model avoids repeats
-            List<String> recentRefs = repository.findTop60ByOrderByDateDesc().stream()
+            List<String> recentRefs = repository.findTop365ByOrderByDateDesc().stream()
                     .map(v -> bibleService.getVerse(v.getVerseId()))
                     .filter(Optional::isPresent)
                     .map(opt -> opt.get().reference())
