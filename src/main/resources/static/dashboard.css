@@ -387,3 +387,89 @@ a:hover { text-decoration: underline; }
 .hist-good  { background: #5a9e6a; }   /* muted green  — Good / Easy */
 .hist-hard  { background: #c8893a; }   /* muted orange — Hard        */
 .hist-again { background: #b85050; }   /* muted red    — Again       */
+
+/* ── Reading Plans ────────────────────────────────────────────────────────── */
+
+.plans-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.plan-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.9rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.plan-row:last-child {
+    border-bottom: none;
+}
+
+.plan-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.plan-title {
+    font-weight: 500;
+    font-size: 1rem;
+    color: var(--color-text);
+}
+
+.plan-progress {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+.plan-progress.plan-unenrolled {
+    font-style: italic;
+}
+
+.plan-progress.plan-finished {
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+.plan-day-label {
+    font-size: 0.875rem;
+    color: var(--color-link);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.plan-day-label:hover {
+    text-decoration: underline;
+}
+
+.plan-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.plan-done-label {
+    font-size: 0.875rem;
+    color: var(--color-accent);
+    font-style: italic;
+}
+
+/* ── Plans — Mobile (≤640px) ──────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .plan-row {
+        grid-template-columns: 1fr;
+        row-gap: 0.6rem;
+    }
+
+    .plan-actions {
+        flex-wrap: wrap;
+    }
+}

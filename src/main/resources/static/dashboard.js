@@ -112,20 +112,23 @@
         document.getElementById('reading-ref').textContent = 'Genesis 1';
     }
 
-    // ── Memorization Queue + Streak + Featured Passages (parallel) ───────────
+    // ── Memorization Queue + Streak + Featured Passages + Reading Plans (parallel) ─
 
     let allEntries     = [];
     let streakData     = null;
     let globalPassages = [];
+    let plansData      = [];
     try {
-        const [queueRes, streakRes, globalRes] = await Promise.all([
+        const [queueRes, streakRes, globalRes, plansRes] = await Promise.all([
             fetch('/api/memorization/queue',           { credentials: 'include' }),
             fetch('/api/memorization/streak',          { credentials: 'include' }),
             fetch('/api/memorization/global-passages', { credentials: 'include' }),
+            fetch('/api/plans',                        { credentials: 'include' }),
         ]);
         if (queueRes.ok)  allEntries     = await queueRes.json();
         if (streakRes.ok) streakData     = await streakRes.json();
         if (globalRes.ok) globalPassages = await globalRes.json();
+        if (plansRes.ok)  plansData      = await plansRes.json();
     } catch (_) { /* stay with defaults */ }
 
     // Streak card
@@ -247,5 +250,120 @@
     }
 
     renderFeaturedPassages(globalPassages);
+
+    // ── Reading Plans ──────────────────────────────────────────────────────────
+
+    function buildPlanRow(plan) {
+        const row = document.createElement('div');
+        row.className = 'plan-row';
+
+        let infoHtml;
+        let actionsHtml;
+
+        if (!plan.enrolled) {
+            // Unenrolled
+            infoHtml = `
+                <span class="plan-title">${escapeHtml(plan.title)}</span>
+                <span class="plan-progress plan-unenrolled">${plan.totalDays} days</span>
+            `;
+            actionsHtml = `<button class="btn-secondary plan-enroll-btn">Enroll</button>`;
+        } else if (plan.currentDay > plan.totalDays) {
+            // Finished
+            infoHtml = `
+                <span class="plan-title">${escapeHtml(plan.title)}</span>
+                <span class="plan-progress plan-finished">Completed ✓</span>
+            `;
+            actionsHtml = `<span class="plan-done-label">All done ✓</span>`;
+        } else {
+            // Enrolled, in progress
+            const dayLabel = plan.todayDay ? escapeHtml(plan.todayDay.label) : '';
+            const readHref = plan.todayDay ? `/read?vid=${plan.todayDay.fromVerseId}` : '/read';
+            infoHtml = `
+                <span class="plan-title">${escapeHtml(plan.title)}</span>
+                <span class="plan-progress">Day ${plan.currentDay} of ${plan.totalDays}</span>
+                ${dayLabel ? `<a class="plan-day-label" href="${readHref}">${dayLabel}</a>` : ''}
+            `;
+            actionsHtml = `
+                <a class="btn-secondary plan-open-btn" href="${readHref}">Open →</a>
+                <button class="btn-primary plan-complete-btn">Mark Complete</button>
+            `;
+        }
+
+        row.innerHTML = `
+            <div class="plan-info">${infoHtml}</div>
+            <div class="plan-actions">${actionsHtml}</div>
+        `;
+        return row;
+    }
+
+    function attachPlanListeners(row, plan) {
+        const enrollBtn = row.querySelector('.plan-enroll-btn');
+        if (enrollBtn) {
+            enrollBtn.addEventListener('click', async function () {
+                this.disabled = true;
+                this.textContent = 'Enrolling…';
+                try {
+                    const res = await fetch(`/api/plans/${plan.id}/enroll`, {
+                        method: 'POST',
+                        credentials: 'include',
+                    });
+                    if (res.ok) {
+                        const updated = await res.json();
+                        const newRow = buildPlanRow(updated);
+                        attachPlanListeners(newRow, updated);
+                        row.replaceWith(newRow);
+                    } else {
+                        this.disabled = false;
+                        this.textContent = 'Enroll';
+                    }
+                } catch (_) {
+                    this.disabled = false;
+                    this.textContent = 'Enroll';
+                }
+            });
+        }
+
+        const completeBtn = row.querySelector('.plan-complete-btn');
+        if (completeBtn) {
+            completeBtn.addEventListener('click', async function () {
+                this.disabled = true;
+                this.textContent = 'Saving…';
+                try {
+                    const res = await fetch(`/api/plans/${plan.id}/complete-day`, {
+                        method: 'POST',
+                        credentials: 'include',
+                    });
+                    if (res.ok) {
+                        const updated = await res.json();
+                        const newRow = buildPlanRow(updated);
+                        attachPlanListeners(newRow, updated);
+                        row.replaceWith(newRow);
+                    } else {
+                        this.disabled = false;
+                        this.textContent = 'Mark Complete';
+                    }
+                } catch (_) {
+                    this.disabled = false;
+                    this.textContent = 'Mark Complete';
+                }
+            });
+        }
+    }
+
+    function renderPlans(plans) {
+        if (!plans || plans.length === 0) return;
+
+        const section = document.getElementById('plans-section');
+        const list    = document.getElementById('plans-list');
+        section.hidden = false;
+
+        plans.forEach(plan => {
+            const row = buildPlanRow(plan);
+            attachPlanListeners(row, plan);
+            list.appendChild(row);
+        });
+    }
+
+    renderPlans(plansData);
 
 })();
