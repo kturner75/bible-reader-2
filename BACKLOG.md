@@ -27,9 +27,9 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 ## Reading Plans
 
-- **Pre-built plans** — e.g. Read the Bible in a Year (OT + NT interleaved), NT in 90 days, Psalms in a month
+- **Pre-built plans** *(done)* — Psalms in a Month (30d), NT in 90 Days (90d), Bible in a Year (365d); sequential `currentDay` counter; dashboard section with inline Enroll / Mark Complete
 - **Custom plans** — user picks start/end date + scope (whole Bible, specific books, etc.)
-- **Progress tracking** — mark days complete; dashboard shows today's reading + streak
+- **Progress tracking** *(done — sequential)* — mark days complete; dashboard shows today's reading label + "Open →" link
 - **Plans dashboard card** — "Today: Genesis 1–3 + Matthew 1" with a direct link
 
 ---
