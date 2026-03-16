@@ -272,15 +272,20 @@
             infoHtml = `
                 <span class="plan-title">${escapeHtml(plan.title)}</span>
                 <span class="plan-progress plan-finished">Completed ✓</span>
+                <div class="plan-progress-track"><div class="plan-progress-fill" style="width:100%"></div></div>
             `;
             actionsHtml = `<span class="plan-done-label">All done ✓</span>`;
         } else {
             // Enrolled, in progress
             const dayLabel = plan.todayDay ? escapeHtml(plan.todayDay.label) : '';
             const readHref = plan.todayDay ? `/read?vid=${plan.todayDay.fromVerseId}` : '/read';
+            const pct      = Math.round((plan.currentDay - 1) / plan.totalDays * 100);
+            const streak   = plan.streakDays && plan.streakDays > 0
+                ? ` · ${plan.streakDays}-day streak` : '';
             infoHtml = `
                 <span class="plan-title">${escapeHtml(plan.title)}</span>
-                <span class="plan-progress">Day ${plan.currentDay} of ${plan.totalDays}</span>
+                <span class="plan-progress">Day ${plan.currentDay} of ${plan.totalDays}${escapeHtml(streak)}</span>
+                <div class="plan-progress-track"><div class="plan-progress-fill" style="width:${pct}%"></div></div>
                 ${dayLabel ? `<a class="plan-day-label" href="${readHref}">${dayLabel}</a>` : ''}
             `;
             actionsHtml = `
@@ -362,6 +367,19 @@
             attachPlanListeners(row, plan);
             list.appendChild(row);
         });
+
+        // Populate "Today's Reading" summary card from first active enrolled plan
+        const activePlan = plans.find(p => p.enrolled && p.currentDay <= p.totalDays && p.todayDay);
+        if (activePlan) {
+            const card    = document.getElementById('today-reading-card');
+            const refEl   = document.getElementById('today-reading-ref');
+            const subEl   = document.getElementById('today-reading-sub');
+            const linkEl  = document.getElementById('today-reading-link');
+            card.hidden   = false;
+            refEl.textContent  = activePlan.todayDay.label;
+            subEl.textContent  = `Day ${activePlan.currentDay} of ${activePlan.totalDays} · ${activePlan.title}`;
+            linkEl.href        = `/read?vid=${activePlan.todayDay.fromVerseId}`;
+        }
     }
 
     renderPlans(plansData);
