@@ -112,23 +112,26 @@
         document.getElementById('reading-ref').textContent = 'Genesis 1';
     }
 
-    // ── Memorization Queue + Streak + Featured Passages + Reading Plans (parallel) ─
+    // ── Memorization Queue + Streak + Featured Passages + Reading Plans + Heatmap (parallel) ─
 
     let allEntries     = [];
     let streakData     = null;
     let globalPassages = [];
     let plansData      = [];
+    let heatmapData    = {};
     try {
-        const [queueRes, streakRes, globalRes, plansRes] = await Promise.all([
+        const [queueRes, streakRes, globalRes, plansRes, heatmapRes] = await Promise.all([
             fetch('/api/memorization/queue',           { credentials: 'include' }),
             fetch('/api/memorization/streak',          { credentials: 'include' }),
             fetch('/api/memorization/global-passages', { credentials: 'include' }),
             fetch('/api/plans',                        { credentials: 'include' }),
+            fetch('/api/activity/heatmap',             { credentials: 'include' }),
         ]);
-        if (queueRes.ok)  allEntries     = await queueRes.json();
-        if (streakRes.ok) streakData     = await streakRes.json();
-        if (globalRes.ok) globalPassages = await globalRes.json();
-        if (plansRes.ok)  plansData      = await plansRes.json();
+        if (queueRes.ok)   allEntries     = await queueRes.json();
+        if (streakRes.ok)  streakData     = await streakRes.json();
+        if (globalRes.ok)  globalPassages = await globalRes.json();
+        if (plansRes.ok)   plansData      = await plansRes.json();
+        if (heatmapRes.ok) heatmapData    = await heatmapRes.json();
     } catch (_) { /* stay with defaults */ }
 
     // Streak card
@@ -383,5 +386,74 @@
     }
 
     renderPlans(plansData);
+
+    // ── Activity Heatmap ───────────────────────────────────────────────────────
+
+    function renderHeatmap(data) {
+        // data: { "2026-03-14": 3, ... } — only active days included
+
+        const CELL  = 11; // px per cell
+        const GAP   = 2;  // px gap
+        const STEP  = CELL + GAP;
+
+        const grid   = document.getElementById('heatmap-grid');
+        const months = document.getElementById('heatmap-months');
+
+        // Determine the range: go back 52 full weeks, then align left edge to Sunday
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const start = new Date(today);
+        start.setDate(start.getDate() - 364);          // 365 days total
+        start.setDate(start.getDate() - start.getDay()); // align left edge to Sunday
+
+        const totalDays  = Math.round((today - start) / 86400000) + 1;
+        const totalWeeks = Math.ceil(totalDays / 7);
+
+        // Build grid cells (appended Sun→Sat per week; grid-auto-flow:column places them correctly)
+        for (let w = 0; w < totalWeeks; w++) {
+            for (let d = 0; d < 7; d++) {
+                const date = new Date(start);
+                date.setDate(start.getDate() + w * 7 + d);
+
+                const cell = document.createElement('div');
+                cell.className = 'heat-cell';
+
+                if (date > today) {
+                    cell.classList.add('heat-future');
+                } else {
+                    const iso   = date.toISOString().slice(0, 10);
+                    const count = data[iso] || 0;
+                    const level = count === 0 ? 0 : count === 1 ? 1 : count <= 3 ? 2 : count <= 6 ? 3 : 4;
+                    cell.classList.add(`heat-${level}`);
+                    cell.title = count > 0
+                        ? `${count} activit${count === 1 ? 'y' : 'ies'} on ${iso}`
+                        : `No activity on ${iso}`;
+                }
+
+                grid.appendChild(cell);
+            }
+        }
+
+        // Month labels — positioned above the week column where each month begins
+        const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        let lastMonth = -1;
+        for (let w = 0; w < totalWeeks; w++) {
+            // The Sunday of this week
+            const weekStart = new Date(start);
+            weekStart.setDate(start.getDate() + w * 7);
+            const m = weekStart.getMonth();
+            if (m !== lastMonth) {
+                lastMonth = m;
+                const label = document.createElement('span');
+                label.className     = 'heatmap-month-label';
+                label.textContent   = MONTH_NAMES[m];
+                label.style.left    = `${w * STEP}px`;
+                months.appendChild(label);
+            }
+        }
+    }
+
+    renderHeatmap(heatmapData);
 
 })();
