@@ -1,5 +1,7 @@
 package com.readthekjv.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,8 +31,7 @@ public class WhisperService {
     private static final String OPENAI_URL = "https://api.openai.com/v1/audio/transcriptions";
     private static final String OPENAI_MODEL = "whisper-1";
 
-    private static final String XAI_URL = "https://api.x.ai/v1/audio/transcriptions";
-    private static final String XAI_MODEL = "whisper-large-v3";
+    private static final String XAI_URL = "https://api.x.ai/v1/stt";
 
     @Value("${tts.enabled:false}")
     private boolean enabled;
@@ -45,6 +46,7 @@ public class WhisperService {
     private String xaiKey;
 
     private final HttpClient httpClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public WhisperService() {
         this.httpClient = HttpClient.newBuilder()
@@ -75,7 +77,7 @@ public class WhisperService {
     }
 
     private String resolvedModel() {
-        return isXai() ? XAI_MODEL : OPENAI_MODEL;
+        return isXai() ? null : OPENAI_MODEL;
     }
 
     private String resolvedKey() {
@@ -105,6 +107,11 @@ public class WhisperService {
             throw new IOException("Whisper API error: " + response.statusCode());
         }
 
+        // xAI returns JSON; OpenAI returns plain text (response_format=text)
+        if (isXai()) {
+            JsonNode node = objectMapper.readTree(response.body());
+            return node.path("text").asText().trim();
+        }
         return response.body().trim();
     }
 
@@ -133,10 +140,12 @@ public class WhisperService {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PrintWriter pw = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8), true);
 
-        // Part: model
-        pw.print("--" + boundary + "\r\n");
-        pw.print("Content-Disposition: form-data; name=\"model\"\r\n\r\n");
-        pw.print(resolvedModel() + "\r\n");
+        // Part: model (xAI doesn't accept this field)
+        if (resolvedModel() != null) {
+            pw.print("--" + boundary + "\r\n");
+            pw.print("Content-Disposition: form-data; name=\"model\"\r\n\r\n");
+            pw.print(resolvedModel() + "\r\n");
+        }
 
         // Part: response_format=text (plain transcript, not JSON)
         pw.print("--" + boundary + "\r\n");
