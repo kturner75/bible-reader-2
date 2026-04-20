@@ -17,21 +17,32 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
- * Speech-to-text transcription via OpenAI Whisper API.
- * Reuses the same OPENAI_API_KEY as TtsService — no additional configuration needed.
+ * Speech-to-text transcription via a configurable provider (OpenAI or xAI).
+ * Set STT_PROVIDER=xai and STT_API_KEY=&lt;your-xai-key&gt; to switch providers.
  */
 @Service
 public class WhisperService {
 
     private static final Logger log = LoggerFactory.getLogger(WhisperService.class);
-    private static final String WHISPER_URL = "https://api.openai.com/v1/audio/transcriptions";
     private static final int MAX_HINT_CHARS = 900; // safely below Whisper's ~224-token prompt limit
+
+    private static final String OPENAI_URL = "https://api.openai.com/v1/audio/transcriptions";
+    private static final String OPENAI_MODEL = "whisper-1";
+
+    private static final String XAI_URL = "https://api.x.ai/v1/audio/transcriptions";
+    private static final String XAI_MODEL = "whisper-large-v3";
 
     @Value("${tts.enabled:false}")
     private boolean enabled;
 
-    @Value("${tts.api-key:}")
-    private String apiKey;
+    @Value("${stt.provider:openai}")
+    private String provider;
+
+    @Value("${OPENAI_API_KEY:}")
+    private String openAiKey;
+
+    @Value("${XAI_API_KEY:}")
+    private String xaiKey;
 
     private final HttpClient httpClient;
 
@@ -42,7 +53,7 @@ public class WhisperService {
     }
 
     public boolean isEnabled() {
-        return enabled && apiKey != null && !apiKey.isBlank();
+        return enabled && resolvedKey() != null && !resolvedKey().isBlank();
     }
 
     /**
@@ -55,15 +66,33 @@ public class WhisperService {
      * @throws IOException          on HTTP or I/O error
      * @throws InterruptedException if the thread is interrupted while waiting
      */
+    private boolean isXai() {
+        return "xai".equalsIgnoreCase(provider);
+    }
+
+    private String resolvedUrl() {
+        return isXai() ? XAI_URL : OPENAI_URL;
+    }
+
+    private String resolvedModel() {
+        return isXai() ? XAI_MODEL : OPENAI_MODEL;
+    }
+
+    private String resolvedKey() {
+        return isXai() ? xaiKey : openAiKey;
+    }
+
     public String transcribe(byte[] audioBytes, String contentType, String hint)
             throws IOException, InterruptedException {
 
         String boundary = "----WhisperBoundary" + System.nanoTime();
         byte[] body = buildMultipartBody(boundary, audioBytes, contentType, hint);
 
+        log.debug("STT provider={} url={}", provider, resolvedUrl());
+
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(WHISPER_URL))
-                .header("Authorization", "Bearer " + apiKey)
+                .uri(URI.create(resolvedUrl()))
+                .header("Authorization", "Bearer " + resolvedKey())
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                 .timeout(Duration.ofSeconds(120)) // STT is slower than TTS
@@ -107,7 +136,7 @@ public class WhisperService {
         // Part: model
         pw.print("--" + boundary + "\r\n");
         pw.print("Content-Disposition: form-data; name=\"model\"\r\n\r\n");
-        pw.print("whisper-1\r\n");
+        pw.print(resolvedModel() + "\r\n");
 
         // Part: response_format=text (plain transcript, not JSON)
         pw.print("--" + boundary + "\r\n");
