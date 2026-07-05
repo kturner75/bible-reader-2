@@ -27,20 +27,19 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 ## Reading Plans
 
-- **Pre-built plans** — e.g. Read the Bible in a Year (OT + NT interleaved), NT in 90 days, Psalms in a month
+- **Pre-built plans** *(done — PR #21)* — Read the Bible in a Year, NT in 90 days, Psalms in a month, etc.
+- **Progress tracking + streak** *(done — PR #22)* — mark days complete; dashboard shows today's reading card + streak
 - **Custom plans** — user picks start/end date + scope (whole Bible, specific books, etc.)
-- **Progress tracking** — mark days complete; dashboard shows today's reading + streak
-- **Plans dashboard card** — "Today: Genesis 1–3 + Matthew 1" with a direct link
 
 ---
 
 ## Dashboard (`/dashboard`)
 
-- *(Slice 5)* Memorization due count + Train Now
-- *(Slice 5)* Continue Reading shortcut
-- Future: Reading plan today card
+- *(done — Slice 5)* Memorization due count + Train Now
+- *(done — Slice 5)* Continue Reading shortcut
+- *(done — PR #22)* Reading plan today card + streak
+- *(done — PR #23)* Activity heatmap
 - Future: Recent tags / notes quick-access
-- Future: Streak calendar heatmap
 
 ---
 
