@@ -10,6 +10,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
 
@@ -24,11 +25,14 @@ import java.io.IOException;
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final UserDetailsService userDetailsService;
+    private final PersistentTokenBasedRememberMeServices rememberMeServices;
     private final HttpSessionSecurityContextRepository securityContextRepository =
             new HttpSessionSecurityContextRepository();
 
-    public OAuth2SuccessHandler(UserDetailsService userDetailsService) {
+    public OAuth2SuccessHandler(UserDetailsService userDetailsService,
+                                 PersistentTokenBasedRememberMeServices rememberMeServices) {
         this.userDetailsService = userDetailsService;
+        this.rememberMeServices = rememberMeServices;
     }
 
     @Override
@@ -54,6 +58,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         ctx.setAuthentication(newAuth);
         SecurityContextHolder.setContext(ctx);
         securityContextRepository.saveContext(ctx, request, response);
+
+        // The remember-me filter already fired once for the raw OAuth2AuthenticationToken
+        // (whose principal isn't a UserDetails, so its cookie carries a useless username).
+        // Re-issue it here with the corrected UserDetails-backed token so the cookie that
+        // survives is keyed on the real email/username.
+        rememberMeServices.loginSuccess(request, response, newAuth);
 
         response.sendRedirect("/");
     }
