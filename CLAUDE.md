@@ -9,10 +9,13 @@ KJV Bible Reader - A distraction-free, desktop-focused Bible reading web applica
 ## Build & Run Commands
 
 ```bash
+# Local development (port 8081, dev profile)
+./dev.sh
+
 # Build the project
 mvn clean package
 
-# Run the application (starts on port 8080)
+# Run without dev profile (port 8080 — production default)
 mvn spring-boot:run
 
 # Run all tests

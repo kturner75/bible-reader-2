@@ -4,7 +4,7 @@
     {
       "name": "Spring Boot",
       "runtimeExecutable": "zsh",
-      "runtimeArgs": ["-i", "-c", "mvn spring-boot:run -Dspring-boot.run.jvmArguments=-Dserver.port=8081"],
+      "runtimeArgs": ["-i", "-c", "./dev.sh"],
       "port": 8081,
       "autoPort": false
     }

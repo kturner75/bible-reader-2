@@ -37,3 +37,7 @@ build/
 
 ### Deploy ###
 deploy.sh
+dev.sh
+
+### Local dev ###
+.env
