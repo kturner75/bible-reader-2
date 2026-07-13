@@ -13,6 +13,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 
 @Configuration
 @EnableWebSecurity
@@ -28,7 +29,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                            PersistentTokenBasedRememberMeServices rememberMeServices) throws Exception {
         http
             // Disable CSRF for all API endpoints — REST calls use same-site session cookies
             .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
@@ -95,6 +97,11 @@ public class SecurityConfig {
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
             )
+
+            // Keeps users signed in for 30 days across browser restarts (see persistent_logins table).
+            // Form login auto-wires this filter correctly; OAuth2SuccessHandler invokes it explicitly
+            // (see comment there) since the OAuth2 principal isn't a UserDetails.
+            .rememberMe(rm -> rm.rememberMeServices(rememberMeServices))
 
             // For API calls, return 401 JSON instead of redirecting to login page.
             // Use relative Location header (not sendRedirect) so the browser resolves
