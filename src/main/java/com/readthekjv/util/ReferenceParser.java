@@ -13,7 +13,7 @@ public class ReferenceParser {
     // Captures: book name, optional chapter, optional verse
     private static final Pattern REFERENCE_PATTERN = Pattern.compile(
         "^\\s*" +
-        "(\\d?\\s*[a-zA-Z]+)" +      // Book name (may start with number like "1 John")
+        "(\\d?\\s*[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)" + // Book name; may start with number ("1 John") or span words ("Song of Solomon")
         "(?:" +                       // Optional chapter/verse group
             "\\s+" +                  // Whitespace before chapter (required if chapter present)
             "(\\d+)" +                // Chapter number
@@ -366,7 +366,7 @@ public class ReferenceParser {
         // First, try the main pattern (book with space then chapter/verse)
         Matcher matcher = REFERENCE_PATTERN.matcher(input);
         if (matcher.matches()) {
-            String bookPart = matcher.group(1).toLowerCase().trim();
+            String bookPart = matcher.group(1).toLowerCase().trim().replaceAll("\\s+", " ");
             String chapterPart = matcher.group(2);
             String versePart = matcher.group(3);
 

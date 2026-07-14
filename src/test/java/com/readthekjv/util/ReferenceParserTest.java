@@ -121,4 +121,37 @@ class ReferenceParserTest {
         assertEquals(1, result.chapter());
         assertNull(result.verse());
     }
+
+    @Test
+    void testMultiWordBookWithChapter() {
+        // Full book name spanning multiple words (book-note links emit these)
+        var result = ReferenceParser.parse("Song of Solomon 2");
+        assertNotNull(result, "Song of Solomon 2 should be recognized as a reference");
+        assertEquals("Song of Solomon", result.book());
+        assertEquals(2, result.chapter());
+        assertNull(result.verse());
+    }
+
+    @Test
+    void testMultiWordBookWithChapterAndVerse() {
+        var result = ReferenceParser.parse("song of solomon 2:5");
+        assertNotNull(result, "song of solomon 2:5 should be recognized as a reference");
+        assertEquals("Song of Solomon", result.book());
+        assertEquals(2, result.chapter());
+        assertEquals(5, result.verse());
+    }
+
+    @Test
+    void testMultiWordBookExtraWhitespace() {
+        var result = ReferenceParser.parse("song  of   solomon 3");
+        assertNotNull(result, "extra internal whitespace should still resolve");
+        assertEquals("Song of Solomon", result.book());
+        assertEquals(3, result.chapter());
+    }
+
+    @Test
+    void testUnknownMultiWordBookRejected() {
+        assertNull(ReferenceParser.parse("hello world 5"),
+            "unknown multi-word book should not parse");
+    }
 }

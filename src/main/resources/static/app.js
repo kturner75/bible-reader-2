@@ -56,8 +56,9 @@
         noteEditorVerseId: null,   // which verse the note editor is for
         // Chapter notes (account-only — no localStorage mode)
         chapterNotes: {},              // { "bookId:chapter": { bookId, bookName, chapter, firstVerseId, verseCount, note, updatedAt } }
-        chapterNoteEditorOpen: false,  // chapter note modal state
-        chapterNoteEditorTarget: null, // { bookId, chapter, label } while modal open
+        bookNotes: {},                 // { bookId: { bookId, bookName, firstVerseId, note, updatedAt } }
+        chapterNoteEditorOpen: false,  // shared note modal state (chapter + book notes)
+        chapterNoteEditorTarget: null, // { type: 'chapter'|'book', bookId, chapter?, bookName?, label } while modal open
         // TTS Audio
         audioEnabled: false,       // Feature flag from backend
         audioPlaying: false,       // Currently playing
@@ -126,8 +127,11 @@
         noteCharCurrent: document.getElementById('note-char-current'),
         noteSaveBtn: document.getElementById('note-save-btn'),
         noteCancelBtn: document.getElementById('note-cancel-btn'),
-        // Chapter note editor
+        // Note editor (shared by chapter + book notes)
         chapterNoteOverlay: document.getElementById('chapter-note-overlay'),
+        chapterNoteTitle: document.getElementById('chapter-note-title'),
+        chapterNoteCharMax: document.getElementById('chapter-note-char-max'),
+        chapterNoteHintLinks: document.getElementById('chapter-note-hint-links'),
         chapterNoteClose: document.getElementById('chapter-note-close'),
         chapterNoteRef: document.getElementById('chapter-note-ref'),
         chapterNoteSignin: document.getElementById('chapter-note-signin'),
@@ -842,15 +846,24 @@
         if (state.pageVerses.length > 0) {
             const firstVerse = state.pageVerses[0];
             const lastVerse = state.pageVerses[state.pageVerses.length - 1];
-            
+
             // If spanning multiple chapters, show range; otherwise just the book
+            let titleText;
             if (firstVerse.chapter === lastVerse.chapter && firstVerse.book === lastVerse.book) {
-                elements.chapterTitle.textContent = `${firstVerse.book} ${firstVerse.chapter}`;
+                titleText = `${firstVerse.book} ${firstVerse.chapter}`;
             } else if (firstVerse.book === lastVerse.book) {
-                elements.chapterTitle.textContent = `${firstVerse.book} ${firstVerse.chapter}–${lastVerse.chapter}`;
+                titleText = `${firstVerse.book} ${firstVerse.chapter}–${lastVerse.chapter}`;
             } else {
-                elements.chapterTitle.textContent = `${firstVerse.book} — ${lastVerse.book}`;
+                titleText = `${firstVerse.book} — ${lastVerse.book}`;
             }
+
+            // Book-note pencil, scoped to the current verse's book (resolved at click time)
+            const bookRef = getCurrentBookRef();
+            const hasBookNote = bookRef && !!state.bookNotes[bookRef.bookId];
+            const bookTitle = bookRef ? bookRef.bookName : firstVerse.book;
+            elements.chapterTitle.innerHTML = `${escapeHtml(titleText)}<button class="chapter-note-btn book-note-btn${hasBookNote ? ' has-note' : ''}"
+                title="${hasBookNote ? `Edit ${escapeHtml(bookTitle)} book note (B)` : `Add ${escapeHtml(bookTitle)} book note (B)`}"
+                aria-label="Book note for ${escapeHtml(bookTitle)}">&#9998;</button>`;
         }
         
         updateCurrentReference();
@@ -1552,6 +1565,47 @@
     }
 
     // ============================================
+    // Book Notes (account-only)
+    // ============================================
+
+    /**
+     * Book of the currently selected verse, as a note-editor target.
+     * Null until a page is rendered.
+     */
+    function getCurrentBookRef() {
+        const verse = state.pageVerses.find(v => v.id === state.currentVerseId);
+        if (!verse) return null;
+        return { type: 'book', bookId: verse.bookId, bookName: verse.book, label: verse.book };
+    }
+
+    async function loadBookNotesFromApi() {
+        try {
+            const notes = await libApi('/api/book-notes');
+            state.bookNotes = {};
+            notes.forEach(n => {
+                state.bookNotes[n.bookId] = n;
+            });
+        } catch (err) {
+            console.error('Failed to load book notes from API:', err);
+        }
+    }
+
+    async function saveBookNoteToApi(bookId, note) {
+        const saved = await libApi(`/api/book-notes/${bookId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note })
+        });
+        state.bookNotes[bookId] = saved;
+        return saved;
+    }
+
+    async function deleteBookNoteFromApi(bookId) {
+        await libApi(`/api/book-notes/${bookId}`, { method: 'DELETE' });
+        delete state.bookNotes[bookId];
+    }
+
+    // ============================================
     // Note Markdown Renderer
     // ============================================
     // Markdown-lite: escapes ALL html first, then applies a small set of
@@ -1566,6 +1620,14 @@
         // Verse links — brackets are reserved for verse refs, not markdown URLs
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
+            if (ctx && ctx.type === 'book') {
+                // Book scope: [12] = chapter 12, [3:16] = chapter 3 verse 16 —
+                // both resolve via /api/reference with the book name prefixed.
+                if (/^\d+$/.test(trimmed) || /^\d+:\d+$/.test(trimmed)) {
+                    return `<a class="note-verse-link" data-ref="${ctx.bookName} ${trimmed}" href="#">${match}</a>`;
+                }
+                return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
+            }
             if (/^\d+$/.test(trimmed)) {
                 const verseNum = parseInt(trimmed);
                 if (ctx && verseNum >= 1 && verseNum <= ctx.verseCount) {
@@ -2451,12 +2513,18 @@
             elements.mobileMenuBookmarkLabel.textContent =
                 state.savedVerses[state.currentVerseId] ? 'Unsave Verse' : 'Save Verse';
         }
-        // Dot indicator when the current chapter has a note (headers are hidden on mobile)
+        // Dot indicators when the current chapter/book has a note (headers/title pencils hidden on mobile)
         const chapterNoteLabel = document.getElementById('mobile-menu-chapter-note-label');
         if (chapterNoteLabel) {
             const ref = getCurrentChapterRef();
             const hasNote = ref && state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
             chapterNoteLabel.textContent = hasNote ? 'Chapter Note •' : 'Chapter Note';
+        }
+        const bookNoteLabel = document.getElementById('mobile-menu-book-note-label');
+        if (bookNoteLabel) {
+            const bookRef = getCurrentBookRef();
+            const hasBookNote = bookRef && state.bookNotes[bookRef.bookId];
+            bookNoteLabel.textContent = hasBookNote ? 'Book Note •' : 'Book Note';
         }
         state.mobileMenuOpen = true;
         elements.mobileMenuOverlay.hidden = false;
@@ -2526,37 +2594,58 @@
         renderLibraryResults();
     }
 
-    function renderChapterNotesList() {
+    function renderNotesList() {
         if (!state.currentUser) {
             elements.libraryResults.innerHTML =
-                '<p class="library-empty">Chapter notes are saved to your account. <a href="/login.html">Sign in</a> to create them.</p>';
-            elements.libraryResultsCount.textContent = '0 chapter notes';
+                '<p class="library-empty">Notes are saved to your account. <a href="/login.html">Sign in</a> to create them.</p>';
+            elements.libraryResultsCount.textContent = '0 notes';
             return;
         }
 
-        const notes = Object.values(state.chapterNotes)
+        const notePreview = (note) => {
+            const plain = stripNoteMarkdown(note);
+            return plain.length > 200 ? plain.substring(0, 200) + '...' : plain;
+        };
+
+        // Canonical order, book note (if any) leading its book's chapter notes
+        const chapterNotes = Object.values(state.chapterNotes)
             .sort((a, b) => a.bookId - b.bookId || a.chapter - b.chapter);
+        const bookIds = [...new Set([
+            ...Object.values(state.bookNotes).map(n => n.bookId),
+            ...chapterNotes.map(n => n.bookId)
+        ])].sort((a, b) => a - b);
 
-        elements.libraryResultsCount.textContent =
-            `${notes.length} chapter note${notes.length !== 1 ? 's' : ''}`;
+        const total = chapterNotes.length + Object.keys(state.bookNotes).length;
+        elements.libraryResultsCount.textContent = `${total} note${total !== 1 ? 's' : ''}`;
 
-        if (notes.length === 0) {
+        if (total === 0) {
             elements.libraryResults.innerHTML =
-                '<p class="library-empty">No chapter notes yet. Press <kbd>c</kbd> while reading to add one.</p>';
+                '<p class="library-empty">No notes yet. Press <kbd>c</kbd> for a chapter note or <kbd>B</kbd> for a book note while reading.</p>';
             return;
         }
 
-        elements.libraryResults.innerHTML = notes.map(n => {
-            const isPsalm = n.bookName === 'Psalms' || n.bookName === 'Psalm';
-            const ref = `${isPsalm ? 'Psalm' : n.bookName} ${n.chapter}`;
-            const plain = stripNoteMarkdown(n.note);
-            const preview = plain.length > 200 ? plain.substring(0, 200) + '...' : plain;
-            return `
-                <div class="library-item" data-first-verse-id="${n.firstVerseId}">
-                    <div class="library-item-ref">${ref}</div>
-                    <div class="library-item-note">${escapeHtml(preview)}</div>
-                </div>
-            `;
+        elements.libraryResults.innerHTML = bookIds.map(bookId => {
+            let html = '';
+            const bookNote = state.bookNotes[bookId];
+            if (bookNote) {
+                html += `
+                    <div class="library-item library-item-book-note" data-first-verse-id="${bookNote.firstVerseId}">
+                        <div class="library-item-ref">${escapeHtml(bookNote.bookName)} <span class="book-note-badge">Book note</span></div>
+                        <div class="library-item-note">${escapeHtml(notePreview(bookNote.note))}</div>
+                    </div>
+                `;
+            }
+            html += chapterNotes.filter(n => n.bookId === bookId).map(n => {
+                const isPsalm = n.bookName === 'Psalms' || n.bookName === 'Psalm';
+                const ref = `${isPsalm ? 'Psalm' : n.bookName} ${n.chapter}`;
+                return `
+                    <div class="library-item" data-first-verse-id="${n.firstVerseId}">
+                        <div class="library-item-ref">${ref}</div>
+                        <div class="library-item-note">${escapeHtml(notePreview(n.note))}</div>
+                    </div>
+                `;
+            }).join('');
+            return html;
         }).join('');
 
         elements.libraryResults.querySelectorAll('.library-item').forEach(item => {
@@ -2570,7 +2659,7 @@
 
     async function renderLibraryResults() {
         if (state.libraryView === 'chapter-notes') {
-            renderChapterNotesList();
+            renderNotesList();
             return;
         }
 
@@ -2831,17 +2920,42 @@
     }
 
     // ============================================
-    // Chapter Note Editor
+    // Note Editor (shared by chapter + book notes)
     // ============================================
+
+    const NOTE_LIMITS = { chapter: 5000, book: 10000 };
+
+    /** The saved note (if any) for an editor target. */
+    function getNoteForTarget(ref) {
+        return ref.type === 'book'
+            ? state.bookNotes[ref.bookId]
+            : state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
+    }
+
+    /** Renderer ctx for an editor target's verse links. */
+    function getRenderCtxForTarget(ref) {
+        if (ref.type === 'book') return { type: 'book', bookName: ref.bookName };
+        return getNoteForTarget(ref); // chapter note object carries firstVerseId/verseCount
+    }
 
     function openChapterNoteEditor(target) {
         const ref = target || getCurrentChapterRef();
         if (!ref) return;
+        if (!ref.type) ref.type = 'chapter';
         stopAudioOnUIEvent();
         state.chapterNoteEditorTarget = ref;
         state.chapterNoteEditorOpen = true;
         elements.chapterNoteOverlay.hidden = false;
         elements.chapterNoteRef.textContent = ref.label;
+
+        // Scope-dependent chrome — set on every open (modal is shared)
+        const limit = NOTE_LIMITS[ref.type];
+        elements.chapterNoteTitle.textContent = ref.type === 'book' ? 'Book Note' : 'Chapter Note';
+        elements.chapterNoteTextarea.maxLength = limit;
+        elements.chapterNoteCharMax.textContent = limit;
+        elements.chapterNoteHintLinks.innerHTML = ref.type === 'book'
+            ? '<code>[12]</code> chapter link <code>[3:16]</code> verse link'
+            : '<code>[12]</code> verse link';
 
         if (!state.currentUser) {
             elements.chapterNoteSignin.hidden = false;
@@ -2853,18 +2967,17 @@
         elements.chapterNoteSignin.hidden = true;
 
         // View-first when a note exists; straight to edit when empty
-        const existing = state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
-        setChapterNoteMode(existing ? 'view' : 'edit');
+        setChapterNoteMode(getNoteForTarget(ref) ? 'view' : 'edit');
     }
 
     function setChapterNoteMode(mode) {
         const ref = state.chapterNoteEditorTarget;
         if (!ref) return;
-        const existing = state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
+        const existing = getNoteForTarget(ref);
 
         if (mode === 'view') {
             elements.chapterNoteView.innerHTML = existing
-                ? renderNoteMarkdown(existing.note, existing)
+                ? renderNoteMarkdown(existing.note, getRenderCtxForTarget(ref))
                 : '';
             elements.chapterNoteView.hidden = false;
             elements.chapterNoteViewActions.hidden = false;
@@ -2892,8 +3005,7 @@
     /** Cancel from edit mode: back to view if a note exists, otherwise close. */
     function cancelChapterNoteEdit() {
         const ref = state.chapterNoteEditorTarget;
-        const existing = ref && state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
-        if (existing) {
+        if (ref && getNoteForTarget(ref)) {
             setChapterNoteMode('view');
         } else {
             closeChapterNoteEditor();
@@ -2904,19 +3016,29 @@
         const ref = state.chapterNoteEditorTarget;
         if (!ref) return;
         const note = elements.chapterNoteTextarea.value.trim();
-        const existing = state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
+        const existing = getNoteForTarget(ref);
         try {
             if (note) {
-                await saveChapterNoteToApi(ref.bookId, ref.chapter, note);
+                if (ref.type === 'book') {
+                    await saveBookNoteToApi(ref.bookId, note);
+                } else {
+                    await saveChapterNoteToApi(ref.bookId, ref.chapter, note);
+                }
                 setChapterNoteMode('view');
             } else {
-                if (existing) await deleteChapterNoteFromApi(ref.bookId, ref.chapter);
+                if (existing) {
+                    if (ref.type === 'book') {
+                        await deleteBookNoteFromApi(ref.bookId);
+                    } else {
+                        await deleteChapterNoteFromApi(ref.bookId, ref.chapter);
+                    }
+                }
                 closeChapterNoteEditor();
             }
-            renderPage(); // refresh chapter-header indicator
+            renderPage(); // refresh header/title indicators
         } catch (err) {
-            console.error('Failed to save chapter note:', err);
-            showToast('Failed to save chapter note');
+            console.error('Failed to save note:', err);
+            showToast('Failed to save note');
         }
     }
 
@@ -3330,6 +3452,10 @@
                 e.preventDefault();
                 openChapterNoteEditor();
                 break;
+            case 'B':
+                e.preventDefault();
+                openChapterNoteEditor(getCurrentBookRef());
+                break;
             case 'm':
                 e.preventDefault();
                 openPassagePicker(state.currentVerseId);
@@ -3504,6 +3630,10 @@
                 closeMobileMenu();
                 openChapterNoteEditor();
             });
+            document.getElementById('mobile-menu-book-note').addEventListener('click', () => {
+                closeMobileMenu();
+                openChapterNoteEditor(getCurrentBookRef());
+            });
             document.getElementById('mobile-font-decrease').addEventListener('click', decreaseFontSize);
             document.getElementById('mobile-font-increase').addEventListener('click', increaseFontSize);
         }
@@ -3554,6 +3684,13 @@
             if (link) {
                 e.preventDefault();
                 handleNoteVerseLinkClick(link);
+            }
+        });
+
+        // Book-note pencil in the page title (title sits outside the reading area)
+        elements.chapterTitle.addEventListener('click', (e) => {
+            if (e.target.closest('.book-note-btn')) {
+                openChapterNoteEditor(getCurrentBookRef());
             }
         });
 
@@ -3661,6 +3798,7 @@
                 await loadLibraryFromApi();
                 await loadMemorizationFromApi();
                 await loadChapterNotesFromApi();
+                await loadBookNotesFromApi();
                 if (!state.currentUser.localStorageMigrated) {
                     // One-time migration: sync whatever localStorage data existed at login time
                     await migrateLocalStorageToDb(localVerses, localTags);
@@ -3700,6 +3838,7 @@
                 state.memorizedPassages = {};
                 state.memorizedEntries = [];
                 state.chapterNotes = {};
+                state.bookNotes = {};
                 renderPage();
             };
         } else {
