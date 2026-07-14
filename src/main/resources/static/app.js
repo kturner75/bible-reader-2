@@ -22,6 +22,9 @@
         chapters: [],
         // Total verses in Bible
         totalVerses: 31102,
+        // Reading-area size at last page measurement (guards relayout triggers)
+        lastMeasuredWidth: 0,
+        lastMeasuredHeight: 0,
         // Font size multiplier
         fontSizeMultiplier: 1.0,
         // Loading state
@@ -567,7 +570,9 @@
     async function calculatePageVerses(startVerseId) {
         const container = elements.readingArea;
         const availableHeight = container.clientHeight;
-        
+        state.lastMeasuredWidth = container.clientWidth;
+        state.lastMeasuredHeight = container.clientHeight;
+
         // Fetch a batch of verses to test
         const batchSize = 100; // Fetch more than we need
         const data = await fetchVerses(startVerseId, batchSize);
@@ -611,7 +616,7 @@
                 // For multi-column layouts, we need to check if content overflows
                 // The scrollHeight gives us the actual content height when columns are used
                 const contentHeight = measureContainer.scrollHeight;
-                
+
                 if (contentHeight <= availableHeight) {
                     fittingVerses = testVerses;
                     low = mid + 1;
@@ -641,6 +646,8 @@
     async function calculatePageVersesEndingAt(endVerseId) {
         const container = elements.readingArea;
         const availableHeight = container.clientHeight;
+        state.lastMeasuredWidth = container.clientWidth;
+        state.lastMeasuredHeight = container.clientHeight;
         
         // Fetch verses ending at the target (fetch backwards)
         // We need verses from (endVerseId - N) to endVerseId
@@ -3154,14 +3161,27 @@
             }
         });
         
-        // Window resize - reload page to recalculate
+        // Window/container resize - reload page to recalculate.
+        // The ResizeObserver also catches cases where the reading area's size
+        // changes without a window resize event — e.g. embedded/preview
+        // browsers that lay the page out at 0×0 first and attach the real
+        // viewport dimensions only after the app has initialized.
         let resizeTimeout;
-        window.addEventListener('resize', () => {
+        function scheduleRelayout() {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
+                const area = elements.readingArea;
+                // Skip while hidden/zero-sized or if nothing actually changed
+                if (area.clientWidth === 0 || area.clientHeight === 0) return;
+                if (area.clientWidth === state.lastMeasuredWidth &&
+                    area.clientHeight === state.lastMeasuredHeight) return;
                 loadPage(state.pageStartVerseId);
             }, 200);
-        });
+        }
+        window.addEventListener('resize', scheduleRelayout);
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(scheduleRelayout).observe(elements.readingArea);
+        }
 
         // ── Mobile: swipe left/right on reading area to turn pages ──
         let touchStartX = 0;
@@ -3276,6 +3296,25 @@
     // Initialization
     // ============================================
 
+    /**
+     * Resolve once the reading area has non-zero dimensions, or after a
+     * bounded wait. Uses setTimeout polling (not requestAnimationFrame,
+     * which can be throttled to a halt in hidden/background tabs).
+     */
+    function waitForReadingAreaLayout(timeoutMs = 2000) {
+        return new Promise((resolve) => {
+            const deadline = performance.now() + timeoutMs;
+            (function check() {
+                const area = elements.readingArea;
+                if ((area.clientWidth > 0 && area.clientHeight > 0) || performance.now() >= deadline) {
+                    resolve();
+                } else {
+                    setTimeout(check, 50);
+                }
+            })();
+        });
+    }
+
     async function init() {
         showLoading();
 
@@ -3302,6 +3341,13 @@
             // Wait for web fonts before measuring the viewport — font metrics affect
             // line wrapping and therefore how many verses fit on a page.
             await document.fonts.ready;
+
+            // Some environments (embedded/preview browsers, background tabs)
+            // run scripts before the page has real dimensions. Measuring a
+            // 0×0 reading area would fit zero verses, so wait for layout.
+            // Bounded: if the size never settles, proceed — the reading
+            // area's ResizeObserver reloads the page once it gets a size.
+            await waitForReadingAreaLayout();
 
             // Load initial page
             await goToVerse(state.currentVerseId);
