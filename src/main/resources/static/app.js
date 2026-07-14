@@ -131,6 +131,7 @@
         chapterNoteOverlay: document.getElementById('chapter-note-overlay'),
         chapterNoteTitle: document.getElementById('chapter-note-title'),
         chapterNoteCharMax: document.getElementById('chapter-note-char-max'),
+        chapterNoteHintLinks: document.getElementById('chapter-note-hint-links'),
         chapterNoteClose: document.getElementById('chapter-note-close'),
         chapterNoteRef: document.getElementById('chapter-note-ref'),
         chapterNoteSignin: document.getElementById('chapter-note-signin'),
@@ -2952,6 +2953,9 @@
         elements.chapterNoteTitle.textContent = ref.type === 'book' ? 'Book Note' : 'Chapter Note';
         elements.chapterNoteTextarea.maxLength = limit;
         elements.chapterNoteCharMax.textContent = limit;
+        elements.chapterNoteHintLinks.innerHTML = ref.type === 'book'
+            ? '<code>[12]</code> chapter link <code>[3:16]</code> verse link'
+            : '<code>[12]</code> verse link';
 
         if (!state.currentUser) {
             elements.chapterNoteSignin.hidden = false;
