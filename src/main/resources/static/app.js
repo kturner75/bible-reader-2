@@ -22,6 +22,13 @@
         chapters: [],
         // Total verses in Bible
         totalVerses: 31102,
+        // Reading-area size at last page measurement (guards relayout triggers)
+        lastMeasuredWidth: 0,
+        lastMeasuredHeight: 0,
+        // True once init() has loaded the first page; relayout triggers
+        // (resize/ResizeObserver) are ignored before then so they can't
+        // race the initial load of the saved verse
+        initialPageLoaded: false,
         // Font size multiplier
         fontSizeMultiplier: 1.0,
         // Loading state
@@ -590,7 +597,9 @@
     async function calculatePageVerses(startVerseId) {
         const container = elements.readingArea;
         const availableHeight = container.clientHeight;
-        
+        state.lastMeasuredWidth = container.clientWidth;
+        state.lastMeasuredHeight = container.clientHeight;
+
         // Fetch a batch of verses to test
         const batchSize = 100; // Fetch more than we need
         const data = await fetchVerses(startVerseId, batchSize);
@@ -634,7 +643,7 @@
                 // For multi-column layouts, we need to check if content overflows
                 // The scrollHeight gives us the actual content height when columns are used
                 const contentHeight = measureContainer.scrollHeight;
-                
+
                 if (contentHeight <= availableHeight) {
                     fittingVerses = testVerses;
                     low = mid + 1;
@@ -664,6 +673,8 @@
     async function calculatePageVersesEndingAt(endVerseId) {
         const container = elements.readingArea;
         const availableHeight = container.clientHeight;
+        state.lastMeasuredWidth = container.clientWidth;
+        state.lastMeasuredHeight = container.clientHeight;
         
         // Fetch verses ending at the target (fetch backwards)
         // We need verses from (endVerseId - N) to endVerseId
@@ -909,6 +920,33 @@
             state.isLoading = false;
             hideLoading();
         }
+    }
+
+    /**
+     * Debounced reload when the reading area's size changes. Fed by the
+     * window resize event, a ResizeObserver on the reading area (which also
+     * catches size changes that don't fire a window resize event — e.g.
+     * embedded/preview browsers that lay the page out at 0×0 first and
+     * attach the real viewport dimensions only after the app initializes),
+     * and one post-init check from init() itself.
+     */
+    let relayoutTimeout;
+    function scheduleRelayout() {
+        clearTimeout(relayoutTimeout);
+        relayoutTimeout = setTimeout(() => {
+            const area = elements.readingArea;
+            // Skip until init() has loaded the first page — the observer's
+            // initial callback fires before then and would race it, loading
+            // pageStartVerseId's default (verse 1) over the user's saved
+            // position. init() re-runs this check once the flag is set, so
+            // a size transition that lands here early is not lost.
+            if (!state.initialPageLoaded) return;
+            // Skip while hidden/zero-sized or if nothing actually changed
+            if (area.clientWidth === 0 || area.clientHeight === 0) return;
+            if (area.clientWidth === state.lastMeasuredWidth &&
+                area.clientHeight === state.lastMeasuredHeight) return;
+            loadPage(state.pageStartVerseId);
+        }, 200);
     }
 
     /**
@@ -3554,14 +3592,10 @@
             }
         });
         
-        // Window resize - reload page to recalculate
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                loadPage(state.pageStartVerseId);
-            }, 200);
-        });
+        window.addEventListener('resize', scheduleRelayout);
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(scheduleRelayout).observe(elements.readingArea);
+        }
 
         // ── Mobile: swipe left/right on reading area to turn pages ──
         let touchStartX = 0;
@@ -3678,6 +3712,25 @@
     // Initialization
     // ============================================
 
+    /**
+     * Resolve once the reading area has non-zero dimensions, or after a
+     * bounded wait. Uses setTimeout polling (not requestAnimationFrame,
+     * which can be throttled to a halt in hidden/background tabs).
+     */
+    function waitForReadingAreaLayout(timeoutMs = 2000) {
+        return new Promise((resolve) => {
+            const deadline = performance.now() + timeoutMs;
+            (function check() {
+                const area = elements.readingArea;
+                if ((area.clientWidth > 0 && area.clientHeight > 0) || performance.now() >= deadline) {
+                    resolve();
+                } else {
+                    setTimeout(check, 50);
+                }
+            })();
+        });
+    }
+
     async function init() {
         showLoading();
 
@@ -3705,8 +3758,22 @@
             // line wrapping and therefore how many verses fit on a page.
             await document.fonts.ready;
 
+            // Some environments (embedded/preview browsers, background tabs)
+            // run scripts before the page has real dimensions. Measuring a
+            // 0×0 reading area would fit zero verses, so wait for layout.
+            // Bounded: if the size never settles, proceed — the reading
+            // area's ResizeObserver reloads the page once it gets a size.
+            await waitForReadingAreaLayout();
+
             // Load initial page
             await goToVerse(state.currentVerseId);
+            state.initialPageLoaded = true;
+
+            // A resize that landed while the first page was still loading
+            // was deliberately ignored by scheduleRelayout (see the
+            // initialPageLoaded guard); re-run the check now so a viewport
+            // that gained its real size mid-init still gets a full page.
+            scheduleRelayout();
 
             // Warm the audio URL cache for upcoming verses if TTS enabled
             if (state.audioEnabled) {
