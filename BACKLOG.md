@@ -17,8 +17,8 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 ## Notes & Annotations
 
-- **Chapter notes** — same UX as verse notes but scoped to a chapter (e.g. study notes, sermon outline for a chapter). Stored in a `chapter_notes` table keyed on `(user_id, book_id, chapter)`.
-- **Book notes / outlines** — high-level notes or structured outline scoped to a whole book, with easy verse deep-linking (e.g. `[Gen 1:1]` auto-links to the reader).
+- **Chapter notes** *(done — PR #28)* — study notes/sermon outline scoped to a chapter. `chapter_notes` table keyed on `(user_id, book_id, chapter)`, account-only. Includes markdown-lite rendering (headings, bold, italic, lists) and verse links: `[12]` (chapter-relative) and `[John 3:16]` (any reference) jump the reader.
+- **Book notes / outlines** — high-level notes or structured outline scoped to a whole book. The chapter-notes markdown renderer + verse deep-linking (`[Gen 1:1]`) is built and reusable; this becomes a `book_notes` table (V14) + parallel endpoints.
 - **Sermon / lesson notes** — freeform notes attached to a collection of verses across chapters/books; essentially a "note with a verse list".
 - **Character studies** — verses tagged to a person (Abraham, David, Paul…); auto-populated from a concordance or user-curated.
 - **Location studies** — same concept for places (Jerusalem, Egypt, Bethlehem…).
