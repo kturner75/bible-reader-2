@@ -896,6 +896,33 @@
     }
 
     /**
+     * Debounced reload when the reading area's size changes. Fed by the
+     * window resize event, a ResizeObserver on the reading area (which also
+     * catches size changes that don't fire a window resize event — e.g.
+     * embedded/preview browsers that lay the page out at 0×0 first and
+     * attach the real viewport dimensions only after the app initializes),
+     * and one post-init check from init() itself.
+     */
+    let relayoutTimeout;
+    function scheduleRelayout() {
+        clearTimeout(relayoutTimeout);
+        relayoutTimeout = setTimeout(() => {
+            const area = elements.readingArea;
+            // Skip until init() has loaded the first page — the observer's
+            // initial callback fires before then and would race it, loading
+            // pageStartVerseId's default (verse 1) over the user's saved
+            // position. init() re-runs this check once the flag is set, so
+            // a size transition that lands here early is not lost.
+            if (!state.initialPageLoaded) return;
+            // Skip while hidden/zero-sized or if nothing actually changed
+            if (area.clientWidth === 0 || area.clientHeight === 0) return;
+            if (area.clientWidth === state.lastMeasuredWidth &&
+                area.clientHeight === state.lastMeasuredHeight) return;
+            loadPage(state.pageStartVerseId);
+        }, 200);
+    }
+
+    /**
      * Go to a specific verse (loads page containing it).
      */
     async function goToVerse(verseId) {
@@ -3165,28 +3192,6 @@
             }
         });
         
-        // Window/container resize - reload page to recalculate.
-        // The ResizeObserver also catches cases where the reading area's size
-        // changes without a window resize event — e.g. embedded/preview
-        // browsers that lay the page out at 0×0 first and attach the real
-        // viewport dimensions only after the app has initialized.
-        let resizeTimeout;
-        function scheduleRelayout() {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                const area = elements.readingArea;
-                // Skip until init() has loaded the first page — the observer's
-                // initial callback fires before then and would race it,
-                // loading pageStartVerseId's default (verse 1) over the
-                // user's saved position
-                if (!state.initialPageLoaded) return;
-                // Skip while hidden/zero-sized or if nothing actually changed
-                if (area.clientWidth === 0 || area.clientHeight === 0) return;
-                if (area.clientWidth === state.lastMeasuredWidth &&
-                    area.clientHeight === state.lastMeasuredHeight) return;
-                loadPage(state.pageStartVerseId);
-            }, 200);
-        }
         window.addEventListener('resize', scheduleRelayout);
         if (typeof ResizeObserver !== 'undefined') {
             new ResizeObserver(scheduleRelayout).observe(elements.readingArea);
@@ -3361,6 +3366,12 @@
             // Load initial page
             await goToVerse(state.currentVerseId);
             state.initialPageLoaded = true;
+
+            // A resize that landed while the first page was still loading
+            // was deliberately ignored by scheduleRelayout (see the
+            // initialPageLoaded guard); re-run the check now so a viewport
+            // that gained its real size mid-init still gets a full page.
+            scheduleRelayout();
 
             // Warm the audio URL cache for upcoming verses if TTS enabled
             if (state.audioEnabled) {
