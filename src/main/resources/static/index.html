@@ -7,7 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <!-- Absolute path: the page is also served at /read/collection/{id}, where a
+         relative href would resolve under /read/collection/ and 404 -->
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
     <!-- Minimal Header -->
@@ -21,6 +23,8 @@
                 <button id="library-toggle" aria-label="Open saved verses library" title="Saved verses">&#9776;</button>
                 <!-- Memorization Toggle -->
                 <button id="memorization-toggle" aria-label="Open memorization queue" title="Memorization queue (M)">&#9830;</button>
+                <!-- Passage Collections Toggle -->
+                <button id="collections-toggle" aria-label="Open passage collections" title="Passage collections (C)">&#10697;</button>
 
                 <!-- Book/Chapter/Verse Dropdowns -->
                 <div class="nav-dropdowns">
@@ -50,6 +54,7 @@
                            placeholder="Search or reference..."
                            aria-label="Search Bible"
                            autocomplete="off">
+                    <div class="search-autocomplete" id="search-autocomplete" hidden></div>
                 </div>
 
                 <!-- Auth Area -->
@@ -138,6 +143,7 @@
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>B</kbd></span><span>Book note</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>m</kbd></span><span>Select passage to memorize</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>M</kbd></span><span>Open memorization queue</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>C</kbd></span><span>Passage collections</span></div>
                     <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>p</kbd></span><span>Play/stop audio</span></div>
                     <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>s</kbd></span><span>Cycle audio speed</span></div>
                 </div>
@@ -285,7 +291,7 @@
                 <div id="chapter-note-edit" hidden>
                     <textarea id="chapter-note-textarea" placeholder="Study notes, outline, themes..." maxlength="5000"></textarea>
                     <div class="note-char-count"><span id="chapter-note-char-current">0</span>/<span id="chapter-note-char-max">5000</span></div>
-                    <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <span id="chapter-note-hint-links"><code>[12]</code> verse link</span></p>
+                    <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <span id="chapter-note-hint-links"><code>[12]</code> verse link</span> <code>[pid=3]</code> collection link</p>
                     <div class="note-actions">
                         <button id="chapter-note-save-btn" class="primary">Save</button>
                         <button id="chapter-note-cancel-btn">Cancel</button>
@@ -330,6 +336,56 @@
         </div>
     </div>
 
+    <!-- Passage Collections Hub Modal -->
+    <div class="collections-overlay" id="collections-overlay" hidden>
+        <div class="collections-modal">
+            <div class="collections-header">
+                <h2>Passage Collections</h2>
+                <button id="collections-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="collections-count" id="collections-count">0 collections</div>
+            <div class="collections-list" id="collections-list"></div>
+            <div class="collections-actions">
+                <button id="collections-new">+ New Collection</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Collection Builder Modal -->
+    <div class="collection-builder-overlay" id="collection-builder-overlay" hidden>
+        <div class="collection-builder-modal">
+            <div class="cb-header">
+                <h2 id="cb-title">New Collection</h2>
+                <button id="cb-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="cb-body">
+                <div class="cb-browser">
+                    <div class="cb-nav">
+                        <button id="cb-prev-ch" aria-label="Previous chapter">&#8249;</button>
+                        <select id="cb-book-select" aria-label="Select book"></select>
+                        <select id="cb-chapter-select" aria-label="Select chapter"></select>
+                        <button id="cb-next-ch" aria-label="Next chapter">&#8250;</button>
+                    </div>
+                    <div class="cb-verse-list" id="cb-verse-list">
+                        <div class="passage-picker-loading">Loading…</div>
+                    </div>
+                    <div class="cb-browser-actions">
+                        <button id="cb-add-checked" disabled>Add to collection</button>
+                    </div>
+                </div>
+                <div class="cb-queue">
+                    <input type="text" id="cb-label" placeholder="Collection label..." maxlength="100" autocomplete="off">
+                    <div class="cb-queue-count" id="cb-queue-count">No verses yet</div>
+                    <ol class="cb-queue-list" id="cb-queue-list"></ol>
+                    <div class="cb-actions">
+                        <button id="cb-cancel">Cancel</button>
+                        <button id="cb-save" disabled>Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Mobile Quick-Actions Menu -->
     <div class="mobile-menu-overlay" id="mobile-menu-overlay" hidden>
         <div class="mobile-menu-sheet">
@@ -346,6 +402,10 @@
                 <button class="mobile-menu-item" id="mobile-menu-memorization">
                     <span class="mobile-menu-icon">&#9830;</span>
                     <span class="mobile-menu-label">Memorization</span>
+                </button>
+                <button class="mobile-menu-item" id="mobile-menu-collections">
+                    <span class="mobile-menu-icon">&#10697;</span>
+                    <span class="mobile-menu-label">Collections</span>
                 </button>
                 <button class="mobile-menu-item" id="mobile-menu-bookmark">
                     <span class="mobile-menu-icon">&#9998;</span>
@@ -390,6 +450,6 @@
     <!-- TTS pre-buffer: silently pre-downloads the next verse so playback is gapless -->
     <audio id="tts-audio-buffer" preload="auto"></audio>
 
-    <script src="app.js"></script>
+    <script src="/app.js"></script>
 </body>
 </html>
