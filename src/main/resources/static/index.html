@@ -135,6 +135,7 @@
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>t</kbd></span><span>Open tag picker</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>n</kbd></span><span>Add/edit note</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>c</kbd></span><span>Chapter note</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>B</kbd></span><span>Book note</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>m</kbd></span><span>Select passage to memorize</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>M</kbd></span><span>Open memorization queue</span></div>
                     <div class="shortcut-item audio-shortcut" hidden><span class="shortcut-key"><kbd>p</kbd></span><span>Play/stop audio</span></div>
@@ -164,7 +165,7 @@
             <!-- Tabs -->
             <div class="library-tabs">
                 <button class="library-tab active" id="library-tab-verses">Saved Verses</button>
-                <button class="library-tab" id="library-tab-chapter-notes">Chapter Notes</button>
+                <button class="library-tab" id="library-tab-chapter-notes">Notes</button>
             </div>
 
             <!-- Filters Bar -->
@@ -267,14 +268,14 @@
     <div class="note-editor-overlay" id="chapter-note-overlay" hidden>
         <div class="note-editor-modal">
             <div class="note-editor-header">
-                <h2>Chapter Note</h2>
+                <h2 id="chapter-note-title">Chapter Note</h2>
                 <button id="chapter-note-close" aria-label="Close">&times;</button>
             </div>
             <div class="note-editor-content">
                 <div class="note-editor-verse-ref" id="chapter-note-ref"></div>
                 <div class="chapter-note-signin" id="chapter-note-signin" hidden>
-                    <p>Chapter notes are saved to your account.</p>
-                    <a href="/login.html" class="chapter-note-signin-link">Sign in to add chapter notes</a>
+                    <p>Notes are saved to your account.</p>
+                    <a href="/login.html" class="chapter-note-signin-link">Sign in to add notes</a>
                 </div>
                 <div class="note-markdown" id="chapter-note-view" hidden></div>
                 <div class="note-actions" id="chapter-note-view-actions" hidden>
@@ -283,7 +284,7 @@
                 </div>
                 <div id="chapter-note-edit" hidden>
                     <textarea id="chapter-note-textarea" placeholder="Study notes, outline, themes..." maxlength="5000"></textarea>
-                    <div class="note-char-count"><span id="chapter-note-char-current">0</span>/5000</div>
+                    <div class="note-char-count"><span id="chapter-note-char-current">0</span>/<span id="chapter-note-char-max">5000</span></div>
                     <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <code>[12]</code> verse link</p>
                     <div class="note-actions">
                         <button id="chapter-note-save-btn" class="primary">Save</button>
@@ -361,6 +362,10 @@
                 <button class="mobile-menu-item" id="mobile-menu-chapter-note">
                     <span class="mobile-menu-icon">&#128214;</span>
                     <span class="mobile-menu-label" id="mobile-menu-chapter-note-label">Chapter Note</span>
+                </button>
+                <button class="mobile-menu-item" id="mobile-menu-book-note">
+                    <span class="mobile-menu-icon">&#128218;</span>
+                    <span class="mobile-menu-label" id="mobile-menu-book-note-label">Book Note</span>
                 </button>
                 <div class="mobile-menu-item mobile-menu-font-row">
                     <span class="mobile-menu-icon">A</span>

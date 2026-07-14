@@ -1409,6 +1409,7 @@ body {
 }
 
 .chapter-header:hover .chapter-note-btn,
+.chapter-title:hover .chapter-note-btn,
 .chapter-note-btn:hover {
     opacity: 1;
 }
@@ -1416,6 +1417,27 @@ body {
 .chapter-note-btn.has-note {
     opacity: 1;
     color: var(--color-link);
+}
+
+/* Book-note pencil in the page title — smaller than the title text */
+.book-note-btn {
+    font-size: 0.6em;
+    vertical-align: middle;
+    margin-left: 0.3em;
+}
+
+/* Book-note badge on Library list items */
+.book-note-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0.03em;
+    padding: 0.1em 0.5em;
+    margin-left: 0.4em;
+    border: 1px solid var(--color-link);
+    border-radius: 999px;
+    color: var(--color-link);
+    vertical-align: middle;
 }
 
 /* .note-actions sets display:flex, which would defeat the hidden attribute */
