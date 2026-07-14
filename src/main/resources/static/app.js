@@ -25,6 +25,10 @@
         // Reading-area size at last page measurement (guards relayout triggers)
         lastMeasuredWidth: 0,
         lastMeasuredHeight: 0,
+        // True once init() has loaded the first page; relayout triggers
+        // (resize/ResizeObserver) are ignored before then so they can't
+        // race the initial load of the saved verse
+        initialPageLoaded: false,
         // Font size multiplier
         fontSizeMultiplier: 1.0,
         // Loading state
@@ -3171,6 +3175,11 @@
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
                 const area = elements.readingArea;
+                // Skip until init() has loaded the first page — the observer's
+                // initial callback fires before then and would race it,
+                // loading pageStartVerseId's default (verse 1) over the
+                // user's saved position
+                if (!state.initialPageLoaded) return;
                 // Skip while hidden/zero-sized or if nothing actually changed
                 if (area.clientWidth === 0 || area.clientHeight === 0) return;
                 if (area.clientWidth === state.lastMeasuredWidth &&
@@ -3351,6 +3360,7 @@
 
             // Load initial page
             await goToVerse(state.currentVerseId);
+            state.initialPageLoaded = true;
 
             // Warm the audio URL cache for upcoming verses if TTS enabled
             if (state.audioEnabled) {
