@@ -42,10 +42,15 @@
             sort: 'date-desc'      // 'date-desc', 'date-asc', 'canonical'
         },
         libraryFiltersExpanded: false, // additional filters collapsed state
+        libraryView: 'verses',     // 'verses' | 'chapter-notes'
         tagPickerOpen: false,      // tag picker modal state
         noteEditorOpen: false,     // note editor modal state
         tagPickerVerseId: null,    // which verse the tag picker is for
         noteEditorVerseId: null,   // which verse the note editor is for
+        // Chapter notes (account-only — no localStorage mode)
+        chapterNotes: {},              // { "bookId:chapter": { bookId, bookName, chapter, firstVerseId, verseCount, note, updatedAt } }
+        chapterNoteEditorOpen: false,  // chapter note modal state
+        chapterNoteEditorTarget: null, // { bookId, chapter, label } while modal open
         // TTS Audio
         audioEnabled: false,       // Feature flag from backend
         audioPlaying: false,       // Currently playing
@@ -114,6 +119,24 @@
         noteCharCurrent: document.getElementById('note-char-current'),
         noteSaveBtn: document.getElementById('note-save-btn'),
         noteCancelBtn: document.getElementById('note-cancel-btn'),
+        // Chapter note editor
+        chapterNoteOverlay: document.getElementById('chapter-note-overlay'),
+        chapterNoteClose: document.getElementById('chapter-note-close'),
+        chapterNoteRef: document.getElementById('chapter-note-ref'),
+        chapterNoteSignin: document.getElementById('chapter-note-signin'),
+        chapterNoteView: document.getElementById('chapter-note-view'),
+        chapterNoteViewActions: document.getElementById('chapter-note-view-actions'),
+        chapterNoteEditBtn: document.getElementById('chapter-note-edit-btn'),
+        chapterNoteDoneBtn: document.getElementById('chapter-note-done-btn'),
+        chapterNoteEdit: document.getElementById('chapter-note-edit'),
+        chapterNoteTextarea: document.getElementById('chapter-note-textarea'),
+        chapterNoteCharCurrent: document.getElementById('chapter-note-char-current'),
+        chapterNoteSaveBtn: document.getElementById('chapter-note-save-btn'),
+        chapterNoteCancelBtn: document.getElementById('chapter-note-cancel-btn'),
+        // Library tabs
+        libraryTabVerses: document.getElementById('library-tab-verses'),
+        libraryTabChapterNotes: document.getElementById('library-tab-chapter-notes'),
+        libraryFiltersBar: document.getElementById('library-filters-bar'),
         // Audio
         audioControls: document.getElementById('audio-controls'),
         audioToggle: document.getElementById('audio-toggle'),
@@ -725,7 +748,11 @@
         // Check for both "Psalm" and "Psalms" to handle different data formats
         const isPsalm = verse.book === 'Psalms' || verse.book === 'Psalm';
         const headerText = isPsalm ? `Psalm ${verse.chapter}` : `Chapter ${verse.chapter}`;
-        return `<div class="chapter-header">${headerText}</div>`;
+        const label = `${isPsalm ? 'Psalm' : verse.book} ${verse.chapter}`;
+        const hasNote = !!state.chapterNotes[chapterKey(verse.bookId, verse.chapter)];
+        return `<div class="chapter-header"><span>${headerText}</span><button class="chapter-note-btn${hasNote ? ' has-note' : ''}"
+            data-book-id="${verse.bookId}" data-chapter="${verse.chapter}" data-label="${escapeHtml(label)}"
+            title="${hasNote ? 'Edit chapter note (c)' : 'Add chapter note (c)'}" aria-label="Chapter note for ${escapeHtml(label)}">&#9998;</button></div>`;
     }
 
     /**
@@ -1439,6 +1466,169 @@
         }
     }
 
+    // ============================================
+    // Chapter Notes (account-only)
+    // ============================================
+
+    function chapterKey(bookId, chapter) {
+        return `${bookId}:${chapter}`;
+    }
+
+    /**
+     * Book + chapter of the currently selected verse, with a display label
+     * ("Genesis 3", "Psalm 23"). Null until a page is rendered.
+     */
+    function getCurrentChapterRef() {
+        const verse = state.pageVerses.find(v => v.id === state.currentVerseId);
+        if (!verse) return null;
+        const isPsalm = verse.book === 'Psalms' || verse.book === 'Psalm';
+        const label = `${isPsalm ? 'Psalm' : verse.book} ${verse.chapter}`;
+        return { bookId: verse.bookId, chapter: verse.chapter, label };
+    }
+
+    async function loadChapterNotesFromApi() {
+        try {
+            const notes = await libApi('/api/chapter-notes');
+            state.chapterNotes = {};
+            notes.forEach(n => {
+                state.chapterNotes[chapterKey(n.bookId, n.chapter)] = n;
+            });
+        } catch (err) {
+            console.error('Failed to load chapter notes from API:', err);
+        }
+    }
+
+    async function saveChapterNoteToApi(bookId, chapter, note) {
+        const saved = await libApi(`/api/chapter-notes/${bookId}/${chapter}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note })
+        });
+        state.chapterNotes[chapterKey(bookId, chapter)] = saved;
+        return saved;
+    }
+
+    async function deleteChapterNoteFromApi(bookId, chapter) {
+        await libApi(`/api/chapter-notes/${bookId}/${chapter}`, { method: 'DELETE' });
+        delete state.chapterNotes[chapterKey(bookId, chapter)];
+    }
+
+    // ============================================
+    // Note Markdown Renderer
+    // ============================================
+    // Markdown-lite: escapes ALL html first, then applies a small set of
+    // patterns, so the output can never contain user-supplied markup.
+    // Supported: # ## ### headings, **bold**, *italic*, - / * / 1. lists,
+    // and verse links: [12] (verse in this chapter) or [John 3:16] (any reference).
+
+    function renderNoteInline(text, ctx) {
+        let html = escapeHtml(text);
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        // Verse links — brackets are reserved for verse refs, not markdown URLs
+        html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
+            const trimmed = ref.trim();
+            if (/^\d+$/.test(trimmed)) {
+                const verseNum = parseInt(trimmed);
+                if (ctx && verseNum >= 1 && verseNum <= ctx.verseCount) {
+                    const verseId = ctx.firstVerseId + verseNum - 1;
+                    return `<a class="note-verse-link" data-verse-id="${verseId}" href="#">${match}</a>`;
+                }
+                return match; // out of chapter range — leave as text
+            }
+            return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
+        });
+        return html;
+    }
+
+    /**
+     * Render a note's plain text to safe HTML.
+     * ctx = { firstVerseId, verseCount } of the note's chapter (for [N] links).
+     */
+    function renderNoteMarkdown(text, ctx) {
+        const lines = text.split('\n');
+        const out = [];
+        let list = null;        // 'ul' | 'ol' | null
+        let paragraph = [];
+
+        const flushParagraph = () => {
+            if (paragraph.length) {
+                out.push(`<p>${paragraph.join('<br>')}</p>`);
+                paragraph = [];
+            }
+        };
+        const closeList = () => {
+            if (list) {
+                out.push(`</${list}>`);
+                list = null;
+            }
+        };
+
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            const heading = line.match(/^(#{1,3})\s+(.*)/);
+            const bullet = line.match(/^[-*]\s+(.*)/);
+            const numbered = line.match(/^\d+[.)]\s+(.*)/);
+
+            if (!line) {
+                flushParagraph();
+                closeList();
+            } else if (heading) {
+                flushParagraph();
+                closeList();
+                const level = heading[1].length;
+                out.push(`<h${level + 3}>${renderNoteInline(heading[2], ctx)}</h${level + 3}>`);
+            } else if (bullet || numbered) {
+                flushParagraph();
+                const type = bullet ? 'ul' : 'ol';
+                if (list !== type) {
+                    closeList();
+                    out.push(`<${type}>`);
+                    list = type;
+                }
+                out.push(`<li>${renderNoteInline((bullet || numbered)[1], ctx)}</li>`);
+            } else {
+                closeList();
+                paragraph.push(renderNoteInline(line, ctx));
+            }
+        }
+        flushParagraph();
+        closeList();
+        return out.join('');
+    }
+
+    /** Plain-text version of a note for previews (drops markers, keeps content). */
+    function stripNoteMarkdown(text) {
+        return text
+            .replace(/^#{1,3}\s+/gm, '')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/\*([^*]+)\*/g, '$1')
+            .replace(/^[-*]\s+/gm, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    /** Resolve a clicked verse link (data-verse-id or data-ref) and jump to it. */
+    async function handleNoteVerseLinkClick(link) {
+        let verseId = parseInt(link.dataset.verseId);
+        if (!verseId && link.dataset.ref) {
+            try {
+                const res = await fetch(`/api/reference?ref=${encodeURIComponent(link.dataset.ref)}`);
+                if (res.ok) {
+                    const parsed = await res.json();
+                    if (parsed.valid) verseId = parsed.verseId;
+                }
+            } catch (_) { /* handled below */ }
+        }
+        if (!verseId) {
+            showToast(`Couldn't find "${link.dataset.ref}"`);
+            return;
+        }
+        closeChapterNoteEditor();
+        closeLibrary();
+        await goToVerse(verseId);
+    }
+
     /**
      * One-time migration: syncs any localStorage saved verses/tags to the DB.
      * Called at login time with a snapshot captured before loadLibraryFromApi() overwrites state.
@@ -2030,6 +2220,12 @@
         state.libraryOpen = true;
         elements.libraryOverlay.hidden = false;
 
+        // Always open on the Saved Verses tab for predictability
+        state.libraryView = 'verses';
+        elements.libraryTabVerses.classList.add('active');
+        elements.libraryTabChapterNotes.classList.remove('active');
+        elements.libraryFiltersBar.hidden = false;
+
         // Load expanded state from localStorage
         loadLibraryFiltersExpandedState();
         updateLibraryFiltersUI();
@@ -2217,6 +2413,13 @@
             elements.mobileMenuBookmarkLabel.textContent =
                 state.savedVerses[state.currentVerseId] ? 'Unsave Verse' : 'Save Verse';
         }
+        // Dot indicator when the current chapter has a note (headers are hidden on mobile)
+        const chapterNoteLabel = document.getElementById('mobile-menu-chapter-note-label');
+        if (chapterNoteLabel) {
+            const ref = getCurrentChapterRef();
+            const hasNote = ref && state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
+            chapterNoteLabel.textContent = hasNote ? 'Chapter Note •' : 'Chapter Note';
+        }
         state.mobileMenuOpen = true;
         elements.mobileMenuOverlay.hidden = false;
     }
@@ -2275,7 +2478,64 @@
         });
     }
 
+    function setLibraryView(view) {
+        state.libraryView = view;
+        const chapterNotesActive = view === 'chapter-notes';
+        elements.libraryTabVerses.classList.toggle('active', !chapterNotesActive);
+        elements.libraryTabChapterNotes.classList.toggle('active', chapterNotesActive);
+        // Filter bar is verse-specific — hide it on the chapter notes tab
+        elements.libraryFiltersBar.hidden = chapterNotesActive;
+        renderLibraryResults();
+    }
+
+    function renderChapterNotesList() {
+        if (!state.currentUser) {
+            elements.libraryResults.innerHTML =
+                '<p class="library-empty">Chapter notes are saved to your account. <a href="/login.html">Sign in</a> to create them.</p>';
+            elements.libraryResultsCount.textContent = '0 chapter notes';
+            return;
+        }
+
+        const notes = Object.values(state.chapterNotes)
+            .sort((a, b) => a.bookId - b.bookId || a.chapter - b.chapter);
+
+        elements.libraryResultsCount.textContent =
+            `${notes.length} chapter note${notes.length !== 1 ? 's' : ''}`;
+
+        if (notes.length === 0) {
+            elements.libraryResults.innerHTML =
+                '<p class="library-empty">No chapter notes yet. Press <kbd>c</kbd> while reading to add one.</p>';
+            return;
+        }
+
+        elements.libraryResults.innerHTML = notes.map(n => {
+            const isPsalm = n.bookName === 'Psalms' || n.bookName === 'Psalm';
+            const ref = `${isPsalm ? 'Psalm' : n.bookName} ${n.chapter}`;
+            const plain = stripNoteMarkdown(n.note);
+            const preview = plain.length > 200 ? plain.substring(0, 200) + '...' : plain;
+            return `
+                <div class="library-item" data-first-verse-id="${n.firstVerseId}">
+                    <div class="library-item-ref">${ref}</div>
+                    <div class="library-item-note">${escapeHtml(preview)}</div>
+                </div>
+            `;
+        }).join('');
+
+        elements.libraryResults.querySelectorAll('.library-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const verseId = parseInt(item.dataset.firstVerseId);
+                closeLibrary();
+                await goToVerse(verseId);
+            });
+        });
+    }
+
     async function renderLibraryResults() {
+        if (state.libraryView === 'chapter-notes') {
+            renderChapterNotesList();
+            return;
+        }
+
         let filteredVerses = filterSavedVerses();
 
         if (filteredVerses.length === 0 && Object.keys(state.savedVerses).length === 0) {
@@ -2530,6 +2790,96 @@
         const note = elements.noteTextarea.value.trim();
         setVerseNote(state.noteEditorVerseId, note);
         closeNoteEditor();
+    }
+
+    // ============================================
+    // Chapter Note Editor
+    // ============================================
+
+    function openChapterNoteEditor(target) {
+        const ref = target || getCurrentChapterRef();
+        if (!ref) return;
+        stopAudioOnUIEvent();
+        state.chapterNoteEditorTarget = ref;
+        state.chapterNoteEditorOpen = true;
+        elements.chapterNoteOverlay.hidden = false;
+        elements.chapterNoteRef.textContent = ref.label;
+
+        if (!state.currentUser) {
+            elements.chapterNoteSignin.hidden = false;
+            elements.chapterNoteView.hidden = true;
+            elements.chapterNoteViewActions.hidden = true;
+            elements.chapterNoteEdit.hidden = true;
+            return;
+        }
+        elements.chapterNoteSignin.hidden = true;
+
+        // View-first when a note exists; straight to edit when empty
+        const existing = state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
+        setChapterNoteMode(existing ? 'view' : 'edit');
+    }
+
+    function setChapterNoteMode(mode) {
+        const ref = state.chapterNoteEditorTarget;
+        if (!ref) return;
+        const existing = state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
+
+        if (mode === 'view') {
+            elements.chapterNoteView.innerHTML = existing
+                ? renderNoteMarkdown(existing.note, existing)
+                : '';
+            elements.chapterNoteView.hidden = false;
+            elements.chapterNoteViewActions.hidden = false;
+            elements.chapterNoteEdit.hidden = true;
+        } else {
+            elements.chapterNoteTextarea.value = existing ? existing.note : '';
+            updateChapterNoteCharCount();
+            elements.chapterNoteView.hidden = true;
+            elements.chapterNoteViewActions.hidden = true;
+            elements.chapterNoteEdit.hidden = false;
+            elements.chapterNoteTextarea.focus();
+        }
+    }
+
+    function closeChapterNoteEditor() {
+        state.chapterNoteEditorOpen = false;
+        state.chapterNoteEditorTarget = null;
+        elements.chapterNoteOverlay.hidden = true;
+    }
+
+    function updateChapterNoteCharCount() {
+        elements.chapterNoteCharCurrent.textContent = elements.chapterNoteTextarea.value.length;
+    }
+
+    /** Cancel from edit mode: back to view if a note exists, otherwise close. */
+    function cancelChapterNoteEdit() {
+        const ref = state.chapterNoteEditorTarget;
+        const existing = ref && state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
+        if (existing) {
+            setChapterNoteMode('view');
+        } else {
+            closeChapterNoteEditor();
+        }
+    }
+
+    async function saveChapterNote() {
+        const ref = state.chapterNoteEditorTarget;
+        if (!ref) return;
+        const note = elements.chapterNoteTextarea.value.trim();
+        const existing = state.chapterNotes[chapterKey(ref.bookId, ref.chapter)];
+        try {
+            if (note) {
+                await saveChapterNoteToApi(ref.bookId, ref.chapter, note);
+                setChapterNoteMode('view');
+            } else {
+                if (existing) await deleteChapterNoteFromApi(ref.bookId, ref.chapter);
+                closeChapterNoteEditor();
+            }
+            renderPage(); // refresh chapter-header indicator
+        } catch (err) {
+            console.error('Failed to save chapter note:', err);
+            showToast('Failed to save chapter note');
+        }
     }
 
     // ============================================
@@ -2836,9 +3186,19 @@
             return;
         }
 
+        if (document.activeElement === elements.chapterNoteTextarea) {
+            if (e.key === 'Escape') {
+                elements.chapterNoteTextarea.blur();
+                closeChapterNoteEditor();
+            }
+            return;
+        }
+
         // Close overlays with Escape (in order of z-index)
         if (e.key === 'Escape') {
-            if (state.noteEditorOpen) {
+            if (state.chapterNoteEditorOpen) {
+                closeChapterNoteEditor();
+            } else if (state.noteEditorOpen) {
                 closeNoteEditor();
             } else if (state.tagPickerOpen) {
                 closeTagPicker();
@@ -2861,7 +3221,8 @@
         // Don't process other keys if overlays are open
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
             state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen ||
-            state.memorizationOpen || state.passagePickerOpen) return;
+            state.memorizationOpen || state.passagePickerOpen ||
+            state.chapterNoteEditorOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
         if (e.metaKey || e.ctrlKey) return;
@@ -2926,6 +3287,10 @@
             case 'n':
                 e.preventDefault();
                 openNoteEditor(state.currentVerseId);
+                break;
+            case 'c':
+                e.preventDefault();
+                openChapterNoteEditor();
                 break;
             case 'm':
                 e.preventDefault();
@@ -3057,6 +3422,8 @@
         elements.librarySearch.addEventListener('input', handleLibrarySearchInput);
         elements.librarySort.addEventListener('change', handleLibrarySortChange);
         elements.libraryFiltersToggle.addEventListener('click', toggleLibraryFilters);
+        elements.libraryTabVerses.addEventListener('click', () => setLibraryView('verses'));
+        elements.libraryTabChapterNotes.addEventListener('click', () => setLibraryView('chapter-notes'));
 
         // Mobile quick-actions menu
         if (elements.mobileMenuOverlay) {
@@ -3095,6 +3462,10 @@
                 closeMobileMenu();
                 openNoteEditor(state.currentVerseId);
             });
+            document.getElementById('mobile-menu-chapter-note').addEventListener('click', () => {
+                closeMobileMenu();
+                openChapterNoteEditor();
+            });
             document.getElementById('mobile-font-decrease').addEventListener('click', decreaseFontSize);
             document.getElementById('mobile-font-increase').addEventListener('click', increaseFontSize);
         }
@@ -3128,6 +3499,26 @@
         });
         elements.noteTextarea.addEventListener('input', updateNoteCharCount);
 
+        // Chapter note editor
+        elements.chapterNoteClose.addEventListener('click', closeChapterNoteEditor);
+        elements.chapterNoteDoneBtn.addEventListener('click', closeChapterNoteEditor);
+        elements.chapterNoteEditBtn.addEventListener('click', () => setChapterNoteMode('edit'));
+        elements.chapterNoteCancelBtn.addEventListener('click', cancelChapterNoteEdit);
+        elements.chapterNoteSaveBtn.addEventListener('click', saveChapterNote);
+        elements.chapterNoteOverlay.addEventListener('click', (e) => {
+            if (e.target === elements.chapterNoteOverlay) {
+                closeChapterNoteEditor();
+            }
+        });
+        elements.chapterNoteTextarea.addEventListener('input', updateChapterNoteCharCount);
+        elements.chapterNoteView.addEventListener('click', (e) => {
+            const link = e.target.closest('.note-verse-link');
+            if (link) {
+                e.preventDefault();
+                handleNoteVerseLinkClick(link);
+            }
+        });
+
         // Font size
         elements.fontIncrease.addEventListener('click', increaseFontSize);
         elements.fontDecrease.addEventListener('click', decreaseFontSize);
@@ -3140,6 +3531,15 @@
 
         // Click on verse to select it
         elements.readingArea.addEventListener('click', (e) => {
+            const noteBtn = e.target.closest('.chapter-note-btn');
+            if (noteBtn) {
+                openChapterNoteEditor({
+                    bookId: parseInt(noteBtn.dataset.bookId),
+                    chapter: parseInt(noteBtn.dataset.chapter),
+                    label: noteBtn.dataset.label
+                });
+                return;
+            }
             const verseEl = e.target.closest('.verse');
             if (verseEl) {
                 const verseId = parseInt(verseEl.dataset.verseId);
@@ -3226,6 +3626,7 @@
                 const localTags = { ...state.tags };
                 await loadLibraryFromApi();
                 await loadMemorizationFromApi();
+                await loadChapterNotesFromApi();
                 if (!state.currentUser.localStorageMigrated) {
                     // One-time migration: sync whatever localStorage data existed at login time
                     await migrateLocalStorageToDb(localVerses, localTags);
@@ -3264,6 +3665,7 @@
                 loadTags();
                 state.memorizedPassages = {};
                 state.memorizedEntries = [];
+                state.chapterNotes = {};
                 renderPage();
             };
         } else {
