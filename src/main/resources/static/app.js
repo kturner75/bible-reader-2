@@ -629,25 +629,36 @@
      */
     function measureFittingVerses(verses, fromEnd, renderFn) {
         const container = elements.readingArea;
-        const availableHeight = container.clientHeight;
+        // Fractional dimensions, not clientWidth/clientHeight: those round to
+        // integers, and a sub-pixel width/height difference can change where
+        // column breaks fall (a verse overflowing by 0.5px is pushed whole
+        // into a clipped overflow column by break-inside: avoid).
+        const rect = container.getBoundingClientRect();
         state.lastMeasuredWidth = container.clientWidth;
         state.lastMeasuredHeight = container.clientHeight;
 
         // Create a hidden measuring container that mirrors the reading area
+        // exactly, including its fixed height and column-fill: auto, so
+        // fragmentation happens identically. Content that doesn't fit spills
+        // into extra columns to the right (or below, for an unbreakable block
+        // taller than a column) — both show up as scroll overflow.
+        const containerStyle = getComputedStyle(container);
         const measureContainer = document.createElement('div');
         measureContainer.style.cssText = `
             position: absolute;
             visibility: hidden;
-            width: ${container.clientWidth}px;
-            height: auto;
-            column-count: ${getComputedStyle(container).columnCount};
-            column-gap: ${getComputedStyle(container).columnGap};
+            width: ${rect.width}px;
+            height: ${rect.height}px;
+            column-count: ${containerStyle.columnCount};
+            column-gap: ${containerStyle.columnGap};
+            column-fill: auto;
+            overflow: hidden;
             text-align: justify;
             hyphens: auto;
             -webkit-hyphens: auto;
-            font-family: ${getComputedStyle(container).fontFamily};
-            font-size: ${getComputedStyle(container).fontSize};
-            line-height: ${getComputedStyle(container).lineHeight};
+            font-family: ${containerStyle.fontFamily};
+            font-size: ${containerStyle.fontSize};
+            line-height: ${containerStyle.lineHeight};
         `;
         document.body.appendChild(measureContainer);
 
@@ -662,9 +673,9 @@
 
                 measureContainer.innerHTML = renderFn(testVerses);
 
-                // For multi-column layouts, scrollHeight gives the actual
-                // content height when columns are used
-                if (measureContainer.scrollHeight <= availableHeight) {
+                const fits = measureContainer.scrollWidth <= measureContainer.clientWidth &&
+                    measureContainer.scrollHeight <= measureContainer.clientHeight;
+                if (fits) {
                     fittingVerses = testVerses;
                     low = mid + 1;
                 } else {
