@@ -578,3 +578,213 @@ a:hover { text-decoration: underline; }
     .heatmap-months { margin-left: 0; }
     .heatmap-legend { margin-left: 0; }
 }
+
+/* ── Sermon Notes ─────────────────────────────────────────── */
+.sermon-notes-list { display: flex; flex-direction: column; }
+
+.sermon-note-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+}
+.sermon-note-row:last-child { border-bottom: none; }
+.sermon-note-row:hover .sermon-note-row-title { color: var(--color-link); }
+
+.sermon-note-row-title {
+    font-size: 1rem;
+    font-weight: 500;
+    transition: color 150ms ease;
+}
+
+.sermon-note-row-meta {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+.sermon-note-row-snippet {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-top: 0.1rem;
+}
+
+.sermon-notes-empty {
+    padding: 2rem 0;
+    color: var(--color-text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+/* ── Sermon Note Editor Modal ─────────────────────────────── */
+.note-editor-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(44, 36, 22, 0.45);
+    z-index: 350;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.note-editor-overlay[hidden] { display: none; }
+
+.note-editor-modal {
+    background: var(--color-bg);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.note-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+.note-editor-header h2 { font-size: 1.1rem; font-weight: 500; }
+
+#sermon-note-close {
+    font-size: 1.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: 0.25rem;
+    line-height: 1;
+}
+#sermon-note-close:hover { color: var(--color-text); }
+
+.note-editor-content {
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.sermon-note-view-title {
+    font-size: 1.3rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+}
+
+#sermon-note-title-input {
+    width: 100%;
+    font-family: var(--font-primary);
+    font-size: 1.1rem;
+    font-weight: 500;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: white;
+    color: var(--color-text);
+    margin-bottom: 0.75rem;
+}
+#sermon-note-title-input:focus,
+#sermon-note-textarea:focus {
+    outline: none;
+    border-color: var(--color-link);
+}
+
+#sermon-note-textarea {
+    width: 100%;
+    min-height: 260px;
+    font-family: var(--font-primary);
+    font-size: 0.95rem;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: white;
+    color: var(--color-text);
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.note-char-count {
+    text-align: right;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.chapter-note-hint {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+}
+.chapter-note-hint code {
+    background: var(--color-header-bg);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+}
+
+.note-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+#sermon-note-view-actions[hidden],
+#sermon-note-view[hidden],
+#sermon-note-edit[hidden] {
+    display: none;
+}
+
+.note-actions button {
+    font-family: var(--font-primary);
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: white;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+.note-actions button:hover { background: var(--color-header-bg); }
+
+.note-actions button.primary {
+    background: var(--color-link);
+    border-color: var(--color-link);
+    color: white;
+}
+.note-actions button.primary:hover { background: #6a5132; border-color: #6a5132; }
+
+.note-actions button.danger {
+    color: #a03e3e;
+    border-color: #a03e3e;
+    margin-right: auto;
+}
+.note-actions button.danger:hover { background: #a03e3e; color: white; }
+
+/* Rendered markdown-lite note view (shared with reader's note-editor markup) */
+.note-markdown {
+    max-height: 50vh;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+.note-markdown h4, .note-markdown h5, .note-markdown h6 {
+    font-weight: 600;
+    margin: 0.75em 0 0.35em;
+}
+.note-markdown h4 { font-size: 1.15rem; }
+.note-markdown h5 { font-size: 1.05rem; }
+.note-markdown h6 { font-size: 0.95rem; }
+.note-markdown p { margin-bottom: 0.75em; }
+.note-markdown ul, .note-markdown ol { margin: 0 0 0.75em 1.5em; }
+.note-markdown li { margin-bottom: 0.25em; }
+
+.note-verse-link, .note-collection-link {
+    color: var(--color-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+.note-verse-link:hover, .note-collection-link:hover { color: var(--color-text); }
