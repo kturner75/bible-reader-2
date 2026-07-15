@@ -119,19 +119,25 @@
     let globalPassages = [];
     let plansData      = [];
     let heatmapData    = {};
+    let sermonNotes    = [];
+    let collections    = [];
     try {
-        const [queueRes, streakRes, globalRes, plansRes, heatmapRes] = await Promise.all([
+        const [queueRes, streakRes, globalRes, plansRes, heatmapRes, sermonNotesRes, collectionsRes] = await Promise.all([
             fetch('/api/memorization/queue',           { credentials: 'include' }),
             fetch('/api/memorization/streak',          { credentials: 'include' }),
             fetch('/api/memorization/global-passages', { credentials: 'include' }),
             fetch('/api/plans',                        { credentials: 'include' }),
             fetch('/api/activity/heatmap',             { credentials: 'include' }),
+            fetch('/api/sermon-notes',                 { credentials: 'include' }),
+            fetch('/api/collections',                  { credentials: 'include' }),
         ]);
-        if (queueRes.ok)   allEntries     = await queueRes.json();
-        if (streakRes.ok)  streakData     = await streakRes.json();
-        if (globalRes.ok)  globalPassages = await globalRes.json();
-        if (plansRes.ok)   plansData      = await plansRes.json();
-        if (heatmapRes.ok) heatmapData    = await heatmapRes.json();
+        if (queueRes.ok)        allEntries     = await queueRes.json();
+        if (streakRes.ok)       streakData     = await streakRes.json();
+        if (globalRes.ok)       globalPassages = await globalRes.json();
+        if (plansRes.ok)        plansData      = await plansRes.json();
+        if (heatmapRes.ok)      heatmapData    = await heatmapRes.json();
+        if (sermonNotesRes.ok)  sermonNotes    = await sermonNotesRes.json();
+        if (collectionsRes.ok)  collections    = await collectionsRes.json();
     } catch (_) { /* stay with defaults */ }
 
     // Streak card
@@ -455,5 +461,260 @@
     }
 
     renderHeatmap(heatmapData);
+
+    // ── Sermon Notes ─────────────────────────────────────────────────────────
+    // Markdown-lite renderer ported from app.js (renderNoteInline/renderNoteMarkdown) —
+    // dashboard.js and app.js are separate unbundled scripts on different pages, so this
+    // is a deliberate copy, not a shared module. Sermon notes have no chapter/book scope,
+    // so bare [12]-style numeric refs are left as plain text; only [pid=N] and [Ref] links resolve.
+
+    const collectionsById = {};
+    collections.forEach(c => { collectionsById[c.id] = c; });
+
+    function renderNoteInline(text) {
+        let html = escapeHtml(text);
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
+            const trimmed = ref.trim();
+            const pid = trimmed.match(/^pid=(\d+)$/);
+            if (pid) {
+                const collection = collectionsById[parseInt(pid[1], 10)];
+                const label = collection ? collection.label : `Collection #${pid[1]}`;
+                return `<a class="note-collection-link" data-collection-id="${pid[1]}" href="#">${escapeHtml(label)}</a>`;
+            }
+            if (/^\d+$/.test(trimmed)) return match; // no chapter scope to resolve against
+            return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
+        });
+        return html;
+    }
+
+    function renderNoteMarkdown(text) {
+        const lines = text.split('\n');
+        const out = [];
+        let list = null;
+        let paragraph = [];
+
+        const flushParagraph = () => {
+            if (paragraph.length) {
+                out.push(`<p>${paragraph.join('<br>')}</p>`);
+                paragraph = [];
+            }
+        };
+        const closeList = () => {
+            if (list) {
+                out.push(`</${list}>`);
+                list = null;
+            }
+        };
+
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            const heading = line.match(/^(#{1,3})\s+(.*)/);
+            const bullet = line.match(/^[-*]\s+(.*)/);
+            const numbered = line.match(/^\d+[.)]\s+(.*)/);
+
+            if (!line) {
+                flushParagraph();
+                closeList();
+            } else if (heading) {
+                flushParagraph();
+                closeList();
+                const level = heading[1].length;
+                out.push(`<h${level + 3}>${renderNoteInline(heading[2])}</h${level + 3}>`);
+            } else if (bullet || numbered) {
+                flushParagraph();
+                const type = bullet ? 'ul' : 'ol';
+                if (list !== type) {
+                    closeList();
+                    out.push(`<${type}>`);
+                    list = type;
+                }
+                out.push(`<li>${renderNoteInline((bullet || numbered)[1])}</li>`);
+            } else {
+                closeList();
+                paragraph.push(renderNoteInline(line));
+            }
+        }
+        flushParagraph();
+        closeList();
+        return out.join('');
+    }
+
+    function formatUpdatedAt(iso) {
+        return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    const notesSection = document.getElementById('sermon-notes-section');
+    const notesList     = document.getElementById('sermon-notes-list');
+    const notesEmpty    = document.getElementById('sermon-notes-empty');
+
+    function renderSermonNotesList() {
+        notesList.innerHTML = '';
+        if (sermonNotes.length === 0) {
+            notesEmpty.hidden = false;
+            return;
+        }
+        notesEmpty.hidden = true;
+        sermonNotes.forEach(n => {
+            const row = document.createElement('div');
+            row.className = 'sermon-note-row';
+            row.innerHTML = `
+                <span class="sermon-note-row-title">${escapeHtml(n.title)}</span>
+                <span class="sermon-note-row-meta">Updated ${formatUpdatedAt(n.updatedAt)}</span>
+                <span class="sermon-note-row-snippet">${escapeHtml(n.snippet)}</span>
+            `;
+            row.addEventListener('click', () => openSermonNote(n.id));
+            notesList.appendChild(row);
+        });
+    }
+
+    renderSermonNotesList();
+
+    // ── Sermon Note Editor Modal ────────────────────────────────────────────
+
+    const overlay      = document.getElementById('sermon-note-overlay');
+    const modalTitle    = document.getElementById('sermon-note-modal-title');
+    const viewSection   = document.getElementById('sermon-note-view');
+    const viewTitle     = document.getElementById('sermon-note-view-title-text');
+    const viewBody      = document.getElementById('sermon-note-view-body');
+    const viewActions   = document.getElementById('sermon-note-view-actions');
+    const editSection   = document.getElementById('sermon-note-edit');
+    const titleInput    = document.getElementById('sermon-note-title-input');
+    const textarea      = document.getElementById('sermon-note-textarea');
+    const charCurrent   = document.getElementById('sermon-note-char-current');
+
+    let editingNoteId = null; // full note object's id while modal open; null while creating
+
+    function updateCharCount() {
+        charCurrent.textContent = textarea.value.length;
+    }
+
+    function setMode(mode) {
+        if (mode === 'view') {
+            viewSection.hidden = false;
+            viewActions.hidden = false;
+            editSection.hidden = true;
+        } else {
+            viewSection.hidden = true;
+            viewActions.hidden = true;
+            editSection.hidden = false;
+            titleInput.focus();
+        }
+    }
+
+    async function openSermonNote(id) {
+        try {
+            const res = await fetch(`/api/sermon-notes/${id}`, { credentials: 'include' });
+            if (!res.ok) return;
+            const note = await res.json();
+            editingNoteId = note.id;
+            modalTitle.textContent = 'Sermon Note';
+            viewTitle.textContent = note.title;
+            viewBody.innerHTML = renderNoteMarkdown(note.note);
+            titleInput.value = note.title;
+            textarea.value = note.note;
+            updateCharCount();
+            overlay.hidden = false;
+            setMode('view');
+        } catch (_) { /* ignore */ }
+    }
+
+    function openNewSermonNote() {
+        editingNoteId = null;
+        modalTitle.textContent = 'New Sermon Note';
+        titleInput.value = '';
+        textarea.value = '';
+        updateCharCount();
+        overlay.hidden = false;
+        setMode('edit');
+    }
+
+    function closeModal() {
+        overlay.hidden = true;
+        editingNoteId = null;
+    }
+
+    async function saveSermonNote() {
+        const title = titleInput.value.trim();
+        const note = textarea.value.trim();
+        if (!title || !note) return;
+        try {
+            const res = await fetch(
+                editingNoteId ? `/api/sermon-notes/${editingNoteId}` : '/api/sermon-notes',
+                {
+                    method: editingNoteId ? 'PUT' : 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, note }),
+                }
+            );
+            if (!res.ok) return;
+            const saved = await res.json();
+            editingNoteId = saved.id;
+
+            const listRes = await fetch('/api/sermon-notes', { credentials: 'include' });
+            if (listRes.ok) sermonNotes = await listRes.json();
+            renderSermonNotesList();
+
+            modalTitle.textContent = 'Sermon Note';
+            viewTitle.textContent = saved.title;
+            viewBody.innerHTML = renderNoteMarkdown(saved.note);
+            setMode('view');
+        } catch (_) { /* ignore */ }
+    }
+
+    async function deleteSermonNote() {
+        if (!editingNoteId) return;
+        if (!confirm('Delete this sermon note? This cannot be undone.')) return;
+        try {
+            const res = await fetch(`/api/sermon-notes/${editingNoteId}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            if (!res.ok && res.status !== 204) return;
+            sermonNotes = sermonNotes.filter(n => n.id !== editingNoteId);
+            renderSermonNotesList();
+            closeModal();
+        } catch (_) { /* ignore */ }
+    }
+
+    document.getElementById('sermon-note-new-btn').addEventListener('click', openNewSermonNote);
+    document.getElementById('sermon-notes-empty-new-btn').addEventListener('click', openNewSermonNote);
+    document.getElementById('sermon-note-close').addEventListener('click', closeModal);
+    document.getElementById('sermon-note-done-btn').addEventListener('click', closeModal);
+    document.getElementById('sermon-note-edit-btn').addEventListener('click', () => setMode('edit'));
+    document.getElementById('sermon-note-save-btn').addEventListener('click', saveSermonNote);
+    document.getElementById('sermon-note-delete-btn').addEventListener('click', deleteSermonNote);
+    document.getElementById('sermon-note-cancel-btn').addEventListener('click', () => {
+        if (editingNoteId) {
+            setMode('view');
+        } else {
+            closeModal();
+        }
+    });
+    textarea.addEventListener('input', updateCharCount);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+    // Verse / collection links inside a rendered sermon note navigate away to the reader
+    viewBody.addEventListener('click', async e => {
+        const collectionLink = e.target.closest('.note-collection-link');
+        if (collectionLink) {
+            e.preventDefault();
+            window.location.href = `/read/collection/${collectionLink.dataset.collectionId}`;
+            return;
+        }
+        const verseLink = e.target.closest('.note-verse-link');
+        if (verseLink) {
+            e.preventDefault();
+            try {
+                const res = await fetch(`/api/reference?ref=${encodeURIComponent(verseLink.dataset.ref)}`);
+                if (res.ok) {
+                    const parsed = await res.json();
+                    if (parsed.valid) window.location.href = `/read?vid=${parsed.verseId}`;
+                }
+            } catch (_) { /* ignore */ }
+        }
+    });
 
 })();

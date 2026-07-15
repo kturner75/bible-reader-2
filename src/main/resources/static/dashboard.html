@@ -126,7 +126,51 @@
             <div class="plans-list" id="plans-list"></div>
         </section>
 
+        <!-- Sermon Notes -->
+        <section class="dash-section" id="sermon-notes-section">
+            <div class="section-header">
+                <h2 class="section-title">Sermon Notes</h2>
+                <button class="btn-secondary" id="sermon-note-new-btn">+ New</button>
+            </div>
+            <div class="sermon-notes-list" id="sermon-notes-list"></div>
+            <div class="sermon-notes-empty" id="sermon-notes-empty" hidden>
+                <p>No sermon notes yet.</p>
+                <button class="btn-secondary" id="sermon-notes-empty-new-btn">Write your first note</button>
+            </div>
+        </section>
+
     </main>
+
+    <!-- ── Sermon Note Editor Modal ────────────────────────────────────────── -->
+    <div class="note-editor-overlay" id="sermon-note-overlay" hidden>
+        <div class="note-editor-modal">
+            <div class="note-editor-header">
+                <h2 id="sermon-note-modal-title">Sermon Note</h2>
+                <button id="sermon-note-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="note-editor-content">
+                <div id="sermon-note-view" hidden>
+                    <h3 class="sermon-note-view-title" id="sermon-note-view-title-text"></h3>
+                    <div class="note-markdown" id="sermon-note-view-body"></div>
+                    <div class="note-actions" id="sermon-note-view-actions">
+                        <button id="sermon-note-delete-btn" class="danger">Delete</button>
+                        <button id="sermon-note-edit-btn" class="primary">Edit</button>
+                        <button id="sermon-note-done-btn">Close</button>
+                    </div>
+                </div>
+                <div id="sermon-note-edit">
+                    <input type="text" id="sermon-note-title-input" placeholder="Title" maxlength="200">
+                    <textarea id="sermon-note-textarea" placeholder="Notes, outline, scripture links..." maxlength="20000"></textarea>
+                    <div class="note-char-count"><span id="sermon-note-char-current">0</span>/<span id="sermon-note-char-max">20000</span></div>
+                    <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <code>[John 3:16]</code> verse link <code>[pid=3]</code> collection link</p>
+                    <div class="note-actions">
+                        <button id="sermon-note-save-btn" class="primary">Save</button>
+                        <button id="sermon-note-cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="dashboard.js"></script>
 </body>
