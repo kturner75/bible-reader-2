@@ -72,6 +72,11 @@
         memorizedEntries: [],              // full entry list [{id, fromVerseId, toVerseId, naturalKey}]
         memorizationDueEntries: [],        // entries due today, set on each queue render
         passagePickerOpen: false,          // passage picker modal state
+        // Passage collections (account-only — no localStorage mode)
+        collections: [],                   // summaries [{id, label, verseCount, createdAt, updatedAt}]
+        collectionsOpen: false,            // collections hub modal state
+        collectionBuilderOpen: false,      // collection builder modal state
+        collection: null,                  // scoped reader mode: { id, label, verses, passageStarts, currentIndex, pageStartIndex } | null
         // Auth
         currentUser: null                  // null = anonymous; object = { id, email, displayName }
     };
@@ -88,6 +93,7 @@
         chapterSelect: document.getElementById('chapter-select'),
         verseSelect: document.getElementById('verse-select'),
         searchInput: document.getElementById('search-input'),
+        searchAutocomplete: document.getElementById('search-autocomplete'),
         searchOverlay: document.getElementById('search-overlay'),
         searchResultsList: document.getElementById('search-results-list'),
         searchResultsTitle: document.getElementById('search-results-title'),
@@ -179,6 +185,28 @@
         passagePickerRemove: document.getElementById('passage-picker-remove'),
         passagePickerClose: document.getElementById('passage-picker-close'),
         passagePickerCancel: document.getElementById('passage-picker-cancel'),
+        // Passage collections hub modal
+        collectionsToggle: document.getElementById('collections-toggle'),
+        collectionsOverlay: document.getElementById('collections-overlay'),
+        collectionsClose: document.getElementById('collections-close'),
+        collectionsCount: document.getElementById('collections-count'),
+        collectionsList: document.getElementById('collections-list'),
+        collectionsNew: document.getElementById('collections-new'),
+        // Collection builder modal
+        cbOverlay: document.getElementById('collection-builder-overlay'),
+        cbTitle: document.getElementById('cb-title'),
+        cbClose: document.getElementById('cb-close'),
+        cbBookSelect: document.getElementById('cb-book-select'),
+        cbChapterSelect: document.getElementById('cb-chapter-select'),
+        cbPrevCh: document.getElementById('cb-prev-ch'),
+        cbNextCh: document.getElementById('cb-next-ch'),
+        cbVerseList: document.getElementById('cb-verse-list'),
+        cbAddChecked: document.getElementById('cb-add-checked'),
+        cbLabel: document.getElementById('cb-label'),
+        cbQueueCount: document.getElementById('cb-queue-count'),
+        cbQueueList: document.getElementById('cb-queue-list'),
+        cbCancel: document.getElementById('cb-cancel'),
+        cbSave: document.getElementById('cb-save'),
         // Memorization queue modal
         memorizationResultsCount: document.getElementById('memorization-results-count'),
         memorizationDueBar: document.getElementById('memorization-due-bar'),
@@ -594,24 +622,16 @@
     }
 
     /**
-     * Calculate how many verses fit in the current viewport starting from a given verse.
-     * Uses a binary search approach for efficiency.
-     * Accounts for chapter headers that appear before the first verse of each chapter.
+     * Binary-search how many of `verses` fit in the reading area.
+     * fromEnd=false keeps a prefix (first verse fixed); fromEnd=true keeps a
+     * suffix (last verse fixed). renderFn(verses) must produce the exact
+     * display HTML so measurement matches rendering.
      */
-    async function calculatePageVerses(startVerseId) {
+    function measureFittingVerses(verses, fromEnd, renderFn) {
         const container = elements.readingArea;
         const availableHeight = container.clientHeight;
         state.lastMeasuredWidth = container.clientWidth;
         state.lastMeasuredHeight = container.clientHeight;
-
-        // Fetch a batch of verses to test
-        const batchSize = 100; // Fetch more than we need
-        const data = await fetchVerses(startVerseId, batchSize);
-        const verses = data.verses;
-        
-        if (verses.length === 0) {
-            return { verses: [], fits: 0 };
-        }
 
         // Create a hidden measuring container that mirrors the reading area
         const measureContainer = document.createElement('div');
@@ -631,24 +651,20 @@
         `;
         document.body.appendChild(measureContainer);
 
-        // Binary search for optimal verse count
         let low = 1;
         let high = verses.length;
         let fittingVerses = [];
-        
+
         try {
             while (low <= high) {
                 const mid = Math.floor((low + high) / 2);
-                const testVerses = verses.slice(0, mid);
-                
-                // Render to hidden container for measurement (including chapter headers)
-                measureContainer.innerHTML = renderVersesWithHeaders(testVerses);
-                
-                // For multi-column layouts, we need to check if content overflows
-                // The scrollHeight gives us the actual content height when columns are used
-                const contentHeight = measureContainer.scrollHeight;
+                const testVerses = fromEnd ? verses.slice(-mid) : verses.slice(0, mid);
 
-                if (contentHeight <= availableHeight) {
+                measureContainer.innerHTML = renderFn(testVerses);
+
+                // For multi-column layouts, scrollHeight gives the actual
+                // content height when columns are used
+                if (measureContainer.scrollHeight <= availableHeight) {
                     fittingVerses = testVerses;
                     low = mid + 1;
                 } else {
@@ -656,15 +672,31 @@
                 }
             }
         } finally {
-            // Clean up measuring container
             document.body.removeChild(measureContainer);
         }
-        
-        // Ensure at least one verse
+
+        // Ensure at least one verse (the anchored one)
         if (fittingVerses.length === 0 && verses.length > 0) {
-            fittingVerses = [verses[0]];
+            fittingVerses = fromEnd ? [verses[verses.length - 1]] : [verses[0]];
         }
-        
+
+        return fittingVerses;
+    }
+
+    /**
+     * Calculate how many verses fit in the current viewport starting from a given verse.
+     * Accounts for chapter headers that appear before the first verse of each chapter.
+     */
+    async function calculatePageVerses(startVerseId) {
+        // Fetch a batch of verses to test
+        const batchSize = 100; // Fetch more than we need
+        const data = await fetchVerses(startVerseId, batchSize);
+
+        if (data.verses.length === 0) {
+            return { verses: [], fits: 0 };
+        }
+
+        const fittingVerses = measureFittingVerses(data.verses, false, renderVersesWithHeaders);
         return { verses: fittingVerses, total: data.total };
     }
 
@@ -672,86 +704,30 @@
      * Calculate how many verses fit in the current viewport ENDING at a given verse.
      * Used for backward navigation - finds the maximum verses that fit while ensuring
      * the specified verse is the LAST verse on the page.
-     * Accounts for chapter headers that appear before the first verse of each chapter.
      */
     async function calculatePageVersesEndingAt(endVerseId) {
-        const container = elements.readingArea;
-        const availableHeight = container.clientHeight;
-        state.lastMeasuredWidth = container.clientWidth;
-        state.lastMeasuredHeight = container.clientHeight;
-        
         // Fetch verses ending at the target (fetch backwards)
-        // We need verses from (endVerseId - N) to endVerseId
         const batchSize = 100;
         const startId = Math.max(1, endVerseId - batchSize + 1);
         const count = endVerseId - startId + 1;
-        
+
         const data = await fetchVerses(startId, count);
         const allVerses = data.verses;
-        
+
         if (allVerses.length === 0) {
             return { verses: [], total: data.total };
         }
-        
+
         // Make sure we include the target verse
         const targetIndex = allVerses.findIndex(v => v.id === endVerseId);
         if (targetIndex === -1) {
             return { verses: [], total: data.total };
         }
-        
+
         // Trim to only include verses up to and including target
         const versesEndingAtTarget = allVerses.slice(0, targetIndex + 1);
-        
-        // Create a hidden measuring container
-        const measureContainer = document.createElement('div');
-        measureContainer.style.cssText = `
-            position: absolute;
-            visibility: hidden;
-            width: ${container.clientWidth}px;
-            height: auto;
-            column-count: ${getComputedStyle(container).columnCount};
-            column-gap: ${getComputedStyle(container).columnGap};
-            text-align: justify;
-            hyphens: auto;
-            -webkit-hyphens: auto;
-            font-family: ${getComputedStyle(container).fontFamily};
-            font-size: ${getComputedStyle(container).fontSize};
-            line-height: ${getComputedStyle(container).lineHeight};
-        `;
-        document.body.appendChild(measureContainer);
 
-        // Binary search for maximum verses that fit, working from the END
-        // We want to find how many verses from the end of versesEndingAtTarget fit
-        let low = 1;
-        let high = versesEndingAtTarget.length;
-        let fittingVerses = [];
-        
-        try {
-            while (low <= high) {
-                const mid = Math.floor((low + high) / 2);
-                // Take the last 'mid' verses (ending at target)
-                const testVerses = versesEndingAtTarget.slice(-mid);
-                
-                // Render with chapter headers (including chapter header for first verse if needed)
-                measureContainer.innerHTML = renderVersesWithHeaders(testVerses);
-                const contentHeight = measureContainer.scrollHeight;
-                
-                if (contentHeight <= availableHeight) {
-                    fittingVerses = testVerses;
-                    low = mid + 1;
-                } else {
-                    high = mid - 1;
-                }
-            }
-        } finally {
-            document.body.removeChild(measureContainer);
-        }
-        
-        // Ensure at least one verse (the target)
-        if (fittingVerses.length === 0 && versesEndingAtTarget.length > 0) {
-            fittingVerses = [versesEndingAtTarget[versesEndingAtTarget.length - 1]];
-        }
-        
+        const fittingVerses = measureFittingVerses(versesEndingAtTarget, true, renderVersesWithHeaders);
         return { verses: fittingVerses, total: data.total };
     }
 
@@ -825,12 +801,210 @@
         return html;
     }
 
+    // ─── Collection Scoped Reader ─────────────────────────────────────────────
+    // While state.collection is set, the reader pages over the collection's
+    // ordered verse array instead of sequential global ids. Each verse carries
+    // _ci (its index in the collection) since verse ids may repeat.
+
+    /** Sub-heading shown at the start of each passage (contiguous run) in a collection. */
+    function createPassageHeaderHTML(reference) {
+        return `<div class="chapter-header passage-header"><span>${escapeHtml(reference)}</span></div>`;
+    }
+
+    /**
+     * Render collection verses with passage sub-headings before each verse that
+     * starts a passage. Used for both measurement (markCurrent=false) and
+     * display so pagination is exact. No chapter headers in this mode.
+     */
+    function renderCollectionVersesWithHeaders(verses, markCurrent = false) {
+        const col = state.collection;
+        let html = '';
+        for (const verse of verses) {
+            if (col.passageRefs[verse._ci] !== undefined) {
+                html += createPassageHeaderHTML(col.passageRefs[verse._ci]);
+            }
+            html += createVerseHTML(verse, markCurrent && verse._ci === col.currentIndex);
+        }
+        return html;
+    }
+
+    /** Load the collection page starting at the given collection index. */
+    async function loadCollectionPage(startIndex) {
+        const col = state.collection;
+        startIndex = Math.max(0, Math.min(startIndex, col.verses.length - 1));
+        state.isLoading = true;
+        try {
+            const candidates = col.verses.slice(startIndex, startIndex + 100);
+            const fitting = measureFittingVerses(candidates, false,
+                vs => renderCollectionVersesWithHeaders(vs, false));
+            state.pageVerses = fitting;
+            col.pageStartIndex = startIndex;
+            const lastCi = fitting[fitting.length - 1]._ci;
+            if (col.currentIndex < startIndex || col.currentIndex > lastCi) {
+                col.currentIndex = startIndex;
+            }
+            state.currentVerseId = col.verses[col.currentIndex].id;
+            renderPage();
+        } finally {
+            state.isLoading = false;
+            hideLoading();
+        }
+    }
+
+    /** Load the collection page ending at the given collection index (backward paging). */
+    async function loadCollectionPageEndingAt(endIndex) {
+        const col = state.collection;
+        endIndex = Math.max(0, Math.min(endIndex, col.verses.length - 1));
+        state.isLoading = true;
+        try {
+            const from = Math.max(0, endIndex - 99);
+            const candidates = col.verses.slice(from, endIndex + 1);
+            const fitting = measureFittingVerses(candidates, true,
+                vs => renderCollectionVersesWithHeaders(vs, false));
+            state.pageVerses = fitting;
+            col.pageStartIndex = fitting[0]._ci;
+            col.currentIndex = endIndex;
+            state.currentVerseId = col.verses[endIndex].id;
+            renderPage();
+        } finally {
+            state.isLoading = false;
+            hideLoading();
+        }
+    }
+
+    function renderCollectionPage() {
+        const col = state.collection;
+        elements.readingArea.innerHTML = renderCollectionVersesWithHeaders(state.pageVerses, true);
+
+        // Header: collection label + exit button (no book-note pencil in this mode)
+        elements.chapterTitle.innerHTML = `${escapeHtml(col.label)}<button class="chapter-note-btn collection-exit-btn"
+            title="Exit collection (Esc)" aria-label="Exit collection">&times;</button>`;
+
+        const passageIdx = col.passageStarts.filter(s => s <= col.currentIndex).length;
+        elements.pageInfo.textContent = `Passage ${passageIdx} of ${col.passageStarts.length}`;
+
+        updateCurrentReference();
+    }
+
+    /** Move the current-verse cursor to a collection index, paging if needed. */
+    async function goToCollectionIndex(i) {
+        const col = state.collection;
+        i = Math.max(0, Math.min(i, col.verses.length - 1));
+        if (state.pageVerses.some(v => v._ci === i)) {
+            col.currentIndex = i;
+            state.currentVerseId = col.verses[i].id;
+            renderPage();
+        } else {
+            col.currentIndex = i;
+            await loadCollectionPage(i);
+        }
+    }
+
+    async function collectionNextVerse() {
+        const col = state.collection;
+        if (col.currentIndex >= col.verses.length - 1) return;
+        const next = col.currentIndex + 1;
+        if (state.pageVerses.some(v => v._ci === next)) {
+            col.currentIndex = next;
+            state.currentVerseId = col.verses[next].id;
+            renderPage();
+        } else {
+            col.currentIndex = next;
+            await loadCollectionPage(next);
+        }
+    }
+
+    async function collectionPrevVerse() {
+        const col = state.collection;
+        if (col.currentIndex <= 0) return;
+        const prev = col.currentIndex - 1;
+        if (state.pageVerses.some(v => v._ci === prev)) {
+            col.currentIndex = prev;
+            state.currentVerseId = col.verses[prev].id;
+            renderPage();
+        } else {
+            await loadCollectionPageEndingAt(prev);
+        }
+    }
+
+    /** Jump to the start of the next passage. */
+    async function nextPassage() {
+        const col = state.collection;
+        const next = col.passageStarts.find(s => s > col.currentIndex);
+        if (next !== undefined) await goToCollectionIndex(next);
+    }
+
+    /** Jump to the start of the current passage, or the previous one if already there. */
+    async function prevPassage() {
+        const col = state.collection;
+        const starts = col.passageStarts;
+        const currentStart = [...starts].reverse().find(s => s <= col.currentIndex);
+        if (col.currentIndex > currentStart) {
+            await goToCollectionIndex(currentStart);
+        } else {
+            const prev = [...starts].reverse().find(s => s < currentStart);
+            if (prev !== undefined) await goToCollectionIndex(prev);
+        }
+    }
+
+    /**
+     * Enter the scoped collection reader. Returns true on success.
+     * push=false when restoring from the URL (init/popstate).
+     */
+    async function enterCollectionMode(id, { push = true } = {}) {
+        showLoading();
+        let data;
+        try {
+            data = await fetchCollectionVerses(id);
+        } catch (err) {
+            hideLoading();
+            console.error('Failed to load collection:', err);
+            showToast(err.message.includes('401')
+                ? 'Sign in to view collections'
+                : 'Collection not found');
+            return false;
+        }
+        if (state.audioPlaying) stopAudio();
+
+        const verses = data.verses.map((v, i) => ({ ...v, _ci: i }));
+        const passages = groupIntoPassages(verses);
+        const passageRefs = {};
+        passages.forEach(p => { passageRefs[p.startIndex] = p.reference; });
+
+        state.collection = {
+            id: data.id,
+            label: data.label,
+            verses,
+            passageStarts: passages.map(p => p.startIndex),
+            passageRefs,
+            currentIndex: 0,
+            pageStartIndex: 0
+        };
+        state.currentVerseId = verses[0].id;
+        if (push) history.pushState({ collectionId: data.id }, '', `/read/collection/${data.id}`);
+        await loadCollectionPage(0);
+        return true;
+    }
+
+    /** Leave collection mode, landing on the verse that was current inside it. */
+    async function exitCollectionMode({ push = true } = {}) {
+        if (!state.collection) return;
+        state.collection = null;
+        if (push) history.pushState({}, '', '/read');
+        await goToVerse(state.currentVerseId);
+    }
+
     /**
      * Render the current page of verses with inline chapter headers.
      */
     function renderPage() {
+        if (state.collection) {
+            renderCollectionPage();
+            return;
+        }
+
         let html = '';
-        
+
         // Render each verse, adding chapter headers where appropriate
         for (let i = 0; i < state.pageVerses.length; i++) {
             const verse = state.pageVerses[i];
@@ -958,7 +1132,11 @@
             if (area.clientWidth === 0 || area.clientHeight === 0) return;
             if (area.clientWidth === state.lastMeasuredWidth &&
                 area.clientHeight === state.lastMeasuredHeight) return;
-            loadPage(state.pageStartVerseId);
+            if (state.collection) {
+                loadCollectionPage(state.collection.pageStartIndex);
+            } else {
+                loadPage(state.pageStartVerseId);
+            }
         }, 200);
     }
 
@@ -966,6 +1144,11 @@
      * Go to a specific verse (loads page containing it).
      */
     async function goToVerse(verseId) {
+        // Any global navigation leaves collection mode
+        if (state.collection) {
+            state.collection = null;
+            history.pushState({}, '', '/read');
+        }
         verseId = Math.max(1, Math.min(verseId, state.totalVerses));
         state.currentVerseId = verseId;
         await loadPage(verseId);
@@ -976,6 +1159,8 @@
      * @param {boolean} autoAdvance - true if called from audio auto-advance (skip restart)
      */
     async function nextVerse(autoAdvance = false) {
+        if (state.collection) { await collectionNextVerse(); return; }
+
         const wasPlaying = !autoAdvance && state.audioPlaying;
         if (wasPlaying) stopAudio();
 
@@ -998,6 +1183,8 @@
      * Move to previous verse (within page or turn page).
      */
     async function prevVerse() {
+        if (state.collection) { await collectionPrevVerse(); return; }
+
         const wasPlaying = state.audioPlaying;
         if (wasPlaying) stopAudio();
 
@@ -1055,6 +1242,16 @@
     async function nextPage() {
         if (state.pageVerses.length === 0) return;
 
+        if (state.collection) {
+            const col = state.collection;
+            const lastCi = state.pageVerses[state.pageVerses.length - 1]._ci;
+            if (lastCi < col.verses.length - 1) {
+                col.currentIndex = lastCi + 1;
+                await loadCollectionPage(lastCi + 1);
+            }
+            return;
+        }
+
         const wasPlaying = state.audioPlaying;
         if (wasPlaying) stopAudio();
 
@@ -1070,6 +1267,13 @@
      * Turn to previous page.
      */
     async function prevPage() {
+        if (state.collection) {
+            if (state.collection.pageStartIndex > 0) {
+                await loadCollectionPageEndingAt(state.collection.pageStartIndex - 1);
+            }
+            return;
+        }
+
         const wasPlaying = state.audioPlaying;
         if (wasPlaying) stopAudio();
 
@@ -1367,8 +1571,67 @@
     function closeSearch() {
         state.searchOpen = false;
         elements.searchOverlay.hidden = true;
+        hideSearchAutocomplete();
         document.body.classList.remove('mobile-search-open');
         if (elements.mobileSearchCancel) elements.mobileSearchCancel.hidden = true;
+    }
+
+    // ── Search-bar autocomplete for collection labels ──
+    // Suggests matching collections while typing; navigating to one requires an
+    // explicit selection (arrow keys + Enter, or click) — plain Enter always
+    // runs the normal reference/full-text search.
+    const searchAc = { open: false, activeIndex: -1, matches: [] };
+
+    function updateSearchAutocomplete() {
+        const q = elements.searchInput.value.trim().toLowerCase();
+        if (!state.currentUser || !q) {
+            hideSearchAutocomplete();
+            return;
+        }
+        const matches = state.collections
+            .filter(c => c.label.toLowerCase().includes(q))
+            .slice(0, 8);
+        if (matches.length === 0) {
+            hideSearchAutocomplete();
+            return;
+        }
+        searchAc.open = true;
+        searchAc.activeIndex = -1;
+        searchAc.matches = matches;
+        elements.searchAutocomplete.innerHTML =
+            '<div class="search-ac-heading">Collections</div>' +
+            matches.map((c, i) => {
+                const idx = c.label.toLowerCase().indexOf(q);
+                const label = escapeHtml(c.label.slice(0, idx)) +
+                    '<strong>' + escapeHtml(c.label.slice(idx, idx + q.length)) + '</strong>' +
+                    escapeHtml(c.label.slice(idx + q.length));
+                return `<button class="search-ac-item" data-collection-id="${c.id}" data-index="${i}">${label}</button>`;
+            }).join('');
+        elements.searchAutocomplete.hidden = false;
+    }
+
+    function hideSearchAutocomplete() {
+        searchAc.open = false;
+        searchAc.activeIndex = -1;
+        searchAc.matches = [];
+        if (elements.searchAutocomplete) elements.searchAutocomplete.hidden = true;
+    }
+
+    function moveSearchAcActive(delta) {
+        const n = searchAc.matches.length;
+        if (n === 0) return;
+        searchAc.activeIndex = (searchAc.activeIndex + delta + n) % n;
+        elements.searchAutocomplete.querySelectorAll('.search-ac-item').forEach((el, i) => {
+            el.classList.toggle('active', i === searchAc.activeIndex);
+        });
+    }
+
+    async function selectCollectionSuggestion(id) {
+        hideSearchAutocomplete();
+        elements.searchInput.value = '';
+        elements.searchInput.blur();
+        closeSearch();
+        await enterCollectionMode(id);
     }
 
     // ============================================
@@ -1620,6 +1883,14 @@
         // Verse links — brackets are reserved for verse refs, not markdown URLs
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
+            // [pid=123] — passage collection link; renders the collection's label
+            // and opens the scoped reader. Must be checked before the ref branches.
+            const pid = trimmed.match(/^pid=(\d+)$/);
+            if (pid) {
+                const collection = state.collections.find(c => c.id === parseInt(pid[1], 10));
+                const label = collection ? collection.label : `Collection #${pid[1]}`;
+                return `<a class="note-collection-link" data-collection-id="${pid[1]}" href="#">${escapeHtml(label)}</a>`;
+            }
             if (ctx && ctx.type === 'book') {
                 // Book scope: [12] = chapter 12, [3:16] = chapter 3 verse 16 —
                 // both resolve via /api/reference with the book name prefixed.
@@ -2093,6 +2364,357 @@
         } catch (err) {
             console.error('Failed to remove passage:', err);
             elements.passagePickerRemove.disabled = false;
+        }
+    }
+
+    // ─── Passage Collections ──────────────────────────────────────────────────
+    // Account-only feature: a persisted, ordered list of arbitrary verses with a
+    // label. Order is user-defined (may be out of canonical order, may repeat).
+
+    /** "Matthew 4:24" for a verse object with book/chapter/verse fields. */
+    function verseRefStr(v) {
+        return `${v.book} ${v.chapter}:${v.verse}`;
+    }
+
+    /**
+     * Group an ordered verse array into contiguous "passages" (runs of consecutive
+     * global ids). Unlike buildNaturalKeyFromIds this does NOT sort — order is data.
+     * Returns [{startIndex, count, reference}].
+     */
+    function groupIntoPassages(verses) {
+        const passages = [];
+        for (let i = 0; i < verses.length; i++) {
+            if (i === 0 || verses[i].id !== verses[i - 1].id + 1) {
+                passages.push({ startIndex: i, count: 1 });
+            } else {
+                passages[passages.length - 1].count++;
+            }
+        }
+        passages.forEach(p => {
+            const first = verses[p.startIndex];
+            const last = verses[p.startIndex + p.count - 1];
+            if (p.count === 1) {
+                p.reference = verseRefStr(first);
+            } else if (first.bookId === last.bookId && first.chapter === last.chapter) {
+                p.reference = `${first.book} ${first.chapter}:${first.verse}–${last.verse}`;
+            } else if (first.bookId === last.bookId) {
+                p.reference = `${first.book} ${first.chapter}:${first.verse}–${last.chapter}:${last.verse}`;
+            } else {
+                p.reference = `${verseRefStr(first)} – ${verseRefStr(last)}`;
+            }
+        });
+        return passages;
+    }
+
+    async function loadCollectionsFromApi() {
+        try {
+            state.collections = await libApi('/api/collections');
+        } catch (err) {
+            console.error('Failed to load collections:', err);
+            state.collections = [];
+        }
+    }
+
+    function fetchCollectionVerses(id) {
+        return libApi(`/api/collections/${id}/verses`);
+    }
+
+    // ── Collections hub modal ──
+
+    async function openCollections() {
+        if (!state.currentUser) { showToast('Sign in to use collections'); return; }
+        state.audioWasPlayingBeforeModal = state.audioPlaying;
+        stopAudioOnUIEvent();
+        state.collectionsOpen = true;
+        elements.collectionsOverlay.hidden = false;
+        await renderCollectionsList();
+    }
+
+    function closeCollections() {
+        state.collectionsOpen = false;
+        elements.collectionsOverlay.hidden = true;
+    }
+
+    async function renderCollectionsList() {
+        await loadCollectionsFromApi();
+        const count = state.collections.length;
+        elements.collectionsCount.textContent =
+            count === 1 ? '1 collection' : `${count} collections`;
+
+        if (count === 0) {
+            elements.collectionsList.innerHTML =
+                '<p class="collections-empty">No collections yet.<br>' +
+                'A collection is an ordered list of verses from anywhere in the Bible, ' +
+                'read together under one label.</p>';
+            return;
+        }
+
+        elements.collectionsList.innerHTML = state.collections.map(c => `
+            <div class="collections-item" data-collection-id="${c.id}">
+                <div class="collections-item-body">
+                    <div class="collections-item-label">${escapeHtml(c.label)}</div>
+                    <div class="collections-item-meta">${c.verseCount === 1 ? '1 verse' : `${c.verseCount} verses`}</div>
+                </div>
+                <button class="collections-item-edit" data-collection-id="${c.id}" aria-label="Edit collection">Edit</button>
+                <button class="collections-item-remove" data-collection-id="${c.id}" aria-label="Delete collection">&times;</button>
+            </div>`).join('');
+
+        // Row click → read the collection
+        elements.collectionsList.querySelectorAll('.collections-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('.collections-item-edit')) return;
+                if (e.target.closest('.collections-item-remove')) return;
+                closeCollections();
+                enterCollectionMode(parseInt(item.dataset.collectionId, 10));
+            });
+        });
+        elements.collectionsList.querySelectorAll('.collections-item-edit').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openCollectionBuilder(parseInt(btn.dataset.collectionId, 10));
+            });
+        });
+        elements.collectionsList.querySelectorAll('.collections-item-remove').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.collectionId, 10);
+                const c = state.collections.find(x => x.id === id);
+                if (!window.confirm(`Delete "${c ? c.label : 'this collection'}"?`)) return;
+                try {
+                    await libApi(`/api/collections/${id}`, { method: 'DELETE' });
+                    await renderCollectionsList();
+                } catch (err) {
+                    console.error('Failed to delete collection:', err);
+                    showToast('Could not delete collection');
+                }
+            });
+        });
+    }
+
+    // ── Collection builder modal ──
+
+    const builder = {
+        editingId: null,
+        queue: [],            // ordered snippets {id, book, bookId, chapter, verse, text}
+        bookId: 1,
+        chapter: 1,
+        currentVerses: [],    // verses rendered in the browser pane
+        chaptersByBook: {}    // bookId -> [{chapter, firstVerseId, verseCount}]
+    };
+
+    async function getBuilderChapters(bookId) {
+        if (!builder.chaptersByBook[bookId]) {
+            builder.chaptersByBook[bookId] = await fetchChapters(bookId);
+        }
+        return builder.chaptersByBook[bookId];
+    }
+
+    async function openCollectionBuilder(collectionId = null) {
+        if (!state.currentUser) { showToast('Sign in to use collections'); return; }
+
+        state.collectionBuilderOpen = true;
+        elements.cbOverlay.hidden = false;
+        builder.editingId = collectionId;
+        builder.queue = [];
+        elements.cbLabel.value = '';
+        elements.cbTitle.textContent = collectionId ? 'Edit Collection' : 'New Collection';
+        elements.cbVerseList.innerHTML = '<div class="passage-picker-loading">Loading…</div>';
+
+        if (collectionId) {
+            try {
+                const data = await fetchCollectionVerses(collectionId);
+                elements.cbLabel.value = data.label;
+                builder.queue = data.verses.map(v => ({
+                    id: v.id, book: v.book, bookId: v.bookId,
+                    chapter: v.chapter, verse: v.verse, text: v.text
+                }));
+            } catch (err) {
+                console.error('Failed to load collection:', err);
+                showToast('Could not load collection');
+                closeCollectionBuilder();
+                return;
+            }
+        }
+
+        // Open the browser pane at the current reading position
+        const cur = state.pageVerses.find(v => v.id === state.currentVerseId) || state.pageVerses[0];
+        builder.bookId = cur ? cur.bookId : 1;
+        builder.chapter = cur ? cur.chapter : 1;
+
+        // Populate the book dropdown (books are loaded at init)
+        elements.cbBookSelect.innerHTML = state.books
+            .map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+        elements.cbBookSelect.value = builder.bookId;
+
+        renderBuilderQueue();
+        await renderBuilderChapter();
+    }
+
+    function closeCollectionBuilder() {
+        state.collectionBuilderOpen = false;
+        elements.cbOverlay.hidden = true;
+    }
+
+    async function renderBuilderChapter() {
+        elements.cbAddChecked.disabled = true;
+        elements.cbAddChecked.textContent = 'Add to collection';
+        try {
+            const chapters = await getBuilderChapters(builder.bookId);
+            if (!chapters.some(c => c.chapter === builder.chapter)) builder.chapter = 1;
+
+            elements.cbChapterSelect.innerHTML = chapters
+                .map(c => `<option value="${c.chapter}">${c.chapter}</option>`).join('');
+            elements.cbChapterSelect.value = builder.chapter;
+
+            const info = chapters.find(c => c.chapter === builder.chapter);
+            const data = await fetchVerses(info.firstVerseId, info.verseCount);
+            builder.currentVerses = data.verses;
+
+            const book = state.books.find(b => b.id === builder.bookId);
+            elements.cbPrevCh.disabled = builder.bookId === 1 && builder.chapter === 1;
+            elements.cbNextCh.disabled = builder.bookId === state.books[state.books.length - 1].id
+                && builder.chapter === chapters.length;
+
+            elements.cbVerseList.innerHTML = `
+                <div class="pp-chapter-header">
+                    <span class="pp-chapter-label">${escapeHtml(book ? book.name : '')} ${builder.chapter}</span>
+                    <label class="pp-select-all-label">
+                        <input type="checkbox" class="pp-select-all-cb" id="cb-select-all">
+                        Select all
+                    </label>
+                </div>` +
+                data.verses.map(v => `
+                <label class="pp-verse-row">
+                    <input type="checkbox" class="pp-verse-cb" data-verse-id="${v.id}">
+                    <span class="pp-verse-num">${v.verse}</span>
+                    <span class="pp-verse-text">${escapeHtml(v.text)}</span>
+                </label>`).join('');
+
+            elements.cbVerseList.querySelectorAll('.pp-verse-cb').forEach(cb => {
+                cb.addEventListener('change', updateBuilderAddButton);
+            });
+            const selectAll = document.getElementById('cb-select-all');
+            selectAll.addEventListener('change', () => {
+                elements.cbVerseList.querySelectorAll('.pp-verse-cb')
+                    .forEach(cb => { cb.checked = selectAll.checked; });
+                updateBuilderAddButton();
+            });
+            elements.cbVerseList.scrollTop = 0;
+        } catch (err) {
+            console.error('Failed to load chapter:', err);
+            elements.cbVerseList.innerHTML =
+                '<div class="passage-picker-loading">Could not load verses.</div>';
+        }
+    }
+
+    function updateBuilderAddButton() {
+        const boxes = elements.cbVerseList.querySelectorAll('.pp-verse-cb');
+        const checked = elements.cbVerseList.querySelectorAll('.pp-verse-cb:checked');
+        const selectAll = document.getElementById('cb-select-all');
+        if (selectAll) {
+            selectAll.checked = checked.length === boxes.length && boxes.length > 0;
+            selectAll.indeterminate = checked.length > 0 && checked.length < boxes.length;
+        }
+        elements.cbAddChecked.disabled = checked.length === 0;
+        elements.cbAddChecked.textContent = checked.length === 0
+            ? 'Add to collection'
+            : checked.length === 1 ? 'Add 1 verse' : `Add ${checked.length} verses`;
+    }
+
+    function addCheckedToQueue() {
+        const checkedIds = [...elements.cbVerseList.querySelectorAll('.pp-verse-cb:checked')]
+            .map(cb => parseInt(cb.dataset.verseId, 10));
+        if (!checkedIds.length) return;
+        if (builder.queue.length + checkedIds.length > 500) {
+            showToast('Collections are limited to 500 verses');
+            return;
+        }
+        // Checkbox DOM order = chapter order; the segment lands in the queue as-is
+        const snippets = checkedIds.map(id => builder.currentVerses.find(v => v.id === id));
+        builder.queue.push(...snippets);
+        elements.cbVerseList.querySelectorAll('.pp-verse-cb:checked')
+            .forEach(cb => { cb.checked = false; });
+        updateBuilderAddButton();
+        renderBuilderQueue();
+        const added = groupIntoPassages(snippets).map(p => p.reference).join(', ');
+        showToast(`Added ${added}`);
+    }
+
+    function renderBuilderQueue() {
+        const passages = groupIntoPassages(builder.queue);
+        const verseCount = builder.queue.length;
+        elements.cbQueueCount.textContent = verseCount === 0
+            ? 'No verses yet'
+            : `${passages.length === 1 ? '1 passage' : `${passages.length} passages`} · ` +
+              `${verseCount === 1 ? '1 verse' : `${verseCount} verses`}`;
+
+        elements.cbQueueList.innerHTML = passages.map((p, i) => `
+            <li class="cb-queue-item" data-seg="${i}">
+                <span class="cb-queue-ref">${escapeHtml(p.reference)}</span>
+                <span class="cb-queue-btns">
+                    <button class="cb-seg-up" data-seg="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>&#8593;</button>
+                    <button class="cb-seg-down" data-seg="${i}" aria-label="Move down" ${i === passages.length - 1 ? 'disabled' : ''}>&#8595;</button>
+                    <button class="cb-seg-remove" data-seg="${i}" aria-label="Remove">&times;</button>
+                </span>
+            </li>`).join('');
+
+        updateBuilderSaveState();
+    }
+
+    /** Move or remove one contiguous segment within the flat queue. */
+    function spliceQueueSegment(segIndex, action) {
+        const passages = groupIntoPassages(builder.queue);
+        const seg = passages[segIndex];
+        if (!seg) return;
+        const slice = builder.queue.splice(seg.startIndex, seg.count);
+        if (action === 'up') {
+            const prev = passages[segIndex - 1];
+            builder.queue.splice(prev.startIndex, 0, ...slice);
+        } else if (action === 'down') {
+            const next = passages[segIndex + 1];
+            // next.startIndex shifted left by seg.count after the splice-out
+            builder.queue.splice(next.startIndex - seg.count + next.count, 0, ...slice);
+        }
+        // 'remove' → slice is simply dropped
+        renderBuilderQueue();
+    }
+
+    function updateBuilderSaveState() {
+        elements.cbSave.disabled =
+            elements.cbLabel.value.trim() === '' || builder.queue.length === 0;
+    }
+
+    async function saveCollectionFromBuilder() {
+        const label = elements.cbLabel.value.trim();
+        const verseIds = builder.queue.map(v => v.id);
+        if (!label || !verseIds.length) return;
+
+        elements.cbSave.disabled = true;
+        const body = JSON.stringify({ label, verseIds });
+        try {
+            if (builder.editingId) {
+                await libApi(`/api/collections/${builder.editingId}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body
+                });
+            } else {
+                await libApi('/api/collections', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body
+                });
+            }
+            await loadCollectionsFromApi();
+            closeCollectionBuilder();
+            showToast(`Saved "${label}"`);
+            if (state.collectionsOpen) renderCollectionsList();
+            // If the edited collection is open in the scoped reader, refresh it
+            if (state.collection && state.collection.id === builder.editingId) {
+                enterCollectionMode(builder.editingId, { push: false });
+            }
+        } catch (err) {
+            console.error('Failed to save collection:', err);
+            showToast(err.message.includes('400')
+                ? 'Could not save — you may already have a collection with that label'
+                : 'Could not save collection');
+            elements.cbSave.disabled = false;
         }
     }
 
@@ -3354,6 +3976,13 @@
             return;
         }
 
+        if (document.activeElement === elements.cbLabel) {
+            if (e.key === 'Escape') {
+                elements.cbLabel.blur();
+            }
+            return;
+        }
+
         // Close overlays with Escape (in order of z-index)
         if (e.key === 'Escape') {
             if (state.chapterNoteEditorOpen) {
@@ -3362,10 +3991,14 @@
                 closeNoteEditor();
             } else if (state.tagPickerOpen) {
                 closeTagPicker();
+            } else if (state.collectionBuilderOpen) {
+                closeCollectionBuilder();
             } else if (state.passagePickerOpen) {
                 closePassagePicker();
             } else if (state.memorizationOpen) {
                 closeMemorization();
+            } else if (state.collectionsOpen) {
+                closeCollections();
             } else if (state.libraryOpen) {
                 closeLibrary();
             } else if (state.mobileMenuOpen) {
@@ -3374,6 +4007,8 @@
                 closeSearch();
             } else if (state.helpOpen) {
                 closeHelp();
+            } else if (state.collection) {
+                exitCollectionMode();
             }
             return;
         }
@@ -3382,7 +4017,8 @@
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
             state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen ||
             state.memorizationOpen || state.passagePickerOpen ||
-            state.chapterNoteEditorOpen) return;
+            state.chapterNoteEditorOpen || state.collectionsOpen ||
+            state.collectionBuilderOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
         if (e.metaKey || e.ctrlKey) return;
@@ -3410,19 +4046,23 @@
                 break;
             case '.':
                 e.preventDefault();
-                nextChapter();
+                if (state.collection) nextPassage();
+                else nextChapter();
                 break;
             case ',':
                 e.preventDefault();
-                prevChapter();
+                if (state.collection) prevPassage();
+                else prevChapter();
                 break;
             case '>':
                 e.preventDefault();
-                nextBook();
+                if (state.collection) nextPassage();
+                else nextBook();
                 break;
             case '<':
                 e.preventDefault();
-                prevBook();
+                if (state.collection) prevPassage();
+                else prevBook();
                 break;
             case '/':
                 e.preventDefault();
@@ -3450,11 +4090,11 @@
                 break;
             case 'c':
                 e.preventDefault();
-                openChapterNoteEditor();
+                if (!state.collection) openChapterNoteEditor();
                 break;
             case 'B':
                 e.preventDefault();
-                openChapterNoteEditor(getCurrentBookRef());
+                if (!state.collection) openChapterNoteEditor(getCurrentBookRef());
                 break;
             case 'm':
                 e.preventDefault();
@@ -3465,13 +4105,17 @@
                 if (state.currentUser) openMemorization();
                 else showToast('Sign in to use memorization');
                 break;
+            case 'C':
+                e.preventDefault();
+                openCollections();
+                break;
             case 'p':
                 e.preventDefault();
-                if (state.audioEnabled) toggleAudio();
+                if (state.audioEnabled && !state.collection) toggleAudio();
                 break;
             case 's':
                 e.preventDefault();
-                if (state.audioEnabled) cycleAudioSpeed();
+                if (state.audioEnabled && !state.collection) cycleAudioSpeed();
                 break;
         }
     }
@@ -3485,10 +4129,45 @@
         document.addEventListener('keydown', handleKeyDown);
         
         // Search
+        // Element-level listener fires before the document-level handleKeyDown;
+        // stopPropagation when the autocomplete consumes a key.
         elements.searchInput.addEventListener('keydown', (e) => {
+            if (searchAc.open) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    moveSearchAcActive(e.key === 'ArrowDown' ? 1 : -1);
+                    return;
+                }
+                if (e.key === 'Enter' && searchAc.activeIndex >= 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectCollectionSuggestion(searchAc.matches[searchAc.activeIndex].id);
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    // First Escape only dismisses the suggestions
+                    e.stopPropagation();
+                    hideSearchAutocomplete();
+                    return;
+                }
+            }
             if (e.key === 'Enter') {
                 e.preventDefault();
+                hideSearchAutocomplete();
                 handleSearch();
+            }
+        });
+        elements.searchInput.addEventListener('input', updateSearchAutocomplete);
+        elements.searchInput.addEventListener('blur', () => {
+            // Delay so a mousedown on a suggestion lands first
+            setTimeout(hideSearchAutocomplete, 150);
+        });
+        elements.searchAutocomplete.addEventListener('mousedown', (e) => {
+            const item = e.target.closest('.search-ac-item');
+            if (item) {
+                e.preventDefault();
+                selectCollectionSuggestion(parseInt(item.dataset.collectionId, 10));
             }
         });
         elements.searchInput.addEventListener('focus', () => {
@@ -3569,6 +4248,63 @@
             window.location.href = '/train';
         });
 
+        // Passage collections hub
+        elements.collectionsToggle.addEventListener('click', openCollections);
+        elements.collectionsClose.addEventListener('click', closeCollections);
+        elements.collectionsOverlay.addEventListener('click', (e) => {
+            if (e.target === elements.collectionsOverlay) closeCollections();
+        });
+        elements.collectionsNew.addEventListener('click', () => openCollectionBuilder());
+
+        // Collection builder
+        elements.cbClose.addEventListener('click', closeCollectionBuilder);
+        elements.cbCancel.addEventListener('click', closeCollectionBuilder);
+        elements.cbOverlay.addEventListener('click', (e) => {
+            if (e.target === elements.cbOverlay) closeCollectionBuilder();
+        });
+        elements.cbBookSelect.addEventListener('change', () => {
+            builder.bookId = parseInt(elements.cbBookSelect.value, 10);
+            builder.chapter = 1;
+            renderBuilderChapter();
+        });
+        elements.cbChapterSelect.addEventListener('change', () => {
+            builder.chapter = parseInt(elements.cbChapterSelect.value, 10);
+            renderBuilderChapter();
+        });
+        elements.cbPrevCh.addEventListener('click', async () => {
+            if (builder.chapter > 1) {
+                builder.chapter--;
+            } else if (builder.bookId > 1) {
+                builder.bookId--;
+                elements.cbBookSelect.value = builder.bookId;
+                const chapters = await getBuilderChapters(builder.bookId);
+                builder.chapter = chapters.length;
+            } else return;
+            renderBuilderChapter();
+        });
+        elements.cbNextCh.addEventListener('click', async () => {
+            const chapters = await getBuilderChapters(builder.bookId);
+            if (builder.chapter < chapters.length) {
+                builder.chapter++;
+            } else if (builder.bookId < state.books[state.books.length - 1].id) {
+                builder.bookId++;
+                elements.cbBookSelect.value = builder.bookId;
+                builder.chapter = 1;
+            } else return;
+            renderBuilderChapter();
+        });
+        elements.cbAddChecked.addEventListener('click', addCheckedToQueue);
+        elements.cbLabel.addEventListener('input', updateBuilderSaveState);
+        elements.cbSave.addEventListener('click', saveCollectionFromBuilder);
+        elements.cbQueueList.addEventListener('click', (e) => {
+            const up = e.target.closest('.cb-seg-up');
+            const down = e.target.closest('.cb-seg-down');
+            const remove = e.target.closest('.cb-seg-remove');
+            if (up) spliceQueueSegment(parseInt(up.dataset.seg, 10), 'up');
+            else if (down) spliceQueueSegment(parseInt(down.dataset.seg, 10), 'down');
+            else if (remove) spliceQueueSegment(parseInt(remove.dataset.seg, 10), 'remove');
+        });
+
         // Library (saved verses) — on mobile the hamburger opens the quick-actions menu instead
         elements.libraryToggle.addEventListener('click', () => {
             if (window.innerWidth <= 600) {
@@ -3613,6 +4349,10 @@
                     return;
                 }
                 openMemorization();
+            });
+            document.getElementById('mobile-menu-collections').addEventListener('click', () => {
+                closeMobileMenu();
+                openCollections();
             });
             document.getElementById('mobile-menu-bookmark').addEventListener('click', () => {
                 closeMobileMenu();
@@ -3680,6 +4420,14 @@
         });
         elements.chapterNoteTextarea.addEventListener('input', updateChapterNoteCharCount);
         elements.chapterNoteView.addEventListener('click', (e) => {
+            const collectionLink = e.target.closest('.note-collection-link');
+            if (collectionLink) {
+                e.preventDefault();
+                closeChapterNoteEditor();
+                closeLibrary();
+                enterCollectionMode(parseInt(collectionLink.dataset.collectionId, 10));
+                return;
+            }
             const link = e.target.closest('.note-verse-link');
             if (link) {
                 e.preventDefault();
@@ -3689,8 +4437,25 @@
 
         // Book-note pencil in the page title (title sits outside the reading area)
         elements.chapterTitle.addEventListener('click', (e) => {
+            if (e.target.closest('.collection-exit-btn')) {
+                exitCollectionMode();
+                return;
+            }
             if (e.target.closest('.book-note-btn')) {
                 openChapterNoteEditor(getCurrentBookRef());
+            }
+        });
+
+        // Browser back/forward restores collection mode from the URL
+        window.addEventListener('popstate', async () => {
+            const m = window.location.pathname.match(/^\/read\/collection\/(\d+)$/);
+            if (m) {
+                const id = parseInt(m[1], 10);
+                if (!state.collection || state.collection.id !== id) {
+                    await enterCollectionMode(id, { push: false });
+                }
+            } else if (state.collection) {
+                await exitCollectionMode({ push: false });
             }
         });
 
@@ -3718,6 +4483,15 @@
             const verseEl = e.target.closest('.verse');
             if (verseEl) {
                 const verseId = parseInt(verseEl.dataset.verseId);
+                if (state.collection) {
+                    const v = state.pageVerses.find(x => x.id === verseId);
+                    if (v && v._ci !== state.collection.currentIndex) {
+                        state.collection.currentIndex = v._ci;
+                        state.currentVerseId = verseId;
+                        renderPage();
+                    }
+                    return;
+                }
                 if (verseId && verseId !== state.currentVerseId) {
                     const wasPlaying = state.audioPlaying;
                     if (wasPlaying) stopAudio();
@@ -3799,6 +4573,7 @@
                 await loadMemorizationFromApi();
                 await loadChapterNotesFromApi();
                 await loadBookNotesFromApi();
+                await loadCollectionsFromApi();
                 if (!state.currentUser.localStorageMigrated) {
                     // One-time migration: sync whatever localStorage data existed at login time
                     await migrateLocalStorageToDb(localVerses, localTags);
@@ -3839,7 +4614,14 @@
                 state.memorizedEntries = [];
                 state.chapterNotes = {};
                 state.bookNotes = {};
-                renderPage();
+                state.collections = [];
+                if (state.collection) {
+                    // Don't keep showing an account-owned collection to the
+                    // now-anonymous session (e.g. shared devices)
+                    exitCollectionMode();
+                } else {
+                    renderPage();
+                }
             };
         } else {
             elements.authHeader.hidden = true;
@@ -3904,8 +4686,19 @@
             // area's ResizeObserver reloads the page once it gets a size.
             await waitForReadingAreaLayout();
 
-            // Load initial page
-            await goToVerse(state.currentVerseId);
+            // Load initial page — a /read/collection/{id} deep link opens the
+            // scoped reader; on failure (signed out, deleted) fall back to
+            // normal reading without rewriting the URL, so signing in and
+            // reloading still lands on the collection.
+            const collectionMatch = window.location.pathname.match(/^\/read\/collection\/(\d+)$/);
+            let enteredCollection = false;
+            if (collectionMatch) {
+                enteredCollection = await enterCollectionMode(
+                    parseInt(collectionMatch[1], 10), { push: false });
+            }
+            if (!enteredCollection) {
+                await goToVerse(state.currentVerseId);
+            }
             state.initialPageLoaded = true;
 
             // A resize that landed while the first page was still loading

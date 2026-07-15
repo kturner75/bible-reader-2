@@ -25,6 +25,12 @@ public class WebController {
         return "forward:/index.html";
     }
 
+    /** Serve the scoped collection reader (frontend reads the id from the URL path). */
+    @GetMapping("/read/collection/{id}")
+    public String readerCollection() {
+        return "forward:/index.html";
+    }
+
     /** Serve the training page at /train (forwards to the static train.html). */
     @GetMapping("/train")
     public String train() {

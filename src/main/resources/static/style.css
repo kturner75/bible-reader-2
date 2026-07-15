@@ -272,6 +272,50 @@ body {
     width: 280px;
 }
 
+/* Collection-label suggestions under the search input */
+.search-autocomplete {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    z-index: 210;
+    overflow: hidden;
+}
+.search-autocomplete[hidden] { display: none; }
+
+.search-ac-heading {
+    padding: 0.3rem 0.75rem 0.15rem;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+}
+
+.search-ac-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    padding: 0.4rem 0.75rem;
+    background: none;
+    border: none;
+    color: var(--color-text);
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.search-ac-item strong { color: var(--color-link); }
+.search-ac-item:hover,
+.search-ac-item.active {
+    background: var(--color-highlight);
+}
+
 #search-input::placeholder {
     color: var(--color-text-muted);
     font-style: italic;
@@ -333,6 +377,19 @@ body {
 /* First chapter header on page needs no top margin */
 .chapter-header:first-child {
     margin-top: 0;
+}
+
+/* Passage sub-headings in the collection scoped reader: show the run's real
+   reference, slightly smaller than a chapter header, no pencil button */
+.chapter-header.passage-header {
+    font-size: 1rem;
+    font-variant: normal;
+}
+
+/* Collection header exit button (reuses pencil-button styling, always visible) */
+.collection-exit-btn {
+    opacity: 0.6;
+    font-size: 1rem;
 }
 
 /* Verse Styling */
@@ -1549,14 +1606,16 @@ body {
     margin-bottom: 0.25em;
 }
 
-.note-verse-link {
+.note-verse-link,
+.note-collection-link {
     color: var(--color-link);
     text-decoration: underline;
     text-underline-offset: 2px;
     cursor: pointer;
 }
 
-.note-verse-link:hover {
+.note-verse-link:hover,
+.note-collection-link:hover {
     color: var(--color-text);
 }
 
@@ -1818,6 +1877,360 @@ body {
 }
 
 /* ============================================
+   Passage Collections Hub Modal
+   ============================================ */
+.collections-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--color-overlay-bg);
+    z-index: 250;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.collections-overlay[hidden] { display: none; }
+
+.collections-modal {
+    background: var(--color-bg);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 560px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.collections-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+.collections-header h2 { font-size: 1.25rem; font-weight: 500; }
+#collections-close {
+    font-size: 1.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: 0.25rem;
+    line-height: 1;
+}
+#collections-close:hover { color: var(--color-text); }
+
+.collections-count {
+    padding: 0.5rem 1.5rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.collections-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.25rem 0;
+    min-height: 8rem;
+}
+
+.collections-empty {
+    padding: 2rem 1.5rem;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-style: italic;
+    line-height: 1.6;
+}
+
+.collections-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: background var(--transition-normal);
+}
+.collections-item:hover { background: var(--color-highlight); }
+.collections-item-body { flex: 1; min-width: 0; }
+.collections-item-label {
+    font-weight: 500;
+    font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.collections-item-meta {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+.collections-item-edit {
+    font-family: var(--font-primary);
+    font-size: 0.78rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.collections-item-edit:hover {
+    background: var(--color-link);
+    border-color: var(--color-link);
+    color: white;
+}
+.collections-item-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 1.2rem;
+    padding: 0.15rem 0.3rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.collections-item-remove:hover { color: var(--color-text); }
+
+.collections-actions {
+    padding: 0.75rem 1.5rem;
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+}
+#collections-new {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    padding: 0.4rem 1rem;
+    background: var(--color-link);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#collections-new:hover { background: var(--color-text); }
+
+@media (max-width: 600px) {
+    .collections-modal { width: 100%; max-height: 92vh; border-radius: 12px 12px 0 0; }
+    .collections-overlay { align-items: flex-end; }
+}
+
+/* ============================================
+   Collection Builder Modal
+   ============================================ */
+.collection-builder-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--color-overlay-bg);
+    z-index: 350;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.collection-builder-overlay[hidden] { display: none; }
+
+.collection-builder-modal {
+    background: var(--color-bg);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    width: 100%;
+    max-width: 860px;
+    height: 80vh;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.cb-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .75rem 1.25rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+.cb-header h2 { font-size: 1rem; font-weight: 500; }
+#cb-close {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    line-height: 1;
+    padding: 0 .25rem;
+}
+#cb-close:hover { color: var(--color-text); }
+
+.cb-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    min-height: 0;
+}
+
+/* Browser pane */
+.cb-browser {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--color-border);
+}
+.cb-nav {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .5rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+.cb-nav select {
+    font-family: var(--font-primary);
+    font-size: .85rem;
+    padding: .25rem .4rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    max-width: 11rem;
+}
+#cb-prev-ch, #cb-next-ch {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    color: var(--color-text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: .2rem .55rem;
+    cursor: pointer;
+}
+#cb-prev-ch:hover:not(:disabled), #cb-next-ch:hover:not(:disabled) { color: var(--color-text); }
+#cb-prev-ch:disabled, #cb-next-ch:disabled { opacity: .35; cursor: default; }
+
+.cb-verse-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: .25rem 0;
+}
+.cb-browser-actions {
+    padding: .6rem 1rem;
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+}
+#cb-add-checked {
+    font-family: var(--font-primary);
+    font-size: .85rem;
+    padding: .4rem 1rem;
+    background: var(--color-link);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#cb-add-checked:hover:not(:disabled) { background: var(--color-text); }
+#cb-add-checked:disabled { opacity: .45; cursor: default; }
+
+/* Queue pane */
+.cb-queue {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: .75rem 1rem;
+    gap: .5rem;
+}
+#cb-label {
+    font-family: var(--font-primary);
+    font-size: .9rem;
+    padding: .45rem .6rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+#cb-label:focus { outline: none; border-color: var(--color-link); }
+.cb-queue-count {
+    font-size: .78rem;
+    color: var(--color-text-muted);
+}
+.cb-queue-list {
+    flex: 1;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--color-border);
+}
+.cb-queue-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .45rem .25rem;
+    border-bottom: 1px solid var(--color-border);
+    font-size: .85rem;
+}
+.cb-queue-ref {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cb-queue-btns { display: flex; gap: .15rem; flex-shrink: 0; }
+.cb-queue-btns button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: .9rem;
+    line-height: 1;
+    padding: .15rem .3rem;
+}
+.cb-queue-btns button:hover:not(:disabled) { color: var(--color-text); }
+.cb-queue-btns button:disabled { opacity: .3; cursor: default; }
+.cb-actions {
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+#cb-cancel {
+    font-family: var(--font-primary);
+    font-size: .85rem;
+    padding: .4rem .9rem;
+    background: none;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+}
+#cb-cancel:hover { background: rgba(0,0,0,.04); }
+#cb-save {
+    font-family: var(--font-primary);
+    font-size: .85rem;
+    padding: .4rem 1rem;
+    background: var(--color-link);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#cb-save:hover:not(:disabled) { background: var(--color-text); }
+#cb-save:disabled { opacity: .45; cursor: default; }
+
+@media (max-width: 700px) {
+    .collection-builder-overlay { align-items: flex-end; padding: 0; }
+    .collection-builder-modal { max-height: 92vh; height: 92vh; border-radius: 12px 12px 0 0; }
+    .cb-body { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    .cb-browser { border-right: none; border-bottom: 1px solid var(--color-border); }
+    .cb-queue { max-height: 40vh; }
+}
+
+/* ============================================
    Memorization Queue Modal
    ============================================ */
 .memorization-overlay {
@@ -2070,9 +2483,14 @@ body {
         column-count: 1;
     }
 
-    /* Chapter is already shown in the header bar; suppress inline headers to save space */
+    /* Chapter is already shown in the header bar; suppress inline headers to save space.
+       Passage sub-headings stay visible — in a collection they're the only way to
+       know which book/chapter a run of verses comes from. */
     .chapter-header {
         display: none;
+    }
+    .chapter-header.passage-header {
+        display: block;
     }
 }
 
