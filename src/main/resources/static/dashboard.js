@@ -584,7 +584,9 @@
     const textarea      = document.getElementById('sermon-note-textarea');
     const charCurrent   = document.getElementById('sermon-note-char-current');
 
-    let editingNoteId = null; // full note object's id while modal open; null while creating
+    let editingNoteId = null;   // full note object's id while modal open; null while creating
+    let savedTitle = '';        // last-saved title/note, to restore the form on Cancel
+    let savedNoteText = '';
 
     function updateCharCount() {
         charCurrent.textContent = textarea.value.length;
@@ -609,6 +611,8 @@
             if (!res.ok) return;
             const note = await res.json();
             editingNoteId = note.id;
+            savedTitle = note.title;
+            savedNoteText = note.note;
             modalTitle.textContent = 'Sermon Note';
             viewTitle.textContent = note.title;
             viewBody.innerHTML = renderNoteMarkdown(note.note);
@@ -622,6 +626,8 @@
 
     function openNewSermonNote() {
         editingNoteId = null;
+        savedTitle = '';
+        savedNoteText = '';
         modalTitle.textContent = 'New Sermon Note';
         titleInput.value = '';
         textarea.value = '';
@@ -652,6 +658,8 @@
             if (!res.ok) return;
             const saved = await res.json();
             editingNoteId = saved.id;
+            savedTitle = saved.title;
+            savedNoteText = saved.note;
 
             const listRes = await fetch('/api/sermon-notes', { credentials: 'include' });
             if (listRes.ok) sermonNotes = await listRes.json();
@@ -688,6 +696,11 @@
     document.getElementById('sermon-note-delete-btn').addEventListener('click', deleteSermonNote);
     document.getElementById('sermon-note-cancel-btn').addEventListener('click', () => {
         if (editingNoteId) {
+            // Discard the draft — restore the form to the last-saved values so a later
+            // Edit + Save doesn't resubmit this canceled edit.
+            titleInput.value = savedTitle;
+            textarea.value = savedNoteText;
+            updateCharCount();
             setMode('view');
         } else {
             closeModal();
