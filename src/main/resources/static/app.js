@@ -843,6 +843,7 @@
     async function loadCollectionPage(startIndex) {
         const col = state.collection;
         startIndex = Math.max(0, Math.min(startIndex, col.verses.length - 1));
+        loadGeneration++; // invalidate any in-flight verse-mode load
         state.isLoading = true;
         try {
             const candidates = col.verses.slice(startIndex, startIndex + 100);
@@ -866,6 +867,7 @@
     async function loadCollectionPageEndingAt(endIndex) {
         const col = state.collection;
         endIndex = Math.max(0, Math.min(endIndex, col.verses.length - 1));
+        loadGeneration++; // invalidate any in-flight verse-mode load
         state.isLoading = true;
         try {
             const from = Math.max(0, endIndex - 99);
@@ -1093,11 +1095,23 @@
     /**
      * Load and display a page starting from the given verse.
      */
+    /**
+     * Monotonic token for page loads. Every page-load intent bumps it; an
+     * in-flight load whose token is stale by the time its fetch resolves
+     * must not write state. Guards background remeasures (auth library
+     * load, save toggles) and rapid paging against overwriting a newer
+     * navigation with an older page. Collection page loads bump it too so
+     * a stale verse-mode load can't stomp a page in collection mode.
+     */
+    let loadGeneration = 0;
+
     async function loadPage(startVerseId) {
+        const gen = ++loadGeneration;
         state.isLoading = true;
-        
+
         try {
             const result = await calculatePageVerses(startVerseId);
+            if (gen !== loadGeneration) return; // superseded by newer navigation
             state.pageVerses = result.verses;
             state.totalVerses = result.total || state.totalVerses;
             
@@ -1229,12 +1243,14 @@
      * This mimics flipping to the previous page in a physical book.
      */
     async function loadPageEndingAt(targetVerseId) {
+        const gen = ++loadGeneration;
         state.isLoading = true;
-        
+
         try {
             // Use the dedicated function that calculates verses ending at the target
             const result = await calculatePageVersesEndingAt(targetVerseId);
-            
+            if (gen !== loadGeneration) return; // superseded by newer navigation
+
             if (result.verses.length > 0) {
                 state.pageVerses = result.verses;
                 state.pageStartVerseId = result.verses[0].id;
