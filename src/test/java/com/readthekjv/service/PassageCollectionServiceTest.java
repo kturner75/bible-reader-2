@@ -15,6 +15,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -114,6 +115,20 @@ class PassageCollectionServiceTest {
         assertSame(managedList, existing.getVerseIds());
         assertEquals(List.of(5, 3), existing.getVerseIds());
         assertEquals("New", existing.getLabel());
+    }
+
+    @Test
+    void updateRefreshesUpdatedAtEvenWhenOnlyVersesChange() {
+        PassageCollection existing = existingCollection("Same Label", List.of(1, 2));
+        OffsetDateTime stale = OffsetDateTime.now().minusDays(3);
+        ReflectionTestUtils.setField(existing, "updatedAt", stale);
+        when(collectionRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(existing));
+
+        // Same label, different verses — only the @ElementCollection changes,
+        // so the service must dirty the parent row explicitly
+        service.update(USER_ID, 7L, "Same Label", List.of(3));
+
+        assertTrue(existing.getUpdatedAt().isAfter(stale));
     }
 
     @Test

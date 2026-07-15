@@ -4615,7 +4615,13 @@
                 state.chapterNotes = {};
                 state.bookNotes = {};
                 state.collections = [];
-                renderPage();
+                if (state.collection) {
+                    // Don't keep showing an account-owned collection to the
+                    // now-anonymous session (e.g. shared devices)
+                    exitCollectionMode();
+                } else {
+                    renderPage();
+                }
             };
         } else {
             elements.authHeader.hidden = true;

@@ -46,6 +46,16 @@ public class PassageCollection {
         updatedAt = OffsetDateTime.now();
     }
 
+    /**
+     * Dirty the parent row explicitly. Replacing verseIds only touches the
+     * @ElementCollection table, so a content-only edit (same label) would
+     * otherwise skip @PreUpdate and the DB updated_at trigger, leaving a
+     * stale updatedAt in responses and in updatedAt-ordered listings.
+     */
+    public void touch() {
+        updatedAt = OffsetDateTime.now();
+    }
+
     public Long getId() { return id; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }

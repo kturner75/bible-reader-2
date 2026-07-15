@@ -59,6 +59,7 @@ public class PassageCollectionService {
         // Mutate the managed @OrderColumn list in place so Hibernate rewrites positions
         c.getVerseIds().clear();
         c.getVerseIds().addAll(verseIds);
+        c.touch();
         return CollectionResponse.from(saveHandlingDuplicateLabel(c));
     }
 
