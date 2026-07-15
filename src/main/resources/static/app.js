@@ -634,8 +634,8 @@
         // column breaks fall (a verse overflowing by 0.5px is pushed whole
         // into a clipped overflow column by break-inside: avoid).
         const rect = container.getBoundingClientRect();
-        state.lastMeasuredWidth = container.clientWidth;
-        state.lastMeasuredHeight = container.clientHeight;
+        state.lastMeasuredWidth = rect.width;
+        state.lastMeasuredHeight = rect.height;
 
         // Create a hidden measuring container that mirrors the reading area
         // exactly, including its fixed height and column-fill: auto, so
@@ -843,6 +843,7 @@
     async function loadCollectionPage(startIndex) {
         const col = state.collection;
         startIndex = Math.max(0, Math.min(startIndex, col.verses.length - 1));
+        loadGeneration++; // invalidate any in-flight verse-mode load
         state.isLoading = true;
         try {
             const candidates = col.verses.slice(startIndex, startIndex + 100);
@@ -866,6 +867,7 @@
     async function loadCollectionPageEndingAt(endIndex) {
         const col = state.collection;
         endIndex = Math.max(0, Math.min(endIndex, col.verses.length - 1));
+        loadGeneration++; // invalidate any in-flight verse-mode load
         state.isLoading = true;
         try {
             const from = Math.max(0, endIndex - 99);
@@ -1093,11 +1095,23 @@
     /**
      * Load and display a page starting from the given verse.
      */
+    /**
+     * Monotonic token for page loads. Every page-load intent bumps it; an
+     * in-flight load whose token is stale by the time its fetch resolves
+     * must not write state. Guards background remeasures (auth library
+     * load, save toggles) and rapid paging against overwriting a newer
+     * navigation with an older page. Collection page loads bump it too so
+     * a stale verse-mode load can't stomp a page in collection mode.
+     */
+    let loadGeneration = 0;
+
     async function loadPage(startVerseId) {
+        const gen = ++loadGeneration;
         state.isLoading = true;
-        
+
         try {
             const result = await calculatePageVerses(startVerseId);
+            if (gen !== loadGeneration) return; // superseded by newer navigation
             state.pageVerses = result.verses;
             state.totalVerses = result.total || state.totalVerses;
             
@@ -1139,10 +1153,14 @@
             // position. init() re-runs this check once the flag is set, so
             // a size transition that lands here early is not lost.
             if (!state.initialPageLoaded) return;
-            // Skip while hidden/zero-sized or if nothing actually changed
-            if (area.clientWidth === 0 || area.clientHeight === 0) return;
-            if (area.clientWidth === state.lastMeasuredWidth &&
-                area.clientHeight === state.lastMeasuredHeight) return;
+            // Skip while hidden/zero-sized or if nothing actually changed.
+            // Compare fractional dimensions: clientWidth/clientHeight round
+            // to integers, and a sub-pixel size change can still move column
+            // break points (see measureFittingVerses).
+            const rect = area.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+            if (rect.width === state.lastMeasuredWidth &&
+                rect.height === state.lastMeasuredHeight) return;
             if (state.collection) {
                 loadCollectionPage(state.collection.pageStartIndex);
             } else {
@@ -1225,12 +1243,14 @@
      * This mimics flipping to the previous page in a physical book.
      */
     async function loadPageEndingAt(targetVerseId) {
+        const gen = ++loadGeneration;
         state.isLoading = true;
-        
+
         try {
             // Use the dedicated function that calculates verses ending at the target
             const result = await calculatePageVersesEndingAt(targetVerseId);
-            
+            if (gen !== loadGeneration) return; // superseded by newer navigation
+
             if (result.verses.length > 0) {
                 state.pageVerses = result.verses;
                 state.pageStartVerseId = result.verses[0].id;
@@ -1244,6 +1264,25 @@
         } finally {
             state.isLoading = false;
             hideLoading();
+        }
+    }
+
+    /**
+     * Re-measure and re-render the current page in place (same first verse).
+     * Required instead of a bare renderPage() whenever state that affects
+     * verse layout changes after the page was measured — e.g. saved verses
+     * arriving from the API (.saved adds left padding) or memorization
+     * toggles (.memorized adds an inline diamond). A bare re-render would
+     * reflow the columns without re-checking what still fits, silently
+     * clipping the last verse(s) into an invisible overflow column.
+     */
+    async function remeasureCurrentPage() {
+        if (state.collection) {
+            await loadCollectionPage(state.collection.pageStartIndex);
+        } else if (state.pageVerses.length > 0) {
+            await loadPage(state.pageStartVerseId);
+        } else {
+            renderPage();
         }
     }
 
@@ -2117,7 +2156,7 @@
             if (state.savedVerses[verseId]) {
                 // Optimistic delete
                 delete state.savedVerses[verseId];
-                renderPage();
+                await remeasureCurrentPage();
                 try {
                     await libApi(`/api/library/verses/${verseId}`, { method: 'DELETE' });
                 } catch (err) {
@@ -2140,7 +2179,7 @@
                 } catch (err) {
                     console.error('Failed to save verse:', err);
                 }
-                renderPage();
+                await remeasureCurrentPage();
             }
         } else {
             // Anonymous — localStorage only
@@ -2155,7 +2194,7 @@
                 };
             }
             saveSavedVerses();
-            renderPage();
+            await remeasureCurrentPage();
         }
     }
 
@@ -2353,7 +2392,7 @@
                 toVerseId:   entry.passage.toVerseId,
                 naturalKey:  entry.passage.naturalKey
             });
-            renderPage();
+            await remeasureCurrentPage();
             closePassagePicker();
         } catch (err) {
             console.error('Failed to save passage:', err);
@@ -2370,7 +2409,7 @@
             Object.keys(state.memorizedPassages).forEach(k => {
                 if (state.memorizedPassages[k] === entryId) delete state.memorizedPassages[k];
             });
-            renderPage();
+            await remeasureCurrentPage();
             closePassagePicker();
         } catch (err) {
             console.error('Failed to remove passage:', err);
@@ -3130,7 +3169,7 @@
                         '<p class="memorization-empty">No passages memorized yet.<br>' +
                         'Press <kbd>m</kbd> while reading to add the current verse.</p>';
                 }
-                renderPage();
+                await remeasureCurrentPage();
                 try {
                     await libApi(`/api/memorization/queue/${entryId}`, { method: 'DELETE' });
                 } catch (err) {
@@ -4595,7 +4634,10 @@
                     state.currentUser.localStorageMigrated = true;
                 }
                 updateAuthHeader();
-                renderPage(); // re-render with merged DB + migrated data
+                // Saved/memorized verses change layout (.saved pads the text
+                // 12px narrower), so the page measured before this data
+                // arrived may no longer fit — re-measure, don't just re-render
+                await remeasureCurrentPage();
             } else {
                 state.currentUser = null;
                 updateAuthHeader();
@@ -4631,7 +4673,7 @@
                     // now-anonymous session (e.g. shared devices)
                     exitCollectionMode();
                 } else {
-                    renderPage();
+                    await remeasureCurrentPage();
                 }
             };
         } else {
