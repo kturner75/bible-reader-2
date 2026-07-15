@@ -658,8 +658,14 @@
             -webkit-hyphens: auto;
             font-family: ${containerStyle.fontFamily};
             font-size: ${containerStyle.fontSize};
-            line-height: ${containerStyle.lineHeight};
+            line-height: var(--line-height, ${containerStyle.lineHeight});
         `;
+        // line-height must stay the unitless number, NOT the computed px
+        // value: a number inherits as a ratio, so descendants with a larger
+        // font-size (chapter headers, 1.15rem) resolve a taller line box.
+        // Copying the computed "35px" froze that px value for every child,
+        // making headers 5.25px shorter in the mirror than on the page —
+        // enough to overcount by one verse and clip a chapter's verse 1.
         document.body.appendChild(measureContainer);
 
         let low = 1;
