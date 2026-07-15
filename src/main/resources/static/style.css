@@ -419,8 +419,12 @@ body {
 /* Current verse highlight */
 .verse.current {
     background-color: var(--color-highlight);
-    border-left: 3px solid var(--color-highlight-border);
-    padding-left: calc(0.5em - 3px);
+    /* Inset shadow, not border-left: the highlight must never change the
+       verse's box metrics. A border needed a padding-left compensation,
+       which .verse.saved's own padding-left overrode (same specificity,
+       later rule), leaving saved+current verses 3px narrower than the
+       page-fit measurement (which never applies .current) assumed. */
+    box-shadow: inset 3px 0 0 var(--color-highlight-border);
 }
 
 /* Page Indicators */
@@ -2950,7 +2954,6 @@ body {
     
     .verse.current {
         background: none;
-        border-left: none;
-        padding-left: 0.5em;
+        box-shadow: none;
     }
 }
