@@ -3596,11 +3596,24 @@
     // Note Editor
     // ============================================
 
+    // bookId -> [{chapter, firstVerseId, verseCount}], fetched on demand. Kept
+    // separate from state.chapters (which tracks the book/chapter selector's
+    // currently-displayed book) since a verse note's own book may differ —
+    // e.g. while reading a cross-book passage collection.
+    const chaptersByBookCache = {};
+    async function getChaptersForBook(bookId) {
+        if (!chaptersByBookCache[bookId]) {
+            chaptersByBookCache[bookId] = await fetchChapters(bookId);
+        }
+        return chaptersByBookCache[bookId];
+    }
+
     /** Renderer ctx for a verse note's [N] links: same-chapter verse shorthand. */
-    function getRenderCtxForVerse(verseId) {
+    async function getRenderCtxForVerse(verseId) {
         const verse = state.pageVerses.find(v => v.id === verseId);
         if (!verse) return null;
-        const chapterInfo = state.chapters.find(c => c.chapter === verse.chapter);
+        const chapters = await getChaptersForBook(verse.bookId);
+        const chapterInfo = chapters.find(c => c.chapter === verse.chapter);
         if (!chapterInfo) return null;
         return { type: 'verse', firstVerseId: chapterInfo.firstVerseId, verseCount: chapterInfo.verseCount };
     }
@@ -3622,16 +3635,19 @@
 
         // View-first when a note exists; straight to edit when empty
         const savedVerse = state.savedVerses[verseId];
-        setNoteMode(savedVerse && savedVerse.note ? 'view' : 'edit');
+        await setNoteMode(savedVerse && savedVerse.note ? 'view' : 'edit');
     }
 
-    function setNoteMode(mode) {
+    async function setNoteMode(mode) {
         const verseId = state.noteEditorVerseId;
         const savedVerse = state.savedVerses[verseId];
         const note = savedVerse ? savedVerse.note : '';
 
         if (mode === 'view') {
-            elements.noteView.innerHTML = note ? renderNoteMarkdown(note, getRenderCtxForVerse(verseId)) : '';
+            elements.noteView.innerHTML = note ? renderNoteMarkdown(note, await getRenderCtxForVerse(verseId)) : '';
+            // The editor may have been closed (or moved to a different verse)
+            // while the chapter lookup above was in flight.
+            if (state.noteEditorVerseId !== verseId || !state.noteEditorOpen) return;
             elements.noteView.hidden = false;
             elements.noteViewActions.hidden = false;
             elements.noteEdit.hidden = true;
