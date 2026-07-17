@@ -1476,6 +1476,13 @@ body {
     border-color: var(--color-text);
 }
 
+/* .note-actions sets display:flex, which would defeat the hidden attribute */
+#note-view[hidden],
+#note-view-actions[hidden],
+#note-edit[hidden] {
+    display: none;
+}
+
 /* ============================================
    Chapter Notes
    ============================================ */
