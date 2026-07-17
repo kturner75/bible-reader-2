@@ -129,6 +129,11 @@
         noteEditorOverlay: document.getElementById('note-editor-overlay'),
         noteEditorClose: document.getElementById('note-editor-close'),
         noteEditorVerseRef: document.getElementById('note-editor-verse-ref'),
+        noteView: document.getElementById('note-view'),
+        noteViewActions: document.getElementById('note-view-actions'),
+        noteEditBtn: document.getElementById('note-edit-btn'),
+        noteDoneBtn: document.getElementById('note-done-btn'),
+        noteEdit: document.getElementById('note-edit'),
         noteTextarea: document.getElementById('note-textarea'),
         noteCharCurrent: document.getElementById('note-char-current'),
         noteSaveBtn: document.getElementById('note-save-btn'),
@@ -2052,6 +2057,7 @@
             return;
         }
         closeChapterNoteEditor();
+        closeNoteEditor();
         closeLibrary();
         await goToVerse(verseId);
     }
@@ -3560,6 +3566,15 @@
     // Note Editor
     // ============================================
 
+    /** Renderer ctx for a verse note's [N] links: same-chapter verse shorthand. */
+    function getRenderCtxForVerse(verseId) {
+        const verse = state.pageVerses.find(v => v.id === verseId);
+        if (!verse) return null;
+        const chapterInfo = state.chapters.find(c => c.chapter === verse.chapter);
+        if (!chapterInfo) return null;
+        return { type: 'verse', firstVerseId: chapterInfo.firstVerseId, verseCount: chapterInfo.verseCount };
+    }
+
     async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
         if (!state.savedVerses[verseId]) {
@@ -3575,10 +3590,29 @@
             elements.noteEditorVerseRef.textContent = `${verse.book} ${verse.chapter}:${verse.verse}`;
         }
 
+        // View-first when a note exists; straight to edit when empty
         const savedVerse = state.savedVerses[verseId];
-        elements.noteTextarea.value = savedVerse.note || '';
-        updateNoteCharCount();
-        elements.noteTextarea.focus();
+        setNoteMode(savedVerse && savedVerse.note ? 'view' : 'edit');
+    }
+
+    function setNoteMode(mode) {
+        const verseId = state.noteEditorVerseId;
+        const savedVerse = state.savedVerses[verseId];
+        const note = savedVerse ? savedVerse.note : '';
+
+        if (mode === 'view') {
+            elements.noteView.innerHTML = note ? renderNoteMarkdown(note, getRenderCtxForVerse(verseId)) : '';
+            elements.noteView.hidden = false;
+            elements.noteViewActions.hidden = false;
+            elements.noteEdit.hidden = true;
+        } else {
+            elements.noteTextarea.value = note || '';
+            updateNoteCharCount();
+            elements.noteView.hidden = true;
+            elements.noteViewActions.hidden = true;
+            elements.noteEdit.hidden = false;
+            elements.noteTextarea.focus();
+        }
     }
 
     function closeNoteEditor() {
@@ -3591,10 +3625,24 @@
         elements.noteCharCurrent.textContent = elements.noteTextarea.value.length;
     }
 
+    /** Cancel from edit mode: back to view if a note exists, otherwise close. */
+    function cancelNoteEdit() {
+        const savedVerse = state.savedVerses[state.noteEditorVerseId];
+        if (savedVerse && savedVerse.note) {
+            setNoteMode('view');
+        } else {
+            closeNoteEditor();
+        }
+    }
+
     function saveNote() {
         const note = elements.noteTextarea.value.trim();
         setVerseNote(state.noteEditorVerseId, note);
-        closeNoteEditor();
+        if (note) {
+            setNoteMode('view');
+        } else {
+            closeNoteEditor();
+        }
     }
 
     // ============================================
@@ -4454,7 +4502,9 @@
 
         // Note editor
         elements.noteEditorClose.addEventListener('click', closeNoteEditor);
-        elements.noteCancelBtn.addEventListener('click', closeNoteEditor);
+        elements.noteDoneBtn.addEventListener('click', closeNoteEditor);
+        elements.noteEditBtn.addEventListener('click', () => setNoteMode('edit'));
+        elements.noteCancelBtn.addEventListener('click', cancelNoteEdit);
         elements.noteSaveBtn.addEventListener('click', saveNote);
         elements.noteEditorOverlay.addEventListener('click', (e) => {
             if (e.target === elements.noteEditorOverlay) {
@@ -4462,6 +4512,21 @@
             }
         });
         elements.noteTextarea.addEventListener('input', updateNoteCharCount);
+        elements.noteView.addEventListener('click', (e) => {
+            const collectionLink = e.target.closest('.note-collection-link');
+            if (collectionLink) {
+                e.preventDefault();
+                closeNoteEditor();
+                closeLibrary();
+                enterCollectionMode(parseInt(collectionLink.dataset.collectionId, 10));
+                return;
+            }
+            const link = e.target.closest('.note-verse-link');
+            if (link) {
+                e.preventDefault();
+                handleNoteVerseLinkClick(link);
+            }
+        });
 
         // Chapter note editor
         elements.chapterNoteClose.addEventListener('click', closeChapterNoteEditor);
