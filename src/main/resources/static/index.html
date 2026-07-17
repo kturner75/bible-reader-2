@@ -139,6 +139,7 @@
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>b</kbd></span><span>Save/unsave verse</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>t</kbd></span><span>Open tag picker</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>n</kbd></span><span>Add/edit note</span></div>
+                    <div class="shortcut-item"><span class="shortcut-key"><kbd>y</kbd></span><span>Copy verse</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>c</kbd></span><span>Chapter note</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>B</kbd></span><span>Book note</span></div>
                     <div class="shortcut-item"><span class="shortcut-key"><kbd>m</kbd></span><span>Select passage to memorize</span></div>
@@ -260,11 +261,19 @@
             </div>
             <div class="note-editor-content">
                 <div class="note-editor-verse-ref" id="note-editor-verse-ref"></div>
-                <textarea id="note-textarea" placeholder="Add a note..." maxlength="500"></textarea>
-                <div class="note-char-count"><span id="note-char-current">0</span>/500</div>
-                <div class="note-actions">
-                    <button id="note-save-btn" class="primary">Save</button>
-                    <button id="note-cancel-btn">Cancel</button>
+                <div class="note-markdown" id="note-view" hidden></div>
+                <div class="note-actions" id="note-view-actions" hidden>
+                    <button id="note-edit-btn" class="primary">Edit</button>
+                    <button id="note-done-btn">Close</button>
+                </div>
+                <div id="note-edit">
+                    <textarea id="note-textarea" placeholder="Add a note..." maxlength="500"></textarea>
+                    <div class="note-char-count"><span id="note-char-current">0</span>/500</div>
+                    <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code>[12]</code> verse link <code>[John 3:16]</code> reference <code>[pid=3]</code> collection link</p>
+                    <div class="note-actions">
+                        <button id="note-save-btn" class="primary">Save</button>
+                        <button id="note-cancel-btn">Cancel</button>
+                    </div>
                 </div>
             </div>
         </div>
