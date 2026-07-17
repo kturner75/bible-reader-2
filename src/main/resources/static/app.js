@@ -753,6 +753,11 @@
         return { verses: fittingVerses, total: data.total };
     }
 
+    const COPY_ICON_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">' +
+        '<rect x="5.5" y="5.5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
+        '<path d="M3.5 10.5h-1a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v1" fill="none" stroke="currentColor" stroke-width="1.3"/>' +
+        '</svg>';
+
     /**
      * Create HTML for a chapter header.
      * Format: "Chapter N" for most books, or "Psalm N" for Psalms
@@ -794,11 +799,20 @@
                 '</span>';
         }
 
+        // Absolutely positioned, so it never adds flow height/width — the
+        // page-fit measurement mirror always renders isCurrent=false and must
+        // never see a different box size for the current verse (see
+        // subpixel-pagination-clipping memory: measurement must match render).
+        const copyBtnHtml = isCurrent
+            ? `<button class="verse-copy-btn" data-verse-id="${verse.id}" title="Copy verse (y)" aria-label="Copy verse text and reference">${COPY_ICON_SVG}</button>`
+            : '';
+
         return `
             <p class="verse${currentClass}${savedClass}${memorizedClass}" data-verse-id="${verse.id}">
                 ${tagDotsHtml}
                 <span class="verse-number">${verse.verse}</span>
                 <span class="verse-text">${escapeHtml(verse.text)}</span>
+                ${copyBtnHtml}
             </p>
         `;
     }
@@ -821,6 +835,22 @@
         
         html += createVerseHTML(verse, isCurrent);
         return html;
+    }
+
+    /** Copy a verse's text and reference (e.g. "…text…" — Psalm 53:3) to the clipboard. */
+    async function copyVerseToClipboard(verseId) {
+        const verse = state.pageVerses.find(v => v.id === verseId);
+        if (!verse) return;
+        const isPsalm = verse.book === 'Psalms' || verse.book === 'Psalm';
+        const label = `${isPsalm ? 'Psalm' : verse.book} ${verse.chapter}:${verse.verse}`;
+        const formatted = `"${verse.text}" — ${label}`;
+        try {
+            await navigator.clipboard.writeText(formatted);
+            showToast('Verse copied');
+        } catch (err) {
+            console.error('Failed to copy verse:', err);
+            showToast('Failed to copy verse');
+        }
     }
 
     // ─── Collection Scoped Reader ─────────────────────────────────────────────
@@ -4192,6 +4222,10 @@
                 e.preventDefault();
                 openNoteEditor(state.currentVerseId);
                 break;
+            case 'y':
+                e.preventDefault();
+                copyVerseToClipboard(state.currentVerseId);
+                break;
             case 'c':
                 e.preventDefault();
                 if (!state.collection) openChapterNoteEditor();
@@ -4599,6 +4633,12 @@
                     chapter: parseInt(noteBtn.dataset.chapter),
                     label: noteBtn.dataset.label
                 });
+                return;
+            }
+            const copyBtn = e.target.closest('.verse-copy-btn');
+            if (copyBtn) {
+                e.stopPropagation();
+                copyVerseToClipboard(parseInt(copyBtn.dataset.verseId));
                 return;
             }
             const verseEl = e.target.closest('.verse');

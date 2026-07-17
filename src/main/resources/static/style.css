@@ -394,6 +394,7 @@ body {
 
 /* Verse Styling */
 .verse {
+    position: relative;
     display: block;
     margin-bottom: var(--verse-spacing);
     break-inside: avoid;
@@ -401,6 +402,29 @@ body {
     padding: 0.25em 0.5em;
     border-radius: 3px;
     transition: background-color var(--transition-fast);
+}
+
+/* Copy affordance on the current verse only. Absolutely positioned so it
+   never adds flow height/width — the page-fit measurement mirror always
+   renders isCurrent=false and must see the exact same box size. */
+.verse-copy-btn {
+    position: absolute;
+    top: 0.3em;
+    right: 0.4em;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    opacity: 0.35;
+    padding: 0.2em;
+    line-height: 1;
+    border-radius: 3px;
+    transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.verse-copy-btn:hover {
+    opacity: 1;
+    color: var(--color-link);
 }
 
 .verse-number {

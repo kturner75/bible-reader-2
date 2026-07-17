@@ -83,6 +83,7 @@ Frontend implements vim-style navigation:
 - `b`: save/unsave current verse
 - `t`: open tag picker for current verse
 - `n`: add/edit note on current verse
+- `y`: copy current verse's text and reference to clipboard
 - `Esc`: close overlays
 
 ## Saved Verses Feature
