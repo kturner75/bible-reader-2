@@ -1,6 +1,15 @@
 (function () {
     'use strict';
 
+    // Return to the page that explicitly launched this training session.
+    // Reading remains the safe fallback for direct or malformed URLs.
+    const trainingOrigin = new URLSearchParams(window.location.search).get('from');
+    const backLink = document.getElementById('train-back');
+    if (trainingOrigin === 'dashboard') {
+        backLink.href = '/dashboard';
+        backLink.textContent = '\u2190 Back to dashboard';
+    }
+
     // --- Utilities ---
     function escapeHtml(text) {
         return text.replace(/&/g, '&amp;').replace(/</g, '&lt;')

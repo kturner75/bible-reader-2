@@ -3182,7 +3182,7 @@
                 const entry = entries.find(en => en.id === entryId);
                 if (entry) {
                     sessionStorage.setItem('kjv_training_entry', JSON.stringify(entry));
-                    window.location.href = '/train';
+                    window.location.href = '/train?from=reading';
                 }
             });
         });
@@ -4399,7 +4399,7 @@
             const due = state.memorizationDueEntries;
             if (!due || due.length === 0) return;
             sessionStorage.setItem('kjv_training_session', JSON.stringify({ entries: due, index: 0 }));
-            window.location.href = '/train';
+            window.location.href = '/train?from=reading';
         });
 
         // Passage collections hub
