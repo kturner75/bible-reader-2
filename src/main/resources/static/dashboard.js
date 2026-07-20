@@ -34,7 +34,7 @@
 
     function launchTraining(entries) {
         sessionStorage.setItem('kjv_training_session', JSON.stringify({ entries, index: 0 }));
-        window.location.href = '/train';
+        window.location.href = '/train?from=dashboard';
     }
 
     // recentHistory arrives newest-first; dots render oldest→newest (left→right)
