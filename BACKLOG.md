@@ -19,17 +19,23 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 - **Chapter notes** *(done — PR #28)* — study notes/sermon outline scoped to a chapter. `chapter_notes` table keyed on `(user_id, book_id, chapter)`, account-only. Includes markdown-lite rendering (headings, bold, italic, lists) and verse links: `[12]` (chapter-relative) and `[John 3:16]` (any reference) jump the reader.
 - **Book notes / outlines** *(done — PR #29)* — whole-book outline/study notes. `book_notes` table (V14), shared note modal, pencil on the page title, Shift+B. Book-relative verse links: `[12]` = chapter, `[3:16]` = chapter:verse. Library tab merged into a single "Notes" tab.
-- **Sermon / lesson notes** — freeform notes attached to a collection of verses across chapters/books; essentially a "note with a verse list".
+- **Passage Collections** *(done — PR #30)* — ordered cross-book verse lists, builder modal, scoped reader at `/read/collection/{id}`, `[pid=N]` note links, search autocomplete. V15 migration. `passage_collections` (BIGSERIAL) + `passage_collection_verses` (explicit position). Hotkey `C`.
+- **Sermon / lesson notes** *(done — PR #31)* — full-CRUD notes (title + body) on `/dashboard`. `sermon_notes` table (V16). Markdown-lite renderer with `[pid=N]` collection links and `[Reference]` verse links. Dashboard builder: list, create, view, edit, delete.
 - **Character studies** — verses tagged to a person (Abraham, David, Paul…); auto-populated from a concordance or user-curated.
 - **Location studies** — same concept for places (Jerusalem, Egypt, Bethlehem…).
 
 ---
 
-## Reading Plans
+## Plans & Reading Rhythms
 
 - **Pre-built plans** *(done — PR #21)* — Read the Bible in a Year, NT in 90 days, Psalms in a month, etc.
 - **Progress tracking + streak** *(done — PR #22)* — mark days complete; dashboard shows today's reading card + streak
-- **Custom plans** — user picks start/end date + scope (whole Bible, specific books, etc.)
+- **Custom reading plans** — finite assignments toward a goal; user picks a start/end date and scope (whole Bible, specific books, etc.). These answer, “What must I read today to finish by a target date?”
+- **Personal reading rhythms** — recurring, self-paced lanes that preserve continuity while blending different parts of Scripture throughout the week. No deadline or required chapters per session. Each lane contains an arbitrary ordered list of books, keeps independent chapter-level progress, opens the next unread chapter, and lets the reader mark where the session ended. Show chapters remaining instead of “Day X of Y”; consider archive/restart behavior when a lane or rhythm is complete.
+  - Initial weekly rhythm: Sunday (Matthew, Mark, Luke, John, Acts, Romans); Monday (Joshua, Judges, Ruth, Ezra, Nehemiah, Esther, Ezekiel, Daniel); Tuesday (1–2 Samuel, 1–2 Kings, 1–2 Chronicles); Wednesday (1 Corinthians–Revelation); Thursday (Isaiah, Jeremiah, Lamentations, Hosea–Malachi); Friday (Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon); Saturday (Genesis–Deuteronomy).
+  - Dashboard language could be “Continue with Luke 5”; completion could be “Mark through Luke 7.” Preserve the distraction-free, page-turn reader rather than imposing a fixed daily assignment boundary.
+- **Focused study plans** — a sequence of study sessions centered on a book, biblical person, theme, doctrine, event, or question rather than necessarily reading the whole Bible. A session may contain one or more passages plus optional prompts, notes, linked saved verses, and observations. Reuse Passage Collections and existing notes where practical. Examples: Abraham, faith across Romans/Hebrews/James, the kingdom of God, or Messianic prophecy and its New Testament connections.
+- **Product language** — keep these concepts distinct: a *Reading Plan* is finite and goal-oriented; a *Reading Rhythm* is recurring and self-paced; a *Study Plan* is focused and passage-driven.
 
 ---
 
