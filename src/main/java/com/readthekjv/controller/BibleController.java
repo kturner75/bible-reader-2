@@ -182,13 +182,15 @@ public class BibleController {
         }
 
         Optional<Verse> verse = bibleService.getVerse(verseId.get());
-        
-        return ResponseEntity.ok(Map.of(
-            "valid", true,
-            "input", ref,
-            "verseId", verseId.get(),
-            "verse", verse.orElse(null)
-        ));
+        Map<String, Object> body = new HashMap<>();
+        body.put("valid", true);
+        body.put("input", ref);
+        body.put("verseId", verseId.get());
+        body.put("verse", verse.orElse(null));
+        // false when input was chapter/book-scoped (e.g. "ps 24") so clients can
+        // expand Matching Passages overlap to the whole chapter.
+        body.put("verseSpecified", parsed.verse() != null);
+        return ResponseEntity.ok(body);
     }
 
     /**

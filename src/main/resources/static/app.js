@@ -1842,7 +1842,7 @@
             const refResult = await parseReference(query);
             if (refResult.valid && refResult.verseId) {
                 if (hitGen !== state.searchHitIdsGen) return;
-                const opened = await maybeOpenReferencePassageDiscovery(query, refResult);
+                const opened = await maybeOpenReferencePassageDiscovery(query, refResult, hitGen);
                 if (opened) return;
                 if (hitGen !== state.searchHitIdsGen) return;
                 const wasPlaying = state.audioWasPlayingBeforeModal;
@@ -1887,14 +1887,19 @@
      * overlay on Matching Passages instead of jumping straight to the verse.
      * @returns {Promise<boolean>} true if the overlay was opened
      */
-    async function maybeOpenReferencePassageDiscovery(query, refResult) {
+    async function maybeOpenReferencePassageDiscovery(query, refResult, hitGen) {
         const hasPassages = await prepareSearchResultTabs();
+        if (hitGen !== state.searchHitIdsGen) return false;
         if (!hasPassages) return false;
 
         const verseId = refResult.verseId;
         const v = refResult.verse || {};
+        const hitIds = await buildReferenceHitIds(refResult, hitGen);
+        if (hitGen !== state.searchHitIdsGen) return false;
+        if (!hitIds || hitIds.size === 0) return false;
+
         state.lastSearchQuery = query;
-        state.lastSearchHitIds = new Set([verseId]);
+        state.lastSearchHitIds = hitIds;
         state.lastSearchResults = {
             query,
             count: 1,
@@ -1909,6 +1914,7 @@
         };
 
         const matching = filterMatchingPassages(query);
+        if (hitGen !== state.searchHitIdsGen) return false;
         if (matching.length === 0) return false;
 
         state.searchResultTab = 'passages';
@@ -1916,6 +1922,32 @@
         openSearch();
         renderSearchBrowse();
         return true;
+    }
+
+    /**
+     * Hit ids for reference discovery. Chapter-scoped inputs (verseSpecified=false)
+     * expand to the whole chapter so "ps 24" can match a Psalm 24:3 passage.
+     */
+    async function buildReferenceHitIds(refResult, hitGen) {
+        const verseId = refResult.verseId;
+        const v = refResult.verse;
+        if (refResult.verseSpecified !== false || !v || !v.bookId || !v.chapter) {
+            return new Set([verseId]);
+        }
+        try {
+            const chapters = await fetchChapters(v.bookId);
+            if (hitGen !== state.searchHitIdsGen) return null;
+            const ch = (chapters || []).find(c => c.chapter === v.chapter);
+            if (!ch) return new Set([verseId]);
+            const ids = new Set();
+            for (let id = ch.firstVerseId; id < ch.firstVerseId + ch.verseCount; id++) {
+                ids.add(id);
+            }
+            return ids;
+        } catch (err) {
+            console.error('Failed to expand chapter reference for passage discovery', err);
+            return new Set([verseId]);
+        }
     }
 
     async function loadSearchHitIdsForPassages(query, hitGen) {
