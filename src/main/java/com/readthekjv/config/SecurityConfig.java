@@ -37,7 +37,7 @@ public class SecurityConfig {
 
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    "/", "/read", "/read/collection/**", "/index.html",
+                    "/", "/read", "/read/collection/**", "/read/passage/**", "/read/range", "/index.html",
                     "/landing.html", "/landing.css",       // public landing page
                     "/login.html", "/register.html",
                     "/auth.css",
@@ -47,6 +47,7 @@ public class SecurityConfig {
                     "/error",                              // Spring Boot error controller — must be public
                     "/api/verses", "/api/books/**", "/api/search",
                     "/api/reference", "/api/navigate/**",
+                    "/api/ranges",                         // portable [v=…] hydrate — public
                     "/api/audio/**", "/api/tts/status",   // audio + TTS feature detection
                     "/api/auth/**",
                     "/api/verse-of-day"                    // public — same verse shown to all visitors

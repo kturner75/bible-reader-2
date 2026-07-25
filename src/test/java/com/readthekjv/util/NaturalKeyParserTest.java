@@ -139,4 +139,16 @@ class NaturalKeyParserTest {
         assertFalse(NaturalKeyParser.isValid("31103"));     // above max
         assertFalse(NaturalKeyParser.isValid("1:99999"));   // to exceeds max
     }
+
+    @Test
+    void fromVerseIdsBuildsRangesPreservingOrder() {
+        assertEquals("1:3", NaturalKeyParser.fromVerseIds(List.of(1, 2, 3)));
+        assertEquals("1:2,5,7:8", NaturalKeyParser.fromVerseIds(List.of(1, 2, 5, 7, 8)));
+    }
+
+    @Test
+    void contiguousNaturalKeysSplitsRuns() {
+        assertEquals(List.of("1:3", "5", "7:8"),
+                NaturalKeyParser.contiguousNaturalKeys(List.of(1, 2, 3, 5, 7, 8)));
+    }
 }

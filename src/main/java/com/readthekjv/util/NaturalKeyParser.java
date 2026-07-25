@@ -21,6 +21,69 @@ public class NaturalKeyParser {
     public record Segment(int from, int to) {}
 
     /**
+     * Builds a natural key from an ordered list of verse ids.
+     * Contiguous runs become ranges; gaps start a new segment.
+     * Order is preserved (not sorted) — same semantics as the collection builder.
+     */
+    public static String fromVerseIds(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new IllegalArgumentException("Verse id list must not be empty");
+        }
+        if (ids.get(0) == null) {
+            throw new IllegalArgumentException("Verse id must not be null");
+        }
+        StringBuilder sb = new StringBuilder();
+        int runFrom = ids.get(0);
+        int runTo = ids.get(0);
+        for (int i = 1; i < ids.size(); i++) {
+            Integer boxed = ids.get(i);
+            if (boxed == null) {
+                throw new IllegalArgumentException("Verse id must not be null");
+            }
+            int id = boxed;
+            if (id == runTo + 1) {
+                runTo = id;
+            } else {
+                appendSegment(sb, runFrom, runTo);
+                runFrom = runTo = id;
+            }
+        }
+        appendSegment(sb, runFrom, runTo);
+        return sb.toString();
+    }
+
+    /**
+     * Splits an ordered verse-id list into contiguous runs (each run is one passage).
+     * Unlike {@link #fromVerseIds}, this returns one natural key per run rather than
+     * a single multi-segment key.
+     */
+    public static List<String> contiguousNaturalKeys(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        List<String> keys = new ArrayList<>();
+        int runFrom = ids.get(0);
+        int runTo = ids.get(0);
+        for (int i = 1; i < ids.size(); i++) {
+            int id = ids.get(i);
+            if (id == runTo + 1) {
+                runTo = id;
+            } else {
+                keys.add(runFrom == runTo ? String.valueOf(runFrom) : runFrom + ":" + runTo);
+                runFrom = runTo = id;
+            }
+        }
+        keys.add(runFrom == runTo ? String.valueOf(runFrom) : runFrom + ":" + runTo);
+        return keys;
+    }
+
+    private static void appendSegment(StringBuilder sb, int from, int to) {
+        if (sb.length() > 0) sb.append(',');
+        if (from == to) sb.append(from);
+        else sb.append(from).append(':').append(to);
+    }
+
+    /**
      * Parses a natural key string into an ordered list of segments.
      * Throws IllegalArgumentException on malformed input.
      */
