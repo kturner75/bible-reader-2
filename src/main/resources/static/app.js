@@ -3493,6 +3493,7 @@
     function resetPassageInsertSaveUi() {
         if (elements.passageInsertSaveCb) {
             elements.passageInsertSaveCb.checked = false;
+            elements.passageInsertSaveCb.disabled = false;
         }
         if (elements.passageInsertTitle) {
             elements.passageInsertTitle.value = '';
@@ -3501,6 +3502,7 @@
         if (elements.passageInsertSave) {
             // Saving requires an account; Matching Verses insert still works signed-out.
             elements.passageInsertSave.hidden = !state.currentUser;
+            elements.passageInsertSave.title = '';
         }
     }
 
