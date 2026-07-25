@@ -116,6 +116,11 @@ public class MemorizationService {
         }
 
         List<NaturalKeyParser.Segment> segments = NaturalKeyParser.parse(naturalKey);
+        int verseCount = segments.stream().mapToInt(s -> s.to() - s.from() + 1).sum();
+        if (verseCount > PassageService.MAX_PASSAGE_VERSES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Passages are limited to " + PassageService.MAX_PASSAGE_VERSES + " verses");
+        }
         int fromVerseId = NaturalKeyParser.outerFrom(segments);
         int toVerseId   = NaturalKeyParser.outerTo(segments);
 
@@ -157,6 +162,11 @@ public class MemorizationService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entry not found"));
 
         List<NaturalKeyParser.Segment> segments = NaturalKeyParser.parse(naturalKey);
+        int verseCount = segments.stream().mapToInt(s -> s.to() - s.from() + 1).sum();
+        if (verseCount > PassageService.MAX_PASSAGE_VERSES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Passages are limited to " + PassageService.MAX_PASSAGE_VERSES + " verses");
+        }
         int fromVerseId = NaturalKeyParser.outerFrom(segments);
         int toVerseId   = NaturalKeyParser.outerTo(segments);
 

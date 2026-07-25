@@ -70,6 +70,9 @@ public class PassageService {
         return new PassageReadResponse(p.getId(), title, reference, p.getNaturalKey(), verses);
     }
 
+    /** Same budget as collections / public ranges — keeps catalog and hydration bounded. */
+    public static final int MAX_PASSAGE_VERSES = 500;
+
     /**
      * Find-or-create a user passage by natural key. The key is normalized
      * (sort/merge ranges) so equivalent pointers collapse to one row.
@@ -77,6 +80,14 @@ public class PassageService {
     public PassageDetailResponse upsert(Long userId, String naturalKey, String title) {
         try {
             var ranges = VerseRangeParser.rangesFromNaturalKey(naturalKey.trim());
+            int verseCount = 0;
+            for (VerseRangeParser.Range r : ranges) {
+                verseCount += r.to() - r.from() + 1;
+                if (verseCount > MAX_PASSAGE_VERSES) {
+                    throw new BadRequestException(
+                            "Passages are limited to " + MAX_PASSAGE_VERSES + " verses");
+                }
+            }
             String key = VerseRangeParser.naturalKeyFromRanges(ranges);
             int outerFrom = ranges.stream().mapToInt(VerseRangeParser.Range::from).min().orElseThrow();
             int outerTo = ranges.stream().mapToInt(VerseRangeParser.Range::to).max().orElseThrow();
@@ -183,8 +194,41 @@ public class PassageService {
         }
     }
 
+    /**
+     * Human reference for catalog/list views. Loads only each segment's
+     * endpoints so large passages never force full verse materialization.
+     */
     public String deriveReference(Passage p) {
-        return formatReference(hydrateVerses(p));
+        List<NaturalKeyParser.Segment> segments;
+        try {
+            segments = NaturalKeyParser.parse(p.getNaturalKey());
+        } catch (Exception e) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        for (NaturalKeyParser.Segment seg : segments) {
+            Verse from = bibleService.getVerse(seg.from()).orElse(null);
+            Verse to = seg.from() == seg.to()
+                    ? from
+                    : bibleService.getVerse(seg.to()).orElse(null);
+            if (from == null || to == null) continue;
+            parts.add(formatContiguousEndpoints(from, to));
+        }
+        return String.join("; ", parts);
+    }
+
+    private static String formatContiguousEndpoints(Verse first, Verse last) {
+        if (first.id() == last.id()) {
+            return first.reference();
+        }
+        if (first.bookId() == last.bookId() && first.chapter() == last.chapter()) {
+            return first.book() + " " + first.chapter() + ":" + first.verse() + "–" + last.verse();
+        }
+        if (first.bookId() == last.bookId()) {
+            return first.book() + " " + first.chapter() + ":" + first.verse()
+                    + "–" + last.chapter() + ":" + last.verse();
+        }
+        return first.reference() + " – " + last.reference();
     }
 
     public PassageDetailResponse toDetail(Passage p) {
