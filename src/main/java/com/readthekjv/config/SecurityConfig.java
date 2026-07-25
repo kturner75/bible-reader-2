@@ -47,7 +47,7 @@ public class SecurityConfig {
                     "/error",                              // Spring Boot error controller — must be public
                     "/api/verses", "/api/books/**", "/api/search",
                     "/api/reference", "/api/navigate/**",
-                    "/api/ranges",                         // portable [v=…] hydrate — public
+                    "/api/ranges", "/api/ranges/**",       // portable [v=…] hydrate + surrounding context — public
                     "/api/audio/**", "/api/tts/status",   // audio + TTS feature detection
                     "/api/auth/**",
                     "/api/verse-of-day"                    // public — same verse shown to all visitors

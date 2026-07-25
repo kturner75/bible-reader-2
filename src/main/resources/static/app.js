@@ -77,8 +77,13 @@
         passages: [],                      // catalog for note picker [{id, title, reference, naturalKey, global}]
         collectionsOpen: false,            // collections hub modal state
         collectionBuilderOpen: false,      // collection builder modal state
-        passageInsertOpen: false,          // insert-passage picker for notes
+        passageInsertOpen: false,          // insert-scripture picker for notes
         passageInsertTarget: null,         // textarea element to insert into
+        passageInsertTab: 'verses',        // 'verses' | 'passages'
+        passageInsertMode: 'browse',       // 'browse' | 'expand'
+        passageInsertSearchTimer: null,
+        passageInsertSearchGen: 0,
+        passageInsertExpandGen: 0,
         // Scoped reader: collection OR single focused passage/range
         // { kind:'collection'|'passage'|'range', id, label, verses, ... }
         collection: null,
@@ -205,12 +210,19 @@
         collectionsCount: document.getElementById('collections-count'),
         collectionsList: document.getElementById('collections-list'),
         collectionsNew: document.getElementById('collections-new'),
-        // Insert-passage picker (notes)
+        // Insert-scripture picker (notes)
         passageInsertOverlay: document.getElementById('passage-insert-overlay'),
         passageInsertClose: document.getElementById('passage-insert-close'),
         passageInsertSearch: document.getElementById('passage-insert-search'),
+        passageInsertTabs: document.getElementById('passage-insert-tabs'),
+        passageInsertBrowse: document.getElementById('passage-insert-browse'),
         passageInsertCount: document.getElementById('passage-insert-count'),
         passageInsertList: document.getElementById('passage-insert-list'),
+        passageInsertExpand: document.getElementById('passage-insert-expand'),
+        passageInsertExpandBack: document.getElementById('passage-insert-expand-back'),
+        passageInsertExpandCount: document.getElementById('passage-insert-expand-count'),
+        passageInsertChapters: document.getElementById('passage-insert-chapters'),
+        passageInsertConfirm: document.getElementById('passage-insert-confirm'),
         noteInsertPassageBtn: document.getElementById('note-insert-passage-btn'),
         chapterNoteInsertPassageBtn: document.getElementById('chapter-note-insert-passage-btn'),
         // Collection builder modal
@@ -2975,29 +2987,210 @@
         return libApi(`/api/collections/${id}/verses`);
     }
 
-    // ── Insert passage into note textarea ──
+    // ── Insert scripture into note textarea ──
+
+    const PASSAGE_INSERT_MAX_VERSES = 500;
 
     async function openPassageInsertPicker(textarea) {
-        if (!state.currentUser) {
-            showToast('Sign in to link passages');
-            return;
-        }
+        // Matching Verses + [v=…] insert work signed-out (localStorage verse notes).
+        // My Passages stays account-only.
         state.passageInsertTarget = textarea;
         state.passageInsertOpen = true;
+        state.passageInsertTab = 'verses';
+        state.passageInsertMode = 'browse';
+        if (state.passageInsertSearchTimer) {
+            clearTimeout(state.passageInsertSearchTimer);
+            state.passageInsertSearchTimer = null;
+        }
         elements.passageInsertOverlay.hidden = false;
         elements.passageInsertSearch.value = '';
-        await loadPassagesFromApi();
-        renderPassageInsertList();
+        syncPassageInsertTabs();
+        showPassageInsertBrowse();
+        if (state.currentUser) {
+            await loadPassagesFromApi();
+        } else {
+            state.passages = [];
+        }
+        renderPassageInsertBrowse();
         elements.passageInsertSearch.focus();
     }
 
     function closePassageInsertPicker() {
         state.passageInsertOpen = false;
         state.passageInsertTarget = null;
+        state.passageInsertMode = 'browse';
+        state.passageInsertSearchGen++;
+        state.passageInsertExpandGen++;
+        if (state.passageInsertSearchTimer) {
+            clearTimeout(state.passageInsertSearchTimer);
+            state.passageInsertSearchTimer = null;
+        }
         elements.passageInsertOverlay.hidden = true;
     }
 
-    function renderPassageInsertList() {
+    function syncPassageInsertTabs() {
+        if (!elements.passageInsertTabs) return;
+        elements.passageInsertTabs.querySelectorAll('.passage-insert-tab').forEach(btn => {
+            const active = btn.dataset.tab === state.passageInsertTab;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        elements.passageInsertSearch.placeholder = state.passageInsertTab === 'verses'
+            ? 'Search scripture or reference…'
+            : 'Filter by title or reference…';
+    }
+
+    function showPassageInsertBrowse() {
+        state.passageInsertMode = 'browse';
+        state.passageInsertExpandGen++;
+        if (elements.passageInsertBrowse) elements.passageInsertBrowse.hidden = false;
+        if (elements.passageInsertExpand) elements.passageInsertExpand.hidden = true;
+        // Hide tab bar when signed out — Matching Verses is the only lane.
+        if (elements.passageInsertTabs) {
+            elements.passageInsertTabs.hidden = !state.currentUser;
+        }
+        elements.passageInsertSearch.hidden = false;
+    }
+
+    function setPassageInsertTab(tab) {
+        if (tab === 'passages' && !state.currentUser) {
+            showToast('Sign in to use saved passages');
+            return;
+        }
+        state.passageInsertTab = tab === 'passages' ? 'passages' : 'verses';
+        state.passageInsertSearchGen++;
+        if (state.passageInsertSearchTimer) {
+            clearTimeout(state.passageInsertSearchTimer);
+            state.passageInsertSearchTimer = null;
+        }
+        syncPassageInsertTabs();
+        showPassageInsertBrowse();
+        renderPassageInsertBrowse();
+        elements.passageInsertSearch.focus();
+    }
+
+    function onPassageInsertSearchInput() {
+        if (state.passageInsertMode === 'expand') showPassageInsertBrowse();
+        if (state.passageInsertTab === 'passages') {
+            state.passageInsertSearchGen++;
+            if (state.passageInsertSearchTimer) {
+                clearTimeout(state.passageInsertSearchTimer);
+                state.passageInsertSearchTimer = null;
+            }
+            renderPassageInsertPassages();
+            return;
+        }
+        if (state.passageInsertSearchTimer) clearTimeout(state.passageInsertSearchTimer);
+        state.passageInsertSearchTimer = setTimeout(() => {
+            state.passageInsertSearchTimer = null;
+            runPassageInsertVerseSearch();
+        }, 280);
+    }
+
+    function renderPassageInsertBrowse() {
+        if (state.passageInsertTab === 'passages') {
+            renderPassageInsertPassages();
+        } else {
+            runPassageInsertVerseSearch();
+        }
+    }
+
+    async function runPassageInsertVerseSearch() {
+        const q = (elements.passageInsertSearch.value || '').trim();
+        const gen = ++state.passageInsertSearchGen;
+        if (!q) {
+            elements.passageInsertCount.textContent = 'Type to search verses';
+            elements.passageInsertList.innerHTML =
+                '<p class="collections-empty">Search by words or a reference like John 3:16.<br>' +
+                'Then optionally include surrounding verses before inserting.</p>';
+            return;
+        }
+
+        elements.passageInsertCount.textContent = 'Searching…';
+        elements.passageInsertList.innerHTML =
+            '<p class="collections-empty">Searching…</p>';
+
+        let refHit = null;
+        let searchVerses = [];
+        try {
+            const refResult = await parseReference(q);
+            if (refResult.valid && refResult.verseId) {
+                const v = refResult.verse;
+                refHit = {
+                    id: refResult.verseId,
+                    book: v?.book || refResult.parsed?.book || '',
+                    chapter: v?.chapter ?? refResult.parsed?.chapter,
+                    verse: v?.verse ?? refResult.parsed?.verse ?? 1,
+                    text: v?.text || '',
+                    highlight: null,
+                    fromReference: true
+                };
+            }
+        } catch (_) { /* not a reference */ }
+
+        try {
+            const results = await searchBible(q);
+            searchVerses = results.verses || [];
+        } catch (err) {
+            console.error('Insert scripture search failed', err);
+            if (gen !== state.passageInsertSearchGen) return;
+            if (!refHit) {
+                elements.passageInsertCount.textContent = 'Search failed';
+                elements.passageInsertList.innerHTML =
+                    '<p class="collections-empty">Could not search scripture. Try again.</p>';
+                return;
+            }
+        }
+
+        if (gen !== state.passageInsertSearchGen) return;
+
+        const seen = new Set();
+        const hits = [];
+        if (refHit) {
+            seen.add(refHit.id);
+            hits.push(refHit);
+        }
+        for (const v of searchVerses) {
+            if (seen.has(v.id)) continue;
+            seen.add(v.id);
+            hits.push(v);
+        }
+
+        elements.passageInsertCount.textContent =
+            hits.length === 1 ? '1 matching verse' : `${hits.length} matching verses`;
+
+        if (hits.length === 0) {
+            elements.passageInsertList.innerHTML =
+                '<p class="collections-empty">No verses found.</p>';
+            return;
+        }
+
+        elements.passageInsertList.innerHTML = hits.map(v => {
+            const ref = `${v.book} ${v.chapter}:${v.verse}`;
+            const snippet = v.highlight || escapeHtml(v.text || '');
+            const badge = v.fromReference
+                ? '<span class="passage-insert-badge">Reference</span>'
+                : '';
+            return `
+                <div class="search-result-item passage-insert-verse-hit" data-verse-id="${v.id}" tabindex="0">
+                    <div class="search-result-ref">${escapeHtml(ref)}${badge}</div>
+                    <div class="search-result-text">${snippet || '&nbsp;'}</div>
+                </div>`;
+        }).join('');
+
+        elements.passageInsertList.querySelectorAll('.passage-insert-verse-hit').forEach(item => {
+            const open = () => openPassageInsertExpand(parseInt(item.dataset.verseId, 10));
+            item.addEventListener('click', open);
+            item.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    open();
+                }
+            });
+        });
+    }
+
+    function renderPassageInsertPassages() {
         const q = (elements.passageInsertSearch.value || '').trim().toLowerCase();
         let list = state.passages;
         if (q) {
@@ -3014,7 +3207,8 @@
         if (list.length === 0) {
             elements.passageInsertList.innerHTML =
                 '<p class="collections-empty">No passages yet.<br>' +
-                'Create one from a collection builder or by memorizing a selection.</p>';
+                'Create one from a collection builder or by memorizing a selection.<br>' +
+                'Or use Matching Verses to insert any scripture.</p>';
             return;
         }
 
@@ -3034,21 +3228,148 @@
         });
     }
 
+    async function openPassageInsertExpand(verseId) {
+        if (!Number.isFinite(verseId)) return;
+        const expandGen = ++state.passageInsertExpandGen;
+        state.passageInsertMode = 'expand';
+        elements.passageInsertBrowse.hidden = true;
+        elements.passageInsertExpand.hidden = false;
+        elements.passageInsertTabs.hidden = true;
+        elements.passageInsertSearch.hidden = true;
+        elements.passageInsertChapters.innerHTML =
+            '<div class="passage-picker-loading">Loading…</div>';
+        elements.passageInsertConfirm.disabled = true;
+        elements.passageInsertExpandCount.textContent = 'Loading…';
+
+        let context;
+        try {
+            // Public endpoint — works for anonymous localStorage note editors too.
+            const response = await fetch(`/api/ranges/context/${verseId}`);
+            if (!response.ok) throw new Error('Failed to load surrounding verses');
+            context = await response.json();
+        } catch (err) {
+            console.error(err);
+            if (expandGen !== state.passageInsertExpandGen || state.passageInsertMode !== 'expand') {
+                return;
+            }
+            elements.passageInsertChapters.innerHTML =
+                '<div class="passage-picker-loading">Could not load surrounding verses.</div>';
+            return;
+        }
+
+        if (expandGen !== state.passageInsertExpandGen || state.passageInsertMode !== 'expand') {
+            return;
+        }
+        const checkedIds = new Set([verseId]);
+        renderPassageInsertExpandChapters(context, checkedIds, verseId);
+    }
+
+    function renderPassageInsertExpandChapters(context, checkedIds, anchorVerseId) {
+        const sections = [context.prevChapter, context.currentChapter, context.nextChapter]
+            .filter(Boolean);
+
+        elements.passageInsertChapters.innerHTML = sections.map(ch => {
+            const allIds = ch.verses.map(v => v.id);
+            const headerLabel = `${ch.bookName} ${ch.chapter}`;
+            const verseRows = ch.verses.map(v => `
+                <label class="pp-verse-row">
+                    <input type="checkbox" class="pp-verse-cb pi-verse-cb" data-verse-id="${v.id}"
+                           ${checkedIds.has(v.id) ? 'checked' : ''}>
+                    <span class="pp-verse-num">${v.verseNum}</span>
+                    <span class="pp-verse-text">${escapeHtml(v.text)}</span>
+                </label>`).join('');
+            return `
+                <div class="pp-chapter-section" data-all-ids="${allIds.join(',')}">
+                    <div class="pp-chapter-header">
+                        <span class="pp-chapter-label">${escapeHtml(headerLabel)}</span>
+                        <label class="pp-select-all-label">
+                            <input type="checkbox" class="pp-select-all-cb">
+                            Select all
+                        </label>
+                    </div>
+                    ${verseRows}
+                </div>`;
+        }).join('');
+
+        updatePassageInsertExpandSelection();
+
+        const anchorCb = elements.passageInsertChapters
+            .querySelector(`[data-verse-id="${anchorVerseId}"]`);
+        if (anchorCb) anchorCb.closest('.pp-verse-row').scrollIntoView({ block: 'center' });
+
+        elements.passageInsertChapters.querySelectorAll('.pi-verse-cb').forEach(cb => {
+            cb.addEventListener('change', updatePassageInsertExpandSelection);
+        });
+        elements.passageInsertChapters.querySelectorAll('.pp-select-all-cb').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const section = cb.closest('.pp-chapter-section');
+                section.querySelectorAll('.pi-verse-cb')
+                    .forEach(v => { v.checked = cb.checked; });
+                updatePassageInsertExpandSelection();
+            });
+        });
+    }
+
+    function getPassageInsertCheckedIds() {
+        return [...elements.passageInsertChapters.querySelectorAll('.pi-verse-cb:checked')]
+            .map(cb => parseInt(cb.dataset.verseId, 10))
+            .filter(Number.isFinite)
+            .sort((a, b) => a - b);
+    }
+
+    function updatePassageInsertExpandSelection() {
+        elements.passageInsertChapters.querySelectorAll('.pp-chapter-section').forEach(section => {
+            const all = section.querySelectorAll('.pi-verse-cb');
+            const chk = section.querySelectorAll('.pi-verse-cb:checked');
+            const sa = section.querySelector('.pp-select-all-cb');
+            if (!sa) return;
+            sa.checked = chk.length === all.length && all.length > 0;
+            sa.indeterminate = chk.length > 0 && chk.length < all.length;
+        });
+
+        const checked = getPassageInsertCheckedIds();
+        const count = checked.length;
+        elements.passageInsertExpandCount.textContent =
+            count === 0 ? '0 verses selected' :
+            count === 1 ? '1 verse selected' :
+            `${count} verses selected`;
+        elements.passageInsertConfirm.disabled = count === 0 || count > PASSAGE_INSERT_MAX_VERSES;
+        if (count > PASSAGE_INSERT_MAX_VERSES) {
+            elements.passageInsertExpandCount.textContent =
+                `Too many verses (max ${PASSAGE_INSERT_MAX_VERSES})`;
+        }
+    }
+
+    function confirmPassageInsertExpand() {
+        const checked = getPassageInsertCheckedIds();
+        if (!checked.length) return;
+        if (checked.length > PASSAGE_INSERT_MAX_VERSES) {
+            showToast(`Selection limited to ${PASSAGE_INSERT_MAX_VERSES} verses`);
+            return;
+        }
+        const naturalKey = buildNaturalKeyFromIds(checked);
+        insertVTokenFromNaturalKey(naturalKey);
+    }
+
     function insertPassageVToken(passageId, naturalKey) {
+        const p = state.passages.find(x => x.id === passageId);
+        const key = naturalKey || (p && p.naturalKey);
+        if (!key) {
+            showToast('Could not resolve passage range');
+            return;
+        }
+        insertVTokenFromNaturalKey(key);
+    }
+
+    function insertVTokenFromNaturalKey(naturalKey) {
         const ta = state.passageInsertTarget;
         if (!ta) return;
         let token;
         try {
-            const p = state.passages.find(x => x.id === passageId);
-            const key = naturalKey || (p && p.naturalKey);
-            if (!key) {
-                showToast('Could not resolve passage range');
-                return;
-            }
-            token = serializeVToken(rangesFromNaturalKey(key));
+            token = serializeVToken(rangesFromNaturalKey(naturalKey));
         } catch (err) {
             console.error(err);
-            showToast('Could not insert passage link');
+            showToast('Could not insert scripture link');
             return;
         }
         const start = ta.selectionStart ?? ta.value.length;
@@ -4851,7 +5172,13 @@
         // Close overlays with Escape (in order of z-index)
         if (e.key === 'Escape') {
             if (state.passageInsertOpen) {
-                closePassageInsertPicker();
+                if (state.passageInsertMode === 'expand') {
+                    showPassageInsertBrowse();
+                    renderPassageInsertBrowse();
+                    elements.passageInsertSearch.focus();
+                } else {
+                    closePassageInsertPicker();
+                }
             } else if (state.chapterNoteEditorOpen) {
                 closeChapterNoteEditor();
             } else if (state.noteEditorOpen) {
@@ -5363,13 +5690,30 @@
             }
         });
 
-        // Passage insert picker
+        // Scripture insert picker
         if (elements.passageInsertClose) {
             elements.passageInsertClose.addEventListener('click', closePassageInsertPicker);
             elements.passageInsertOverlay.addEventListener('click', (e) => {
                 if (e.target === elements.passageInsertOverlay) closePassageInsertPicker();
             });
-            elements.passageInsertSearch.addEventListener('input', renderPassageInsertList);
+            elements.passageInsertSearch.addEventListener('input', onPassageInsertSearchInput);
+            if (elements.passageInsertTabs) {
+                elements.passageInsertTabs.addEventListener('click', (e) => {
+                    const tab = e.target.closest('.passage-insert-tab');
+                    if (!tab) return;
+                    setPassageInsertTab(tab.dataset.tab);
+                });
+            }
+            if (elements.passageInsertExpandBack) {
+                elements.passageInsertExpandBack.addEventListener('click', () => {
+                    showPassageInsertBrowse();
+                    renderPassageInsertBrowse();
+                    elements.passageInsertSearch.focus();
+                });
+            }
+            if (elements.passageInsertConfirm) {
+                elements.passageInsertConfirm.addEventListener('click', confirmPassageInsertExpand);
+            }
         }
 
         // Book-note pencil / scoped Back in the page title

@@ -1629,6 +1629,106 @@ body {
     max-height: min(50vh, 400px);
 }
 
+.passage-insert-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0 1.5rem 0.65rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.passage-insert-tab {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    padding: 0.4rem 0.75rem;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.passage-insert-tab:hover {
+    color: var(--color-text);
+}
+
+.passage-insert-tab.active {
+    color: var(--color-text);
+    border-bottom-color: var(--color-link);
+}
+
+.passage-insert-badge {
+    display: inline-block;
+    margin-left: 0.45rem;
+    font-size: 0.7rem;
+    color: var(--color-link);
+    vertical-align: middle;
+}
+
+.passage-insert-verse-hit {
+    cursor: pointer;
+}
+
+.passage-insert-back {
+    display: block;
+    margin: 0 1.5rem 0.5rem;
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    color: var(--color-link);
+    cursor: pointer;
+    text-align: left;
+}
+
+.passage-insert-back:hover {
+    text-decoration: underline;
+}
+
+.passage-insert-expand-hint {
+    margin: 0 1.5rem 0.5rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+#passage-insert-expand .collections-count {
+    margin: 0 1.5rem 0.5rem;
+}
+
+.passage-insert-chapters {
+    max-height: min(45vh, 360px);
+    overflow-y: auto;
+    margin-bottom: 0.5rem;
+}
+
+.passage-insert-expand-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.75rem 1.5rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.passage-insert-confirm-btn {
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    padding: 0.45rem 1rem;
+    border: none;
+    border-radius: 4px;
+    background: var(--color-link);
+    color: #fff;
+    cursor: pointer;
+}
+
+.passage-insert-confirm-btn:hover:not(:disabled) {
+    background: var(--color-text);
+}
+
+.passage-insert-confirm-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
 .chapter-note-signin {
     text-align: center;
     padding: 1rem 0 0.5rem;

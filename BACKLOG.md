@@ -22,10 +22,8 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 - **Passage Collections** *(done — PR #30)* — ordered cross-book verse lists, builder modal, scoped reader at `/read/collection/{id}`, `[pid=N]` note links, search autocomplete. V15 migration. `passage_collections` (BIGSERIAL) + `passage_collection_verses` (explicit position). Hotkey `C`.
 - **Sermon / lesson notes** *(done — PR #31)* — full-CRUD notes (title + body) on `/dashboard`. `sermon_notes` table (V16). Markdown-lite renderer with `[pid=N]` collection links and `[Reference]` verse links. Dashboard builder: list, create, view, edit, delete.
 - **Portable `[v=…]` verse links** *(done)* — note bodies store `[v=verse-id-ranges]`; render as human refs (or Passage title); focused `/read/range?v=…` reader without requiring a Passage row. See `docs/architecture/passage-and-verse-link-model.md`.
-- **Insert Scripture: Bible search + range expand** — today’s Insert Scripture picker only lists predefined Passages (user + globals). Follow-on: let the user find scripture the same way the main search bar does, then optionally grow a contiguous selection around a hit, then insert portable `[v=…]`.
-  - **Workflow:** (1) type search terms or a reference → Matching Verses via existing Lucene/`/api/search` (+ reference parse); (2) select a hit; (3) optionally include surrounding verses (chapter-aware checkboxes or ±N expand, reuse collection-builder / passage-picker verse-row patterns); (4) insert normalized `[v=…]` (and optionally “Save as passage” with title).
-  - **Also keep** a “My passages / Featured” lane so named lenses remain one click away.
-  - **Main search synergy (same slice or sibling):** tabbed results — e.g. Matching Verses (N) | Matching Passages (M) — so the header search and Insert Scripture share one discovery model. Passages tab filters user + global catalog by title/reference/overlap with hit ranges.
+- **Insert Scripture: Bible search + range expand** *(done — picker tabs)* — Insert Scripture now has Matching Verses (Lucene + reference parse) and My Passages / Featured. Selecting a verse opens chapter-aware surrounding checkboxes (prev/current/next), then inserts portable `[v=…]`. Optional “Save as passage” and header-search tab synergy remain follow-ons.
+  - **Still open (sibling):** tabbed header `/` search — Matching Verses | Matching Passages — sharing the same discovery model.
   - Fits the accepted model: links stay verse-id portable; Passages remain optional lenses.
 - **First-class Notes Editor (not a modal)** — verse / chapter / book / sermon notes currently share compact modal editors. As notes become the hub for portable `[v=…]` links, outlines, and later study/sermon work, the editor needs a dedicated, distraction-aware surface (full route or docked panel), not a transient overlay.
   - **Why:** room for longer writing, Insert Scripture / search, preview of rendered markdown + scripture labels, backlinks to open ranges, and eventually multi-note / outline structure without fighting z-index and focus traps.
@@ -86,7 +84,7 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 ## Reader Enhancements
 
-- **Tabbed search results (verses | passages)** — see Notes → *Insert Scripture: Bible search + range expand*. Header `/` search could share the same Matching Verses / Matching Passages tabs.
+- **Tabbed search results (verses | passages)** — Insert Scripture already has Matching Verses | My Passages. Bring the same model to header `/` search.
 - **Cross-references** — inline links to parallel passages (e.g. Psalm 22 ↔ Matthew 27)
 - **Concordance** — click a word to see all verses containing it
 - **Red-letter edition** — words of Christ highlighted

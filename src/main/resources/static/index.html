@@ -347,7 +347,7 @@
         </div>
     </div>
 
-    <!-- Insert Passage Picker (for notes) -->
+    <!-- Insert Scripture Picker (for notes) -->
     <div class="collections-overlay" id="passage-insert-overlay" hidden>
         <div class="collections-modal passage-insert-modal">
             <div class="collections-header">
@@ -355,9 +355,30 @@
                 <button id="passage-insert-close" aria-label="Close">&times;</button>
             </div>
             <input type="search" id="passage-insert-search" class="passage-insert-search"
-                placeholder="Search by title or reference…" autocomplete="off">
-            <div class="collections-count" id="passage-insert-count">0 passages</div>
-            <div class="collections-list" id="passage-insert-list"></div>
+                placeholder="Search scripture, title, or reference…" autocomplete="off">
+            <div class="passage-insert-tabs" id="passage-insert-tabs" role="tablist">
+                <button type="button" class="passage-insert-tab active" data-tab="verses" role="tab"
+                    aria-selected="true">Matching Verses</button>
+                <button type="button" class="passage-insert-tab" data-tab="passages" role="tab"
+                    aria-selected="false">My Passages</button>
+            </div>
+            <div id="passage-insert-browse">
+                <div class="collections-count" id="passage-insert-count">Type to search verses</div>
+                <div class="collections-list" id="passage-insert-list"></div>
+            </div>
+            <div id="passage-insert-expand" hidden>
+                <button type="button" id="passage-insert-expand-back" class="passage-insert-back">
+                    ← Back to results
+                </button>
+                <p class="passage-insert-expand-hint">Include surrounding verses, then insert a portable link.</p>
+                <div class="collections-count" id="passage-insert-expand-count">0 verses selected</div>
+                <div class="passage-insert-chapters" id="passage-insert-chapters"></div>
+                <div class="passage-insert-expand-actions">
+                    <button type="button" id="passage-insert-confirm" class="passage-insert-confirm-btn" disabled>
+                        Insert link
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

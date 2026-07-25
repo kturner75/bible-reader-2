@@ -792,3 +792,239 @@ a:hover { text-decoration: underline; }
 .note-insert-passage-btn {
     margin-right: auto;
 }
+
+/* Insert Scripture picker */
+.passage-insert-search {
+    display: block;
+    width: 100%;
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.75rem;
+    box-sizing: border-box;
+    font-family: var(--font-primary);
+    font-size: 0.95rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: white;
+    color: var(--color-text);
+}
+
+.passage-insert-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0 0 0.65rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.passage-insert-tab {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    padding: 0.4rem 0.75rem;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.passage-insert-tab:hover { color: var(--color-text); }
+
+.passage-insert-tab.active {
+    color: var(--color-text);
+    border-bottom-color: var(--color-link);
+}
+
+.passage-insert-badge {
+    display: inline-block;
+    margin-left: 0.45rem;
+    font-size: 0.7rem;
+    color: var(--color-link);
+    vertical-align: middle;
+}
+
+.collections-empty {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.collections-count {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.collections-list {
+    max-height: min(45vh, 360px);
+    overflow-y: auto;
+}
+
+.passage-insert-row {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 0.35rem;
+    font-family: var(--font-primary);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.55rem 0.75rem;
+    cursor: pointer;
+    color: inherit;
+}
+
+.passage-insert-row:hover {
+    border-color: var(--color-link);
+}
+
+.search-result-item,
+.passage-insert-verse-hit {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font-primary);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.65rem 0.15rem;
+    cursor: pointer;
+    color: inherit;
+}
+
+.search-result-item:hover,
+.passage-insert-verse-hit:hover {
+    background: var(--color-accent-light);
+}
+
+.search-result-ref {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+
+.search-result-text {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+}
+
+.search-result-text mark {
+    background: var(--color-accent-light);
+    color: var(--color-text);
+}
+
+.passage-insert-back {
+    display: block;
+    margin: 0 0 0.5rem;
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    color: var(--color-link);
+    cursor: pointer;
+    text-align: left;
+}
+
+.passage-insert-back:hover { text-decoration: underline; }
+
+.passage-insert-expand-hint {
+    margin: 0 0 0.5rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+.passage-insert-chapters {
+    max-height: min(45vh, 360px);
+    overflow-y: auto;
+    margin: 0 -0.25rem 0.5rem;
+}
+
+.passage-picker-loading {
+    padding: 1rem 0.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+
+.pp-chapter-section { margin-bottom: 0.75rem; }
+
+.pp-chapter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0.25rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 0.25rem;
+}
+
+.pp-chapter-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.pp-select-all-label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+
+.pp-verse-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.3rem 0.25rem;
+    cursor: pointer;
+}
+
+.pp-verse-row:hover { background: var(--color-accent-light); }
+
+.pp-verse-cb {
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: var(--color-link);
+}
+
+.pp-verse-num {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    min-width: 1.5rem;
+    text-align: right;
+}
+
+.pp-verse-text {
+    font-size: 0.9rem;
+    color: var(--color-text);
+    line-height: 1.45;
+}
+
+.passage-insert-expand-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.passage-insert-confirm-btn {
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    padding: 0.45rem 1rem;
+    border: none;
+    border-radius: 4px;
+    background: var(--color-link);
+    color: #fff;
+    cursor: pointer;
+}
+
+.passage-insert-confirm-btn:hover:not(:disabled) {
+    background: #6a5132;
+}
+
+.passage-insert-confirm-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}

@@ -831,15 +831,118 @@
     textarea.addEventListener('input', updateCharCount);
     overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
-    // Insert passage picker
+    // Insert scripture picker (Matching Verses + My Passages)
     const insertOverlay = document.getElementById('passage-insert-overlay');
     const insertClose = document.getElementById('passage-insert-close');
     const insertSearch = document.getElementById('passage-insert-search');
+    const insertTabs = document.getElementById('passage-insert-tabs');
+    const insertBrowse = document.getElementById('passage-insert-browse');
     const insertCount = document.getElementById('passage-insert-count');
     const insertList = document.getElementById('passage-insert-list');
+    const insertExpand = document.getElementById('passage-insert-expand');
+    const insertExpandBack = document.getElementById('passage-insert-expand-back');
+    const insertExpandCount = document.getElementById('passage-insert-expand-count');
+    const insertChapters = document.getElementById('passage-insert-chapters');
+    const insertConfirm = document.getElementById('passage-insert-confirm');
     const insertBtn = document.getElementById('sermon-note-insert-passage-btn');
 
-    function renderInsertList() {
+    const INSERT_MAX_VERSES = 500;
+    let insertTab = 'verses';
+    let insertMode = 'browse';
+    let insertSearchTimer = null;
+    let insertSearchGen = 0;
+    let insertExpandGen = 0;
+
+    function closeInsertPicker() {
+        insertOverlay.hidden = true;
+        insertMode = 'browse';
+        insertSearchGen++;
+        insertExpandGen++;
+        if (insertSearchTimer) {
+            clearTimeout(insertSearchTimer);
+            insertSearchTimer = null;
+        }
+    }
+
+    function syncInsertTabs() {
+        if (!insertTabs) return;
+        insertTabs.querySelectorAll('.passage-insert-tab').forEach(btn => {
+            const active = btn.dataset.tab === insertTab;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        insertSearch.placeholder = insertTab === 'verses'
+            ? 'Search scripture or reference…'
+            : 'Filter by title or reference…';
+    }
+
+    function showInsertBrowse() {
+        insertMode = 'browse';
+        insertExpandGen++;
+        if (insertBrowse) insertBrowse.hidden = false;
+        if (insertExpand) insertExpand.hidden = true;
+        if (insertTabs) insertTabs.hidden = false;
+        insertSearch.hidden = false;
+    }
+
+    function setInsertTab(tab) {
+        insertTab = tab === 'passages' ? 'passages' : 'verses';
+        insertSearchGen++;
+        if (insertSearchTimer) {
+            clearTimeout(insertSearchTimer);
+            insertSearchTimer = null;
+        }
+        syncInsertTabs();
+        showInsertBrowse();
+        renderInsertBrowse();
+        insertSearch.focus();
+    }
+
+    function insertVTokenFromNaturalKey(naturalKey) {
+        let token;
+        try {
+            token = serializeVToken(rangesFromNaturalKey(naturalKey));
+        } catch {
+            return;
+        }
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? start;
+        const before = textarea.value.slice(0, start);
+        const after = textarea.value.slice(end);
+        const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
+        const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
+        const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
+        const next = before + insert + after;
+        const maxLen = parseInt(textarea.getAttribute('maxlength'), 10);
+        if (Number.isFinite(maxLen) && next.length > maxLen) {
+            insertCount.textContent = `Not enough room for that link (${maxLen} char limit)`;
+            return;
+        }
+        textarea.value = next;
+        const caret = before.length + insert.length;
+        textarea.focus();
+        textarea.setSelectionRange(caret, caret);
+        updateCharCount();
+        closeInsertPicker();
+    }
+
+    function buildNaturalKeyFromIds(ids) {
+        if (!ids.length) return null;
+        const sorted = [...ids].sort((a, b) => a - b);
+        const segs = [];
+        let start = sorted[0], end = sorted[0];
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i] === end + 1) { end = sorted[i]; }
+            else {
+                segs.push(start === end ? `${start}` : `${start}:${end}`);
+                start = end = sorted[i];
+            }
+        }
+        segs.push(start === end ? `${start}` : `${start}:${end}`);
+        return segs.join(',');
+    }
+
+    function renderInsertPassages() {
         const q = (insertSearch.value || '').trim().toLowerCase();
         let list = passages;
         if (q) {
@@ -852,63 +955,294 @@
         }
         insertCount.textContent = list.length === 1 ? '1 passage' : `${list.length} passages`;
         if (list.length === 0) {
-            insertList.innerHTML = '<p style="color:var(--color-text-muted);">No passages yet. Create one from the reader collections builder.</p>';
+            insertList.innerHTML = '<p class="collections-empty">No passages yet. Create one from the reader, or use Matching Verses.</p>';
             return;
         }
         insertList.innerHTML = list.map(p => `
             <button type="button" class="sermon-note-row passage-insert-row" data-passage-id="${p.id}"
-                data-natural-key="${escapeHtml(p.naturalKey || '')}"
-                style="display:block;width:100%;text-align:left;margin-bottom:0.35rem;">
+                data-natural-key="${escapeHtml(p.naturalKey || '')}">
                 <span class="sermon-note-row-title">${escapeHtml(passageDisplayLabel(p))}</span>
-                <span class="sermon-note-row-meta">${escapeHtml(p.reference || '')}</span>
+                <span class="sermon-note-row-meta">${escapeHtml(p.reference || '')}${p.global ? ' · Featured' : ''}</span>
             </button>`).join('');
         insertList.querySelectorAll('.passage-insert-row').forEach(btn => {
             btn.addEventListener('click', () => {
-                let token;
-                try {
-                    const p = passages.find(x => x.id === btn.dataset.passageId);
-                    const key = btn.dataset.naturalKey || (p && p.naturalKey);
-                    token = serializeVToken(rangesFromNaturalKey(key));
-                } catch {
-                    return;
-                }
-                const start = textarea.selectionStart ?? textarea.value.length;
-                const end = textarea.selectionEnd ?? start;
-                const before = textarea.value.slice(0, start);
-                const after = textarea.value.slice(end);
-                const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
-                const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
-                const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
-                const next = before + insert + after;
-                const maxLen = parseInt(textarea.getAttribute('maxlength'), 10);
-                if (Number.isFinite(maxLen) && next.length > maxLen) {
-                    insertCount.textContent = `Not enough room for that link (${maxLen} char limit)`;
-                    return;
-                }
-                textarea.value = next;
-                const caret = before.length + insert.length;
-                textarea.focus();
-                textarea.setSelectionRange(caret, caret);
-                updateCharCount();
-                insertOverlay.hidden = true;
+                const p = passages.find(x => x.id === btn.dataset.passageId);
+                const key = btn.dataset.naturalKey || (p && p.naturalKey);
+                if (key) insertVTokenFromNaturalKey(key);
             });
         });
     }
 
+    async function runInsertVerseSearch() {
+        const q = (insertSearch.value || '').trim();
+        const gen = ++insertSearchGen;
+        if (!q) {
+            insertCount.textContent = 'Type to search verses';
+            insertList.innerHTML =
+                '<p class="collections-empty">Search by words or a reference like John 3:16.<br>' +
+                'Then optionally include surrounding verses before inserting.</p>';
+            return;
+        }
+
+        insertCount.textContent = 'Searching…';
+        insertList.innerHTML = '<p class="collections-empty">Searching…</p>';
+
+        let refHit = null;
+        let searchVerses = [];
+        try {
+            const res = await fetch(`/api/reference?ref=${encodeURIComponent(q)}`);
+            if (res.ok) {
+                const refResult = await res.json();
+                if (refResult.valid && refResult.verseId) {
+                    const v = refResult.verse;
+                    refHit = {
+                        id: refResult.verseId,
+                        book: v?.book || '',
+                        chapter: v?.chapter,
+                        verse: v?.verse ?? 1,
+                        text: v?.text || '',
+                        highlight: null,
+                        fromReference: true
+                    };
+                }
+            }
+        } catch (_) { /* not a reference */ }
+
+        try {
+            const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=50`);
+            if (res.ok) {
+                const results = await res.json();
+                searchVerses = results.verses || [];
+            }
+        } catch (err) {
+            console.error('Insert scripture search failed', err);
+            if (gen !== insertSearchGen) return;
+            if (!refHit) {
+                insertCount.textContent = 'Search failed';
+                insertList.innerHTML = '<p class="collections-empty">Could not search scripture. Try again.</p>';
+                return;
+            }
+        }
+
+        if (gen !== insertSearchGen) return;
+
+        const seen = new Set();
+        const hits = [];
+        if (refHit) {
+            seen.add(refHit.id);
+            hits.push(refHit);
+        }
+        for (const v of searchVerses) {
+            if (seen.has(v.id)) continue;
+            seen.add(v.id);
+            hits.push(v);
+        }
+
+        insertCount.textContent =
+            hits.length === 1 ? '1 matching verse' : `${hits.length} matching verses`;
+
+        if (hits.length === 0) {
+            insertList.innerHTML = '<p class="collections-empty">No verses found.</p>';
+            return;
+        }
+
+        insertList.innerHTML = hits.map(v => {
+            const ref = `${v.book} ${v.chapter}:${v.verse}`;
+            const snippet = v.highlight || escapeHtml(v.text || '');
+            const badge = v.fromReference
+                ? '<span class="passage-insert-badge">Reference</span>'
+                : '';
+            return `
+                <button type="button" class="search-result-item passage-insert-verse-hit" data-verse-id="${v.id}">
+                    <div class="search-result-ref">${escapeHtml(ref)}${badge}</div>
+                    <div class="search-result-text">${snippet || '&nbsp;'}</div>
+                </button>`;
+        }).join('');
+
+        insertList.querySelectorAll('.passage-insert-verse-hit').forEach(item => {
+            item.addEventListener('click', () => {
+                openInsertExpand(parseInt(item.dataset.verseId, 10));
+            });
+        });
+    }
+
+    function renderInsertBrowse() {
+        if (insertTab === 'passages') renderInsertPassages();
+        else runInsertVerseSearch();
+    }
+
+    function onInsertSearchInput() {
+        if (insertMode === 'expand') showInsertBrowse();
+        if (insertTab === 'passages') {
+            insertSearchGen++;
+            if (insertSearchTimer) {
+                clearTimeout(insertSearchTimer);
+                insertSearchTimer = null;
+            }
+            renderInsertPassages();
+            return;
+        }
+        if (insertSearchTimer) clearTimeout(insertSearchTimer);
+        insertSearchTimer = setTimeout(() => {
+            insertSearchTimer = null;
+            runInsertVerseSearch();
+        }, 280);
+    }
+
+    async function openInsertExpand(verseId) {
+        if (!Number.isFinite(verseId)) return;
+        const expandGen = ++insertExpandGen;
+        insertMode = 'expand';
+        insertBrowse.hidden = true;
+        insertExpand.hidden = false;
+        insertTabs.hidden = true;
+        insertSearch.hidden = true;
+        insertChapters.innerHTML = '<div class="passage-picker-loading">Loading…</div>';
+        insertConfirm.disabled = true;
+        insertExpandCount.textContent = 'Loading…';
+
+        let context;
+        try {
+            const res = await fetch(`/api/ranges/context/${verseId}`, { credentials: 'include' });
+            if (!res.ok) throw new Error('context failed');
+            context = await res.json();
+        } catch (err) {
+            console.error(err);
+            if (expandGen !== insertExpandGen || insertMode !== 'expand') return;
+            insertChapters.innerHTML = '<div class="passage-picker-loading">Could not load surrounding verses.</div>';
+            return;
+        }
+
+        if (expandGen !== insertExpandGen || insertMode !== 'expand') return;
+        const checkedIds = new Set([verseId]);
+        renderInsertExpandChapters(context, checkedIds, verseId);
+    }
+
+    function renderInsertExpandChapters(context, checkedIds, anchorVerseId) {
+        const sections = [context.prevChapter, context.currentChapter, context.nextChapter]
+            .filter(Boolean);
+
+        insertChapters.innerHTML = sections.map(ch => {
+            const allIds = ch.verses.map(v => v.id);
+            const headerLabel = `${ch.bookName} ${ch.chapter}`;
+            const verseRows = ch.verses.map(v => `
+                <label class="pp-verse-row">
+                    <input type="checkbox" class="pp-verse-cb pi-verse-cb" data-verse-id="${v.id}"
+                           ${checkedIds.has(v.id) ? 'checked' : ''}>
+                    <span class="pp-verse-num">${v.verseNum}</span>
+                    <span class="pp-verse-text">${escapeHtml(v.text)}</span>
+                </label>`).join('');
+            return `
+                <div class="pp-chapter-section" data-all-ids="${allIds.join(',')}">
+                    <div class="pp-chapter-header">
+                        <span class="pp-chapter-label">${escapeHtml(headerLabel)}</span>
+                        <label class="pp-select-all-label">
+                            <input type="checkbox" class="pp-select-all-cb">
+                            Select all
+                        </label>
+                    </div>
+                    ${verseRows}
+                </div>`;
+        }).join('');
+
+        updateInsertExpandSelection();
+
+        const anchorCb = insertChapters.querySelector(`[data-verse-id="${anchorVerseId}"]`);
+        if (anchorCb) anchorCb.closest('.pp-verse-row').scrollIntoView({ block: 'center' });
+
+        insertChapters.querySelectorAll('.pi-verse-cb').forEach(cb => {
+            cb.addEventListener('change', updateInsertExpandSelection);
+        });
+        insertChapters.querySelectorAll('.pp-select-all-cb').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const section = cb.closest('.pp-chapter-section');
+                section.querySelectorAll('.pi-verse-cb')
+                    .forEach(v => { v.checked = cb.checked; });
+                updateInsertExpandSelection();
+            });
+        });
+    }
+
+    function getInsertCheckedIds() {
+        return [...insertChapters.querySelectorAll('.pi-verse-cb:checked')]
+            .map(cb => parseInt(cb.dataset.verseId, 10))
+            .filter(Number.isFinite)
+            .sort((a, b) => a - b);
+    }
+
+    function updateInsertExpandSelection() {
+        insertChapters.querySelectorAll('.pp-chapter-section').forEach(section => {
+            const all = section.querySelectorAll('.pi-verse-cb');
+            const chk = section.querySelectorAll('.pi-verse-cb:checked');
+            const sa = section.querySelector('.pp-select-all-cb');
+            if (!sa) return;
+            sa.checked = chk.length === all.length && all.length > 0;
+            sa.indeterminate = chk.length > 0 && chk.length < all.length;
+        });
+
+        const checked = getInsertCheckedIds();
+        const count = checked.length;
+        insertExpandCount.textContent =
+            count === 0 ? '0 verses selected' :
+            count === 1 ? '1 verse selected' :
+            `${count} verses selected`;
+        insertConfirm.disabled = count === 0 || count > INSERT_MAX_VERSES;
+        if (count > INSERT_MAX_VERSES) {
+            insertExpandCount.textContent = `Too many verses (max ${INSERT_MAX_VERSES})`;
+        }
+    }
+
+    function confirmInsertExpand() {
+        const checked = getInsertCheckedIds();
+        if (!checked.length || checked.length > INSERT_MAX_VERSES) return;
+        const naturalKey = buildNaturalKeyFromIds(checked);
+        insertVTokenFromNaturalKey(naturalKey);
+    }
+
     if (insertBtn) {
         insertBtn.addEventListener('click', () => {
+            insertTab = 'verses';
+            insertMode = 'browse';
             insertSearch.value = '';
-            renderInsertList();
+            syncInsertTabs();
+            showInsertBrowse();
+            renderInsertBrowse();
             insertOverlay.hidden = false;
             insertSearch.focus();
         });
     }
     if (insertClose) {
-        insertClose.addEventListener('click', () => { insertOverlay.hidden = true; });
+        insertClose.addEventListener('click', closeInsertPicker);
         insertOverlay.addEventListener('click', e => {
-            if (e.target === insertOverlay) insertOverlay.hidden = true;
+            if (e.target === insertOverlay) closeInsertPicker();
         });
-        insertSearch.addEventListener('input', renderInsertList);
+        insertSearch.addEventListener('input', onInsertSearchInput);
+        if (insertTabs) {
+            insertTabs.addEventListener('click', e => {
+                const tab = e.target.closest('.passage-insert-tab');
+                if (tab) setInsertTab(tab.dataset.tab);
+            });
+        }
+        if (insertExpandBack) {
+            insertExpandBack.addEventListener('click', () => {
+                showInsertBrowse();
+                renderInsertBrowse();
+                insertSearch.focus();
+            });
+        }
+        if (insertConfirm) {
+            insertConfirm.addEventListener('click', confirmInsertExpand);
+        }
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape' || insertOverlay.hidden) return;
+            if (insertMode === 'expand') {
+                showInsertBrowse();
+                renderInsertBrowse();
+                insertSearch.focus();
+            } else {
+                closeInsertPicker();
+            }
+        });
     }
 
     // Verse / range / passage / collection links inside a rendered sermon note
