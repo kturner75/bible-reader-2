@@ -23,6 +23,9 @@ import java.util.List;
 @RequestMapping("/api/ranges")
 public class RangeController {
 
+    /** Same budget as collections — public unauthenticated hydration must stay bounded. */
+    static final int MAX_RANGE_VERSES = 500;
+
     private final BibleService bibleService;
 
     public RangeController(BibleService bibleService) {
@@ -39,6 +42,14 @@ public class RangeController {
             ranges = VerseRangeParser.parseVToken(v.contains("=") || v.startsWith("[") ? v : "v=" + v);
         } catch (IllegalArgumentException e) {
             throw new BadRequestException("Invalid verse range: " + e.getMessage());
+        }
+        int verseCount = 0;
+        for (VerseRangeParser.Range r : ranges) {
+            verseCount += r.to() - r.from() + 1;
+            if (verseCount > MAX_RANGE_VERSES) {
+                throw new BadRequestException(
+                        "Range exceeds the " + MAX_RANGE_VERSES + "-verse limit");
+            }
         }
         String body = VerseRangeParser.serializeRangeBody(ranges);
         String naturalKey = VerseRangeParser.naturalKeyFromRanges(ranges);

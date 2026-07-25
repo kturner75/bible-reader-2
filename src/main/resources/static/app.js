@@ -1177,11 +1177,15 @@
 
     /**
      * Snapshot reading position (and any note return already staged) before
-     * entering scoped mode. push=false (deep link / popstate) clears return.
+     * entering scoped mode.
+     * push=false on a fresh deep link clears return; push=false while already
+     * in scoped mode (popstate between scoped URLs) keeps the original return.
      */
     function rememberScopedReturn(push) {
         if (!push) {
-            state.scopedReturn = null;
+            if (!state.collection) {
+                state.scopedReturn = null;
+            }
             return;
         }
         const stagedNote = state.scopedReturn?.note || null;

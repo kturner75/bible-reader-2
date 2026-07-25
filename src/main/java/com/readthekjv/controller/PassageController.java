@@ -2,6 +2,7 @@ package com.readthekjv.controller;
 
 import com.readthekjv.model.dto.PassageDetailResponse;
 import com.readthekjv.model.dto.PassageReadResponse;
+import com.readthekjv.model.dto.UpdatePassageTitleRequest;
 import com.readthekjv.model.dto.UpsertPassageRequest;
 import com.readthekjv.model.entity.User;
 import com.readthekjv.repository.UserRepository;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -55,8 +55,8 @@ public class PassageController {
     @PatchMapping("/{id}")
     public PassageDetailResponse updateTitle(@AuthenticationPrincipal UserDetails ud,
                                              @PathVariable UUID id,
-                                             @RequestBody Map<String, String> body) {
-        return passageService.updateTitle(resolveUser(ud).getId(), id, body.get("title"));
+                                             @Valid @RequestBody UpdatePassageTitleRequest body) {
+        return passageService.updateTitle(resolveUser(ud).getId(), id, body.title());
     }
 
     @GetMapping("/{id}/verses")
