@@ -874,7 +874,13 @@
                 const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
                 const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
                 const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
-                textarea.value = before + insert + after;
+                const next = before + insert + after;
+                const maxLen = parseInt(textarea.getAttribute('maxlength'), 10);
+                if (Number.isFinite(maxLen) && next.length > maxLen) {
+                    insertCount.textContent = `Not enough room for that link (${maxLen} char limit)`;
+                    return;
+                }
+                textarea.value = next;
                 const caret = before.length + insert.length;
                 textarea.focus();
                 textarea.setSelectionRange(caret, caret);
