@@ -823,8 +823,9 @@
             ? `<button class="verse-copy-btn" data-verse-id="${verse.id}" title="Copy verse (y)" aria-label="Copy verse text and reference">${COPY_ICON_SVG}</button>`
             : '';
 
+        const ciAttr = (verse._ci != null) ? ` data-ci="${verse._ci}"` : '';
         return `
-            <p class="verse${currentClass}${savedClass}${memorizedClass}" data-verse-id="${verse.id}">
+            <p class="verse${currentClass}${savedClass}${memorizedClass}" data-verse-id="${verse.id}"${ciAttr}>
                 ${tagDotsHtml}
                 <span class="verse-number">${verse.verse}</span>
                 <span class="verse-text">${escapeHtml(verse.text)}</span>
@@ -2659,6 +2660,20 @@
             }
 
             try {
+                // Book notes: [12] means the whole chapter, not verse 1 of ch. 12
+                if (ctx && ctx.type === 'book' && ctx.bookId && /^\d+$/.test(inner)) {
+                    const chapterNum = parseInt(inner, 10);
+                    const chapters = await getChaptersForBook(ctx.bookId);
+                    const ch = chapters.find(c => c.chapter === chapterNum);
+                    if (ch && ch.verseCount > 0) {
+                        parts.push(serializeVToken([{
+                            from: ch.firstVerseId,
+                            to: ch.firstVerseId + ch.verseCount - 1
+                        }]));
+                        continue;
+                    }
+                }
+
                 let verseId = null;
                 if (ctx && ctx.type !== 'book' && /^\d+$/.test(inner)
                     && ctx.firstVerseId && ctx.verseCount) {
@@ -4320,7 +4335,9 @@
 
     /** Renderer ctx for an editor target's verse links. */
     function getRenderCtxForTarget(ref) {
-        if (ref.type === 'book') return { type: 'book', bookName: ref.bookName };
+        if (ref.type === 'book') {
+            return { type: 'book', bookId: ref.bookId, bookName: ref.bookName };
+        }
         return getNoteForTarget(ref); // chapter note object carries firstVerseId/verseCount
     }
 
@@ -4328,7 +4345,11 @@
     async function resolveNormalizeCtx(ref) {
         if (!ref) return null;
         if (ref.type === 'book') {
-            return { type: 'book', bookName: ref.bookName || ref.label };
+            return {
+                type: 'book',
+                bookId: ref.bookId,
+                bookName: ref.bookName || ref.label
+            };
         }
         const existing = getNoteForTarget(ref);
         if (existing && existing.firstVerseId != null && existing.verseCount != null) {
@@ -5368,10 +5389,16 @@
             if (verseEl) {
                 const verseId = parseInt(verseEl.dataset.verseId);
                 if (state.collection) {
-                    const v = state.pageVerses.find(x => x.id === verseId);
+                    // Prefer data-ci — the same verse id can appear more than once
+                    const ci = verseEl.dataset.ci != null
+                        ? parseInt(verseEl.dataset.ci, 10)
+                        : NaN;
+                    const v = Number.isInteger(ci)
+                        ? state.pageVerses.find(x => x._ci === ci)
+                        : state.pageVerses.find(x => x.id === verseId);
                     if (v && v._ci !== state.collection.currentIndex) {
                         state.collection.currentIndex = v._ci;
-                        state.currentVerseId = verseId;
+                        state.currentVerseId = v.id;
                         renderPage();
                     }
                     return;

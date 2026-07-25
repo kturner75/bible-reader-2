@@ -167,8 +167,35 @@ public class PassageService {
         return PassageDetailResponse.from(p, deriveReference(p));
     }
 
+    /**
+     * Human-readable reference for a hydrated verse list. Contiguous id runs
+     * collapse to ranges; gaps become separate segments so labels never imply
+     * omitted verses (e.g. ids 1,3 → "Genesis 1:1; Genesis 1:3", not "1:1–3").
+     */
     public static String formatReference(List<CollectionReadResponse.CollectionVerse> verses) {
         if (verses == null || verses.isEmpty()) return "";
+        List<List<CollectionReadResponse.CollectionVerse>> runs = new ArrayList<>();
+        List<CollectionReadResponse.CollectionVerse> run = new ArrayList<>();
+        run.add(verses.get(0));
+        for (int i = 1; i < verses.size(); i++) {
+            var prev = verses.get(i - 1);
+            var cur = verses.get(i);
+            if (cur.id() == prev.id() + 1) {
+                run.add(cur);
+            } else {
+                runs.add(run);
+                run = new ArrayList<>();
+                run.add(cur);
+            }
+        }
+        runs.add(run);
+        return runs.stream()
+                .map(PassageService::formatContiguousRun)
+                .reduce((a, b) -> a + "; " + b)
+                .orElse("");
+    }
+
+    private static String formatContiguousRun(List<CollectionReadResponse.CollectionVerse> verses) {
         var first = verses.get(0);
         var last = verses.get(verses.size() - 1);
         if (verses.size() == 1) {

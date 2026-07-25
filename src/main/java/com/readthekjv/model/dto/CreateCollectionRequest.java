@@ -9,5 +9,7 @@ import java.util.UUID;
 
 public record CreateCollectionRequest(
     @NotBlank @Size(max = 100) String label,
-    @NotNull @Size(min = 1, max = 100) List<UUID> passageIds
+    // Cap matches the builder's 500-verse budget; V17.1 can migrate sparse
+    // verse lists into many one-verse passages, so 100 was too low to re-save.
+    @NotNull @Size(min = 1, max = 500) List<UUID> passageIds
 ) {}
