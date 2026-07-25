@@ -633,6 +633,15 @@
         return response.json();
     }
 
+    /** Lightweight id-only search for Matching Passages overlap (large hit windows). */
+    async function searchBibleIds(query, limit = 2000) {
+        const response = await fetch(
+            `/api/search/ids?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`
+        );
+        if (!response.ok) throw new Error('Search ids failed');
+        return response.json();
+    }
+
     async function parseReference(ref) {
         const response = await fetch(`/api/reference?ref=${encodeURIComponent(ref)}`);
         if (!response.ok) throw new Error('Failed to parse reference');
@@ -1824,11 +1833,12 @@
         // Dismiss the keyboard on mobile
         elements.searchInput.blur();
 
-        // First, check if it's a Bible reference
+        // Bible reference: jump directly unless Matching Passages has hits to offer.
         try {
             const refResult = await parseReference(query);
             if (refResult.valid && refResult.verseId) {
-                // It's a valid reference, jump directly
+                const opened = await maybeOpenReferencePassageDiscovery(query, refResult);
+                if (opened) return;
                 const wasPlaying = state.audioWasPlayingBeforeModal;
                 closeSearch();
                 await goToVerse(refResult.verseId);
@@ -1841,25 +1851,66 @@
             // Not a reference, continue with text search
         }
 
-        // Perform full-text search. Fetch a wider hit window so Matching Passages
-        // can overlap beyond the first 50 display results; verses tab still shows 50.
+        // Full-text search: display top verses; load id-only hits for passage overlap.
         try {
-            const SEARCH_VERSES_DISPLAY = 50;
-            const SEARCH_HIT_IDS_LIMIT = 200;
-            const wide = await searchBible(query, SEARCH_HIT_IDS_LIMIT);
+            const results = await searchBible(query, 50);
             state.lastSearchQuery = query;
-            state.lastSearchHitIds = new Set((wide.verses || []).map(v => v.id));
-            state.lastSearchResults = {
-                query: wide.query,
-                count: wide.count,
-                verses: (wide.verses || []).slice(0, SEARCH_VERSES_DISPLAY)
-            };
+            state.lastSearchResults = results;
+            state.lastSearchHitIds = new Set((results.verses || []).map(v => v.id));
             state.searchResultTab = 'verses';
-            await prepareSearchResultTabs();
+            const hasPassages = await prepareSearchResultTabs();
+            if (hasPassages) {
+                await loadSearchHitIdsForPassages(query);
+            }
             openSearch();
             renderSearchBrowse();
         } catch (e) {
             console.error('Search failed', e);
+        }
+    }
+
+    /**
+     * When a typed reference overlaps a saved/Featured passage, open the search
+     * overlay on Matching Passages instead of jumping straight to the verse.
+     * @returns {Promise<boolean>} true if the overlay was opened
+     */
+    async function maybeOpenReferencePassageDiscovery(query, refResult) {
+        const hasPassages = await prepareSearchResultTabs();
+        if (!hasPassages) return false;
+
+        const verseId = refResult.verseId;
+        const v = refResult.verse || {};
+        state.lastSearchQuery = query;
+        state.lastSearchHitIds = new Set([verseId]);
+        state.lastSearchResults = {
+            query,
+            count: 1,
+            verses: [{
+                id: verseId,
+                book: v.book || '',
+                chapter: v.chapter,
+                verse: v.verse ?? 1,
+                text: v.text || '',
+                highlight: null
+            }]
+        };
+
+        const matching = filterMatchingPassages(query);
+        if (matching.length === 0) return false;
+
+        state.searchResultTab = 'passages';
+        syncSearchResultTabs(true);
+        openSearch();
+        renderSearchBrowse();
+        return true;
+    }
+
+    async function loadSearchHitIdsForPassages(query) {
+        try {
+            const idsResult = await searchBibleIds(query, 5000);
+            state.lastSearchHitIds = new Set(idsResult.ids || []);
+        } catch (err) {
+            console.error('Failed to load search hit ids for passages', err);
         }
     }
 
@@ -1875,6 +1926,7 @@
             state.searchResultTab = 'verses';
         }
         syncSearchResultTabs(hasPassages);
+        return hasPassages;
     }
 
     function syncSearchResultTabs(hasPassages) {

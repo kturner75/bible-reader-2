@@ -120,11 +120,29 @@ public class BibleController {
             return ResponseEntity.badRequest().build();
         }
         
-        // Cap high enough for passage-overlap discovery; verse UI still pages a smaller slice.
-        limit = Math.min(Math.max(limit, 1), 200);
+        limit = Math.min(Math.max(limit, 1), 100);
         
         SearchResult result = luceneService.search(q.trim(), limit);
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Full-text search returning verse ids only (for Matching Passages overlap).
+     *
+     * @param q Search query string
+     * @param limit Maximum ids (default: 2000, max: 5000)
+     */
+    @GetMapping("/search/ids")
+    public ResponseEntity<SearchIdsResult> searchIds(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "2000") int limit) {
+
+        if (q == null || q.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        limit = Math.min(Math.max(limit, 1), 5000);
+        return ResponseEntity.ok(luceneService.searchIds(q.trim(), limit));
     }
 
     /**
