@@ -1913,7 +1913,9 @@
             }]
         };
 
-        const matching = filterMatchingPassages(query);
+        // Overlap only — title/reference substring matching would divert "John"
+        // to any John-named passage even outside John 1.
+        const matching = filterPassagesByHitOverlap();
         if (hitGen !== state.searchHitIdsGen) return false;
         if (matching.length === 0) return false;
 
@@ -2067,6 +2069,11 @@
             if (id >= from && id <= to) return true;
         }
         return false;
+    }
+
+    function filterPassagesByHitOverlap() {
+        const hitIds = state.lastSearchHitIds || new Set();
+        return (state.passages || []).filter(p => passageOverlapsHitIds(p, hitIds));
     }
 
     function filterMatchingPassages(query) {
