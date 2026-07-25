@@ -230,6 +230,9 @@
         passageInsertExpandBack: document.getElementById('passage-insert-expand-back'),
         passageInsertExpandCount: document.getElementById('passage-insert-expand-count'),
         passageInsertChapters: document.getElementById('passage-insert-chapters'),
+        passageInsertSave: document.getElementById('passage-insert-save'),
+        passageInsertSaveCb: document.getElementById('passage-insert-save-cb'),
+        passageInsertTitle: document.getElementById('passage-insert-title'),
         passageInsertConfirm: document.getElementById('passage-insert-confirm'),
         noteInsertPassageBtn: document.getElementById('note-insert-passage-btn'),
         chapterNoteInsertPassageBtn: document.getElementById('chapter-note-insert-passage-btn'),
@@ -3487,6 +3490,28 @@
         });
     }
 
+    function resetPassageInsertSaveUi() {
+        if (elements.passageInsertSaveCb) {
+            elements.passageInsertSaveCb.checked = false;
+        }
+        if (elements.passageInsertTitle) {
+            elements.passageInsertTitle.value = '';
+            elements.passageInsertTitle.disabled = true;
+        }
+        if (elements.passageInsertSave) {
+            // Saving requires an account; Matching Verses insert still works signed-out.
+            elements.passageInsertSave.hidden = !state.currentUser;
+        }
+    }
+
+    function syncPassageInsertSaveTitleEnabled() {
+        if (!elements.passageInsertTitle || !elements.passageInsertSaveCb) return;
+        elements.passageInsertTitle.disabled = !elements.passageInsertSaveCb.checked;
+        if (elements.passageInsertSaveCb.checked) {
+            elements.passageInsertTitle.focus();
+        }
+    }
+
     async function openPassageInsertExpand(verseId) {
         if (!Number.isFinite(verseId)) return;
         const expandGen = ++state.passageInsertExpandGen;
@@ -3495,6 +3520,7 @@
         elements.passageInsertExpand.hidden = false;
         elements.passageInsertTabs.hidden = true;
         elements.passageInsertSearch.hidden = true;
+        resetPassageInsertSaveUi();
         elements.passageInsertChapters.innerHTML =
             '<div class="passage-picker-loading">Loading…</div>';
         elements.passageInsertConfirm.disabled = true;
@@ -3607,7 +3633,33 @@
             return;
         }
         const naturalKey = buildNaturalKeyFromIds(checked);
+        const shouldSave = !!(state.currentUser
+            && elements.passageInsertSaveCb
+            && elements.passageInsertSaveCb.checked);
+        const title = (elements.passageInsertTitle?.value || '').trim();
+        // Insert first — saving is optional and must not block the portable link.
         insertVTokenFromNaturalKey(naturalKey);
+        if (shouldSave) {
+            savePassageFromInsert(naturalKey, title);
+        }
+    }
+
+    async function savePassageFromInsert(naturalKey, title) {
+        try {
+            await libApi('/api/passages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    naturalKey,
+                    title: title || null
+                })
+            });
+            await loadPassagesFromApi();
+            showToast(title ? 'Passage saved' : 'Passage saved (untitled)');
+        } catch (err) {
+            console.error('Failed to save passage from insert', err);
+            showToast('Link inserted, but saving the passage failed');
+        }
     }
 
     function insertPassageVToken(passageId, naturalKey) {
@@ -5979,6 +6031,9 @@
             }
             if (elements.passageInsertConfirm) {
                 elements.passageInsertConfirm.addEventListener('click', confirmPassageInsertExpand);
+            }
+            if (elements.passageInsertSaveCb) {
+                elements.passageInsertSaveCb.addEventListener('change', syncPassageInsertSaveTitleEnabled);
             }
         }
 

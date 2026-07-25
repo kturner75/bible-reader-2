@@ -379,6 +379,15 @@
                 <p class="passage-insert-expand-hint">Include surrounding verses, then insert a portable link.</p>
                 <div class="collections-count" id="passage-insert-expand-count">0 verses selected</div>
                 <div class="passage-insert-chapters" id="passage-insert-chapters"></div>
+                <div class="passage-insert-save" id="passage-insert-save" hidden>
+                    <label class="passage-insert-save-check">
+                        <input type="checkbox" id="passage-insert-save-cb">
+                        Save as passage
+                    </label>
+                    <input type="text" id="passage-insert-title" class="passage-insert-title"
+                        placeholder="Optional title…" maxlength="100" autocomplete="off"
+                        aria-label="Optional passage title" disabled>
+                </div>
                 <div class="passage-insert-expand-actions">
                     <button type="button" id="passage-insert-confirm" class="passage-insert-confirm-btn" disabled>
                         Insert link

@@ -843,6 +843,9 @@
     const insertExpandBack = document.getElementById('passage-insert-expand-back');
     const insertExpandCount = document.getElementById('passage-insert-expand-count');
     const insertChapters = document.getElementById('passage-insert-chapters');
+    const insertSave = document.getElementById('passage-insert-save');
+    const insertSaveCb = document.getElementById('passage-insert-save-cb');
+    const insertTitle = document.getElementById('passage-insert-title');
     const insertConfirm = document.getElementById('passage-insert-confirm');
     const insertBtn = document.getElementById('sermon-note-insert-passage-btn');
 
@@ -1097,6 +1100,7 @@
         insertExpand.hidden = false;
         insertTabs.hidden = true;
         insertSearch.hidden = true;
+        resetInsertSaveUi();
         insertChapters.innerHTML = '<div class="passage-picker-loading">Loading…</div>';
         insertConfirm.disabled = true;
         insertExpandCount.textContent = 'Loading…';
@@ -1192,11 +1196,52 @@
         }
     }
 
+    function resetInsertSaveUi() {
+        if (insertSaveCb) insertSaveCb.checked = false;
+        if (insertTitle) {
+            insertTitle.value = '';
+            insertTitle.disabled = true;
+        }
+        if (insertSave) insertSave.hidden = false;
+    }
+
+    function syncInsertSaveTitleEnabled() {
+        if (!insertTitle || !insertSaveCb) return;
+        insertTitle.disabled = !insertSaveCb.checked;
+        if (insertSaveCb.checked) insertTitle.focus();
+    }
+
     function confirmInsertExpand() {
         const checked = getInsertCheckedIds();
         if (!checked.length || checked.length > INSERT_MAX_VERSES) return;
         const naturalKey = buildNaturalKeyFromIds(checked);
+        const shouldSave = !!(insertSaveCb && insertSaveCb.checked);
+        const title = (insertTitle?.value || '').trim();
         insertVTokenFromNaturalKey(naturalKey);
+        if (shouldSave) {
+            savePassageFromInsert(naturalKey, title);
+        }
+    }
+
+    async function savePassageFromInsert(naturalKey, title) {
+        try {
+            const res = await fetch('/api/passages', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ naturalKey, title: title || null })
+            });
+            if (!res.ok) throw new Error('save failed');
+            const listRes = await fetch('/api/passages', { credentials: 'include' });
+            if (listRes.ok) {
+                passages = await listRes.json();
+            }
+        } catch (err) {
+            console.error('Failed to save passage from insert', err);
+            if (insertCount) {
+                insertCount.textContent = 'Link inserted, but saving the passage failed';
+            }
+        }
     }
 
     if (insertBtn) {
@@ -1232,6 +1277,9 @@
         }
         if (insertConfirm) {
             insertConfirm.addEventListener('click', confirmInsertExpand);
+        }
+        if (insertSaveCb) {
+            insertSaveCb.addEventListener('change', syncInsertSaveTitleEnabled);
         }
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape' || insertOverlay.hidden) return;
