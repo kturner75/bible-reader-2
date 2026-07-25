@@ -108,7 +108,7 @@ class PassageCollectionServiceTest {
 
     @Test
     void createPreservesPassageOrderIncludingRepeats() {
-        CollectionResponse res = service.create(USER_ID, "Study", List.of(idB, idA, idB));
+        CollectionResponse res = service.create(USER_ID, "Study", List.of(idB, idA, idB), List.of());
 
         ArgumentCaptor<PassageCollection> captor = ArgumentCaptor.forClass(PassageCollection.class);
         verify(collectionRepository).saveAndFlush(captor.capture());
@@ -119,7 +119,7 @@ class PassageCollectionServiceTest {
 
     @Test
     void createTrimsLabel() {
-        CollectionResponse res = service.create(USER_ID, "  My List  ", List.of(idA));
+        CollectionResponse res = service.create(USER_ID, "  My List  ", List.of(idA), List.of());
         assertEquals("My List", res.label());
     }
 
@@ -130,7 +130,7 @@ class PassageCollectionServiceTest {
         when(passageRepository.findByIdAndUserIsNull(missing)).thenReturn(Optional.empty());
 
         assertThrows(ResponseStatusException.class,
-            () -> service.create(USER_ID, "Bad", List.of(missing)));
+            () -> service.create(USER_ID, "Bad", List.of(missing), List.of()));
         verify(collectionRepository, never()).saveAndFlush(any());
     }
 
@@ -140,7 +140,7 @@ class PassageCollectionServiceTest {
             .thenThrow(new DataIntegrityViolationException("uq_passage_collections_user_label"));
 
         assertThrows(BadRequestException.class,
-            () -> service.create(USER_ID, "Dup", List.of(idA)));
+            () -> service.create(USER_ID, "Dup", List.of(idA), List.of()));
     }
 
     @Test
@@ -149,7 +149,7 @@ class PassageCollectionServiceTest {
         List<UUID> managedList = existing.getPassageIds();
         when(collectionRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(existing));
 
-        service.update(USER_ID, 7L, "New", List.of(idB));
+        service.update(USER_ID, 7L, "New", List.of(idB), List.of());
 
         assertSame(managedList, existing.getPassageIds());
         assertEquals(List.of(idB), existing.getPassageIds());
@@ -163,7 +163,7 @@ class PassageCollectionServiceTest {
         ReflectionTestUtils.setField(existing, "updatedAt", stale);
         when(collectionRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(existing));
 
-        service.update(USER_ID, 7L, "Same Label", List.of(idB));
+        service.update(USER_ID, 7L, "Same Label", List.of(idB), List.of());
 
         assertTrue(existing.getUpdatedAt().isAfter(stale));
     }
@@ -173,7 +173,8 @@ class PassageCollectionServiceTest {
         when(collectionRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.empty());
 
         assertThrows(ResponseStatusException.class, () -> service.get(USER_ID, 7L));
-        assertThrows(ResponseStatusException.class, () -> service.update(USER_ID, 7L, "X", List.of(idA)));
+        assertThrows(ResponseStatusException.class,
+            () -> service.update(USER_ID, 7L, "X", List.of(idA), List.of()));
         assertThrows(ResponseStatusException.class, () -> service.delete(USER_ID, 7L));
         assertThrows(ResponseStatusException.class, () -> service.getHydrated(USER_ID, 7L));
     }
@@ -209,7 +210,7 @@ class PassageCollectionServiceTest {
         for (int i = 0; i < 251; i++) many.add(idA);
 
         assertThrows(BadRequestException.class,
-                () -> service.create(USER_ID, "Huge", many));
+                () -> service.create(USER_ID, "Huge", many, List.of()));
         verify(collectionRepository, never()).saveAndFlush(any());
     }
 

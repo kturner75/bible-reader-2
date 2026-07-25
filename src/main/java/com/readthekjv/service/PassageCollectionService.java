@@ -4,6 +4,7 @@ import com.readthekjv.exception.BadRequestException;
 import com.readthekjv.model.dto.CollectionReadResponse;
 import com.readthekjv.model.dto.CollectionResponse;
 import com.readthekjv.model.dto.CollectionSummary;
+import com.readthekjv.model.dto.PassageTitleUpdate;
 import com.readthekjv.model.entity.Passage;
 import com.readthekjv.model.entity.PassageCollection;
 import com.readthekjv.repository.PassageCollectionRepository;
@@ -16,7 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -51,8 +54,10 @@ public class PassageCollectionService {
         return CollectionResponse.from(c, verseCount(c));
     }
 
-    public CollectionResponse create(Long userId, String label, List<UUID> passageIds) {
+    public CollectionResponse create(Long userId, String label, List<UUID> passageIds,
+                                     List<PassageTitleUpdate> passageTitles) {
         List<UUID> resolved = validateAndResolvePassageIds(userId, passageIds);
+        applyPassageTitles(userId, resolved, passageTitles);
         PassageCollection c = new PassageCollection();
         c.setUser(userRepository.getReferenceById(userId));
         c.setLabel(label.trim());
@@ -61,8 +66,10 @@ public class PassageCollectionService {
         return CollectionResponse.from(saved, verseCount(saved));
     }
 
-    public CollectionResponse update(Long userId, Long id, String label, List<UUID> passageIds) {
+    public CollectionResponse update(Long userId, Long id, String label, List<UUID> passageIds,
+                                     List<PassageTitleUpdate> passageTitles) {
         List<UUID> resolved = validateAndResolvePassageIds(userId, passageIds);
+        applyPassageTitles(userId, resolved, passageTitles);
         PassageCollection c = findOwned(userId, id);
         c.setLabel(label.trim());
         c.getPassageIds().clear();
@@ -70,6 +77,21 @@ public class PassageCollectionService {
         c.touch();
         PassageCollection saved = saveHandlingDuplicateLabel(c);
         return CollectionResponse.from(saved, verseCount(saved));
+    }
+
+    /** Apply title edits for collection members in the same transaction as the save. */
+    private void applyPassageTitles(Long userId, List<UUID> allowedIds, List<PassageTitleUpdate> titles) {
+        if (titles == null || titles.isEmpty()) return;
+        Set<UUID> allowed = new HashSet<>(allowedIds);
+        for (PassageTitleUpdate t : titles) {
+            if (t == null || t.id() == null) {
+                throw new BadRequestException("Passage title update requires an id");
+            }
+            if (!allowed.contains(t.id())) {
+                throw new BadRequestException("Passage title update must reference a collection member");
+            }
+            passageService.updateTitle(userId, t.id(), t.title());
+        }
     }
 
     public void delete(Long userId, Long id) {

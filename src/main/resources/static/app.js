@@ -2948,10 +2948,27 @@
         try {
             const url = q ? `/api/passages?q=${encodeURIComponent(q)}` : '/api/passages';
             state.passages = await libApi(url);
+            refreshScopedRangeLabelFromCatalog();
         } catch (err) {
             console.error('Failed to load passages:', err);
             state.passages = [];
         }
+    }
+
+    /** Apply a titled Passage label once the catalog arrives after a range deep link. */
+    function refreshScopedRangeLabelFromCatalog() {
+        const col = state.collection;
+        if (!col || !col.naturalKey) return;
+        if (col.kind !== 'range' && col.kind !== 'passage') return;
+        const matched = findPassageByNaturalKey(col.naturalKey);
+        if (!matched) return;
+        const newLabel = passageDisplayLabel(matched);
+        if (newLabel === col.label) return;
+        col.label = newLabel;
+        if (col.passageRefs && col.passageRefs[0] !== undefined) {
+            col.passageRefs[0] = newLabel;
+        }
+        renderCollectionPage();
     }
 
     function fetchCollectionVerses(id) {
@@ -3400,22 +3417,12 @@
         if (!label || !passageIds.length) return;
 
         elements.cbSave.disabled = true;
-        const body = JSON.stringify({ label, passageIds });
+        const passageTitles = builder.queue
+            .filter(p => (p.title || '') !== (p.originalTitle || ''))
+            .map(p => ({ id: p.id, title: p.title || null }));
+        const body = JSON.stringify({ label, passageIds, passageTitles });
         try {
-            // Commit deferred passage titles only when the collection is saved
-            for (const item of builder.queue) {
-                const next = item.title || '';
-                const prev = item.originalTitle || '';
-                if (next === prev) continue;
-                const updated = await libApi(`/api/passages/${item.id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: next || null })
-                });
-                item.title = updated.title || '';
-                item.originalTitle = item.title;
-                item.reference = updated.reference || item.reference;
-            }
+            // Titles + membership commit together server-side (one transaction)
             if (builder.editingId) {
                 await libApi(`/api/collections/${builder.editingId}`, {
                     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body

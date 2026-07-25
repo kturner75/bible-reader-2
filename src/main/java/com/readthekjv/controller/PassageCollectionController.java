@@ -47,7 +47,8 @@ public class PassageCollectionController {
     @ResponseStatus(HttpStatus.CREATED)
     public CollectionResponse create(@AuthenticationPrincipal UserDetails ud,
                                      @Valid @RequestBody CreateCollectionRequest req) {
-        return collectionService.create(resolveUser(ud).getId(), req.label(), req.passageIds());
+        return collectionService.create(resolveUser(ud).getId(), req.label(), req.passageIds(),
+                req.passageTitles());
     }
 
     @GetMapping("/{id}")
@@ -59,7 +60,8 @@ public class PassageCollectionController {
     public CollectionResponse update(@AuthenticationPrincipal UserDetails ud,
                                      @PathVariable Long id,
                                      @Valid @RequestBody CreateCollectionRequest req) {
-        return collectionService.update(resolveUser(ud).getId(), id, req.label(), req.passageIds());
+        return collectionService.update(resolveUser(ud).getId(), id, req.label(), req.passageIds(),
+                req.passageTitles());
     }
 
     @DeleteMapping("/{id}")

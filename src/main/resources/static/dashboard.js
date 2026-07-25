@@ -763,6 +763,11 @@
             note = await normalizeNoteLinksOnSave(note);
             textarea.value = note;
             updateCharCount();
+            const maxLen = parseInt(textarea.getAttribute('maxlength'), 10) || 20000;
+            if (note.length > maxLen) {
+                window.alert(`Note is too long after converting scripture links (${maxLen} char limit)`);
+                return;
+            }
             const res = await fetch(
                 editingNoteId ? `/api/sermon-notes/${editingNoteId}` : '/api/sermon-notes',
                 {
