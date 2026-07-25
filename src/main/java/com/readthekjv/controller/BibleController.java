@@ -128,20 +128,21 @@ public class BibleController {
 
     /**
      * Full-text search returning verse ids only (for Matching Passages overlap).
+     * Default/max cover the entire KJV (31,102 verses) so overlap is complete.
      *
      * @param q Search query string
-     * @param limit Maximum ids (default: 2000, max: 5000)
+     * @param limit Maximum ids (default/max: 32000)
      */
     @GetMapping("/search/ids")
     public ResponseEntity<SearchIdsResult> searchIds(
             @RequestParam String q,
-            @RequestParam(defaultValue = "2000") int limit) {
+            @RequestParam(defaultValue = "32000") int limit) {
 
         if (q == null || q.isBlank()) {
             return ResponseEntity.badRequest().build();
         }
 
-        limit = Math.min(Math.max(limit, 1), 5000);
+        limit = Math.min(Math.max(limit, 1), 32000);
         return ResponseEntity.ok(luceneService.searchIds(q.trim(), limit));
     }
 

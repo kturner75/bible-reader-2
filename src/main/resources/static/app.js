@@ -88,7 +88,8 @@
         searchResultTab: 'verses',         // 'verses' | 'passages' | future lanes
         lastSearchQuery: '',
         lastSearchResults: null,           // { query, count, verses: [...] } display slice
-        lastSearchHitIds: null,            // Set<number> wider hit ids for passage overlap
+        lastSearchHitIds: null,            // Set<number> hit ids for passage overlap
+        searchHitIdsGen: 0,                // invalidate stale /search/ids responses
         // Scoped reader: collection OR single focused passage/range
         // { kind:'collection'|'passage'|'range', id, label, verses, ... }
         collection: null,
@@ -633,8 +634,8 @@
         return response.json();
     }
 
-    /** Lightweight id-only search for Matching Passages overlap (large hit windows). */
-    async function searchBibleIds(query, limit = 2000) {
+    /** Lightweight id-only search for Matching Passages overlap (full KJV window). */
+    async function searchBibleIds(query, limit = 32000) {
         const response = await fetch(
             `/api/search/ids?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`
         );
@@ -1832,13 +1833,17 @@
 
         // Dismiss the keyboard on mobile
         elements.searchInput.blur();
+        // Invalidate any in-flight /search/ids from a prior query.
+        const hitGen = ++state.searchHitIdsGen;
 
         // Bible reference: jump directly unless Matching Passages has hits to offer.
         try {
             const refResult = await parseReference(query);
             if (refResult.valid && refResult.verseId) {
+                if (hitGen !== state.searchHitIdsGen) return;
                 const opened = await maybeOpenReferencePassageDiscovery(query, refResult);
                 if (opened) return;
+                if (hitGen !== state.searchHitIdsGen) return;
                 const wasPlaying = state.audioWasPlayingBeforeModal;
                 closeSearch();
                 await goToVerse(refResult.verseId);
@@ -1854,13 +1859,16 @@
         // Full-text search: display top verses; load id-only hits for passage overlap.
         try {
             const results = await searchBible(query, 50);
+            if (hitGen !== state.searchHitIdsGen) return;
             state.lastSearchQuery = query;
             state.lastSearchResults = results;
             state.lastSearchHitIds = new Set((results.verses || []).map(v => v.id));
             state.searchResultTab = 'verses';
             const hasPassages = await prepareSearchResultTabs();
+            if (hitGen !== state.searchHitIdsGen) return;
             if (hasPassages) {
-                await loadSearchHitIdsForPassages(query);
+                await loadSearchHitIdsForPassages(query, hitGen);
+                if (hitGen !== state.searchHitIdsGen) return;
             }
             openSearch();
             renderSearchBrowse();
@@ -1905,11 +1913,13 @@
         return true;
     }
 
-    async function loadSearchHitIdsForPassages(query) {
+    async function loadSearchHitIdsForPassages(query, hitGen) {
         try {
-            const idsResult = await searchBibleIds(query, 5000);
+            const idsResult = await searchBibleIds(query, 32000);
+            if (hitGen !== state.searchHitIdsGen) return;
             state.lastSearchHitIds = new Set(idsResult.ids || []);
         } catch (err) {
+            if (hitGen !== state.searchHitIdsGen) return;
             console.error('Failed to load search hit ids for passages', err);
         }
     }
@@ -2084,6 +2094,7 @@
         state.searchOpen = false;
         state.searchResultTab = 'verses';
         state.lastSearchHitIds = null;
+        state.searchHitIdsGen++;
         elements.searchOverlay.hidden = true;
         if (elements.searchResultTabs) elements.searchResultTabs.hidden = true;
         hideSearchAutocomplete();
