@@ -1,5 +1,6 @@
 package com.readthekjv.service;
 
+import com.readthekjv.model.SearchIdsResult;
 import com.readthekjv.model.SearchResult;
 import com.readthekjv.model.Verse;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -145,6 +146,38 @@ public class LuceneIndexService {
         } catch (IOException e) {
             log.error("Search error", e);
             return new SearchResult(queryString, 0, List.of());
+        }
+    }
+
+    /**
+     * Full-text search returning only verse ids (no highlights/text).
+     * Suitable for passage-overlap discovery over large hit sets.
+     */
+    public SearchIdsResult searchIds(String queryString, int maxResults) {
+        if (searcher == null) {
+            log.warn("Search attempted before index was built");
+            return new SearchIdsResult(queryString, 0, List.of());
+        }
+
+        try {
+            String processedQuery = preprocessQuery(queryString);
+            QueryParser parser = new QueryParser(FIELD_TEXT, analyzer);
+            parser.setDefaultOperator(QueryParser.Operator.AND);
+            Query query = parser.parse(processedQuery);
+
+            TopDocs topDocs = searcher.search(query, maxResults);
+            List<Integer> ids = new ArrayList<>(topDocs.scoreDocs.length);
+            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                Document doc = searcher.storedFields().document(scoreDoc.doc);
+                ids.add(doc.getField(FIELD_ID).numericValue().intValue());
+            }
+            return new SearchIdsResult(queryString, (int) topDocs.totalHits.value, ids);
+        } catch (ParseException e) {
+            log.warn("Invalid search query: {}", queryString, e);
+            return new SearchIdsResult(queryString, 0, List.of());
+        } catch (IOException e) {
+            log.error("Search error", e);
+            return new SearchIdsResult(queryString, 0, List.of());
         }
     }
 

@@ -127,6 +127,26 @@ public class BibleController {
     }
 
     /**
+     * Full-text search returning verse ids only (for Matching Passages overlap).
+     * Default/max cover the entire KJV (31,102 verses) so overlap is complete.
+     *
+     * @param q Search query string
+     * @param limit Maximum ids (default/max: 32000)
+     */
+    @GetMapping("/search/ids")
+    public ResponseEntity<SearchIdsResult> searchIds(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "32000") int limit) {
+
+        if (q == null || q.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        limit = Math.min(Math.max(limit, 1), 32000);
+        return ResponseEntity.ok(luceneService.searchIds(q.trim(), limit));
+    }
+
+    /**
      * Parse a Bible reference and return the verse ID.
      * Supports formats: "John 3:16", "ps 23", "gen1:1", etc.
      * 
@@ -162,13 +182,15 @@ public class BibleController {
         }
 
         Optional<Verse> verse = bibleService.getVerse(verseId.get());
-        
-        return ResponseEntity.ok(Map.of(
-            "valid", true,
-            "input", ref,
-            "verseId", verseId.get(),
-            "verse", verse.orElse(null)
-        ));
+        Map<String, Object> body = new HashMap<>();
+        body.put("valid", true);
+        body.put("input", ref);
+        body.put("verseId", verseId.get());
+        body.put("verse", verse.orElse(null));
+        // false when input was chapter/book-scoped (e.g. "ps 24") so clients can
+        // expand Matching Passages overlap to the whole chapter.
+        body.put("verseSpecified", parsed.verse() != null);
+        return ResponseEntity.ok(body);
     }
 
     /**

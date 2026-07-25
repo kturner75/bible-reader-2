@@ -22,9 +22,8 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 - **Passage Collections** *(done — PR #30)* — ordered cross-book verse lists, builder modal, scoped reader at `/read/collection/{id}`, `[pid=N]` note links, search autocomplete. V15 migration. `passage_collections` (BIGSERIAL) + `passage_collection_verses` (explicit position). Hotkey `C`.
 - **Sermon / lesson notes** *(done — PR #31)* — full-CRUD notes (title + body) on `/dashboard`. `sermon_notes` table (V16). Markdown-lite renderer with `[pid=N]` collection links and `[Reference]` verse links. Dashboard builder: list, create, view, edit, delete.
 - **Portable `[v=…]` verse links** *(done)* — note bodies store `[v=verse-id-ranges]`; render as human refs (or Passage title); focused `/read/range?v=…` reader without requiring a Passage row. See `docs/architecture/passage-and-verse-link-model.md`.
-- **Insert Scripture: Bible search + range expand** *(done — picker tabs)* — Insert Scripture now has Matching Verses (Lucene + reference parse) and My Passages / Featured. Selecting a verse opens chapter-aware surrounding checkboxes (prev/current/next), then inserts portable `[v=…]`. Optional “Save as passage” and header-search tab synergy remain follow-ons.
-  - **Still open (sibling):** tabbed header `/` search — Matching Verses | Matching Passages — sharing the same discovery model.
-  - Fits the accepted model: links stay verse-id portable; Passages remain optional lenses.
+- **Insert Scripture: Bible search + range expand** *(done — PR #40)* — Insert Scripture has Matching Verses (Lucene + reference parse) and My Passages / Featured. Selecting a verse opens chapter-aware surrounding checkboxes (prev/current/next), then inserts portable `[v=…]`. Optional “Save as passage” remains a follow-on.
+- **Tabbed header search (verses | passages)** *(done — PR #41)* — header `/` search overlay shares the discovery-tab model: Matching Verses + Matching Passages (title/reference/overlap with hit ranges). Omit Matching Passages when the catalog is empty so the strip stays an expansion joint for future lanes (collections, plans, …).
 - **First-class Notes Editor (not a modal)** — verse / chapter / book / sermon notes currently share compact modal editors. As notes become the hub for portable `[v=…]` links, outlines, and later study/sermon work, the editor needs a dedicated, distraction-aware surface (full route or docked panel), not a transient overlay.
   - **Why:** room for longer writing, Insert Scripture / search, preview of rendered markdown + scripture labels, backlinks to open ranges, and eventually multi-note / outline structure without fighting z-index and focus traps.
   - **Preserve rkj constraints:** reading area stays no-scroll / two-column when the editor is closed or side-by-side; desktop-first; scripture remains the focus when reading.
@@ -84,7 +83,7 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 ## Reader Enhancements
 
-- **Tabbed search results (verses | passages)** — Insert Scripture already has Matching Verses | My Passages. Bring the same model to header `/` search.
+- **Tabbed search results (verses | passages)** *(done — PR #41)* — header `/` search. Future lanes can join the same strip.
 - **Cross-references** — inline links to parallel passages (e.g. Psalm 22 ↔ Matthew 27)
 - **Concordance** — click a word to see all verses containing it
 - **Red-letter edition** — words of Christ highlighted
