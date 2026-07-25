@@ -110,6 +110,12 @@
                 <h2 id="search-results-title">Search Results</h2>
                 <button id="search-close" aria-label="Close search results">&times;</button>
             </div>
+            <div class="search-result-tabs" id="search-result-tabs" role="tablist" hidden>
+                <button type="button" class="search-result-tab active" data-tab="verses" role="tab"
+                    aria-selected="true">Matching Verses</button>
+                <button type="button" class="search-result-tab" data-tab="passages" role="tab"
+                    aria-selected="false" id="search-passages-tab" hidden>Matching Passages</button>
+            </div>
             <div class="search-results-list" id="search-results-list">
                 <!-- Results render here -->
             </div>

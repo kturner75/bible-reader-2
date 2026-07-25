@@ -16,4 +16,4 @@
 
 **Do not** implement note links as `[passage=<uuid>]` as the canonical form. That was an interim choice on the Passages slice; the accepted model uses portable `[v=…]` verse-id ranges (human label on render).
 
-**Follow-on (backlog):** Insert Scripture Bible search + surrounding verses is done in the note picker. Remaining sibling: tabbed Matching Verses | Matching Passages for the header `/` search bar. See `BACKLOG.md`.
+**Follow-on (backlog):** Insert Scripture Bible search + surrounding verses is done (PR #40). Header `/` search is adopting the same Matching Verses | Matching Passages discovery tabs (omit Passages when catalog empty). See `BACKLOG.md`.

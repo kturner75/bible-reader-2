@@ -84,6 +84,10 @@
         passageInsertSearchTimer: null,
         passageInsertSearchGen: 0,
         passageInsertExpandGen: 0,
+        // Header search overlay tabs (verses always; passages only when catalog non-empty)
+        searchResultTab: 'verses',         // 'verses' | 'passages' | future lanes
+        lastSearchQuery: '',
+        lastSearchResults: null,           // { query, count, verses: [...] }
         // Scoped reader: collection OR single focused passage/range
         // { kind:'collection'|'passage'|'range', id, label, verses, ... }
         collection: null,
@@ -108,6 +112,8 @@
         searchInput: document.getElementById('search-input'),
         searchAutocomplete: document.getElementById('search-autocomplete'),
         searchOverlay: document.getElementById('search-overlay'),
+        searchResultTabs: document.getElementById('search-result-tabs'),
+        searchPassagesTab: document.getElementById('search-passages-tab'),
         searchResultsList: document.getElementById('search-results-list'),
         searchResultsTitle: document.getElementById('search-results-title'),
         searchClose: document.getElementById('search-close'),
@@ -1835,41 +1841,174 @@
         // Perform full-text search
         try {
             const results = await searchBible(query);
-            showSearchResults(results);
+            state.lastSearchQuery = query;
+            state.lastSearchResults = results;
+            state.searchResultTab = 'verses';
+            await prepareSearchResultTabs();
+            openSearch();
+            renderSearchBrowse();
         } catch (e) {
             console.error('Search failed', e);
         }
     }
 
-    function showSearchResults(results) {
-        elements.searchResultsTitle.textContent =
-            `${results.count} result${results.count !== 1 ? 's' : ''} for "${results.query}"`;
+    /** Show Matching Passages only when the user has a non-empty catalog. */
+    async function prepareSearchResultTabs() {
+        if (state.currentUser && (!state.passages || state.passages.length === 0)) {
+            try {
+                await loadPassagesFromApi();
+            } catch (_) { /* leave empty */ }
+        }
+        const hasPassages = !!(state.currentUser && state.passages && state.passages.length > 0);
+        if (!hasPassages && state.searchResultTab === 'passages') {
+            state.searchResultTab = 'verses';
+        }
+        syncSearchResultTabs(hasPassages);
+    }
 
-        if (results.verses.length === 0) {
-            elements.searchResultsList.innerHTML = '<p class="no-results">No verses found.</p>';
+    function syncSearchResultTabs(hasPassages) {
+        if (!elements.searchResultTabs) return;
+        // Omit the whole strip when there's only Matching Verses — leaves room
+        // for future lanes (collections, plans, etc.) without empty chrome.
+        elements.searchResultTabs.hidden = !hasPassages;
+        if (elements.searchPassagesTab) {
+            elements.searchPassagesTab.hidden = !hasPassages;
+        }
+        elements.searchResultTabs.querySelectorAll('.search-result-tab').forEach(btn => {
+            const active = btn.dataset.tab === state.searchResultTab;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+    }
+
+    function setSearchResultTab(tab) {
+        if (tab === 'passages') {
+            const hasPassages = !!(state.currentUser && state.passages && state.passages.length > 0);
+            if (!hasPassages) return;
+        }
+        state.searchResultTab = tab === 'passages' ? 'passages' : 'verses';
+        syncSearchResultTabs(!!(state.currentUser && state.passages && state.passages.length > 0));
+        renderSearchBrowse();
+    }
+
+    function renderSearchBrowse() {
+        if (state.searchResultTab === 'passages') {
+            renderSearchPassages();
         } else {
-            elements.searchResultsList.innerHTML = results.verses.map(v => `
-                <div class="search-result-item" data-verse-id="${v.id}" tabindex="0">
-                    <div class="search-result-ref">${v.book} ${v.chapter}:${v.verse}</div>
-                    <div class="search-result-text">${v.highlight || escapeHtml(v.text)}</div>
-                </div>
-            `).join('');
+            renderSearchVerses();
+        }
+    }
 
-            // Add click handlers
-            elements.searchResultsList.querySelectorAll('.search-result-item').forEach(item => {
-                item.addEventListener('click', async () => {
-                    const wasPlaying = state.audioWasPlayingBeforeModal;
-                    const verseId = parseInt(item.dataset.verseId);
-                    closeSearch();
-                    await goToVerse(verseId);
-                    if (wasPlaying) restartAudioIfPlaying(wasPlaying);
-                });
-            });
+    function renderSearchVerses() {
+        const results = state.lastSearchResults;
+        if (!results) {
+            elements.searchResultsTitle.textContent = 'Search Results';
+            elements.searchResultsList.innerHTML = '<p class="no-results">No verses found.</p>';
+            return;
         }
 
-        openSearch();
+        elements.searchResultsTitle.textContent =
+            `${results.count} verse${results.count !== 1 ? 's' : ''} for "${results.query}"`;
+
+        if (!results.verses || results.verses.length === 0) {
+            elements.searchResultsList.innerHTML = '<p class="no-results">No verses found.</p>';
+            return;
+        }
+
+        elements.searchResultsList.innerHTML = results.verses.map(v => `
+            <div class="search-result-item" data-verse-id="${v.id}" tabindex="0">
+                <div class="search-result-ref">${escapeHtml(v.book)} ${v.chapter}:${v.verse}</div>
+                <div class="search-result-text">${v.highlight || escapeHtml(v.text)}</div>
+            </div>
+        `).join('');
+
+        elements.searchResultsList.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const wasPlaying = state.audioWasPlayingBeforeModal;
+                const verseId = parseInt(item.dataset.verseId, 10);
+                closeSearch();
+                await goToVerse(verseId);
+                if (wasPlaying) restartAudioIfPlaying(wasPlaying);
+            });
+        });
+
         const firstResult = elements.searchResultsList.querySelector('.search-result-item');
         if (firstResult) firstResult.focus();
+    }
+
+    function passageOverlapsHitIds(passage, hitIds) {
+        if (!hitIds || hitIds.size === 0) return false;
+        // Prefer natural-key segments when present; fall back to span endpoints.
+        try {
+            if (passage.naturalKey) {
+                return rangesFromNaturalKey(passage.naturalKey)
+                    .some(r => {
+                        for (const id of hitIds) {
+                            if (id >= r.from && id <= r.to) return true;
+                        }
+                        return false;
+                    });
+            }
+        } catch (_) { /* fall through */ }
+        const from = passage.fromVerseId;
+        const to = passage.toVerseId;
+        if (!Number.isFinite(from) || !Number.isFinite(to)) return false;
+        for (const id of hitIds) {
+            if (id >= from && id <= to) return true;
+        }
+        return false;
+    }
+
+    function filterMatchingPassages(query, hitVerses) {
+        const q = (query || '').trim().toLowerCase();
+        const hitIds = new Set((hitVerses || []).map(v => v.id));
+        return (state.passages || []).filter(p => {
+            if (q) {
+                const label = passageDisplayLabel(p).toLowerCase();
+                if (label.includes(q)
+                    || (p.reference && p.reference.toLowerCase().includes(q))
+                    || (p.title && p.title.toLowerCase().includes(q))) {
+                    return true;
+                }
+            }
+            return passageOverlapsHitIds(p, hitIds);
+        });
+    }
+
+    function renderSearchPassages() {
+        const query = state.lastSearchQuery || '';
+        const hits = state.lastSearchResults?.verses || [];
+        const list = filterMatchingPassages(query, hits);
+
+        elements.searchResultsTitle.textContent =
+            `${list.length} passage${list.length !== 1 ? 's' : ''} for "${query}"`;
+
+        if (list.length === 0) {
+            elements.searchResultsList.innerHTML =
+                '<p class="no-results">No matching passages.<br>' +
+                'Try a passage title, reference, or a verse that overlaps a saved passage.</p>';
+            return;
+        }
+
+        elements.searchResultsList.innerHTML = list.map(p => `
+            <div class="search-result-item search-passage-item" data-passage-id="${p.id}" tabindex="0">
+                <div class="search-result-ref">${escapeHtml(passageDisplayLabel(p))}${p.global ? '<span class="passage-insert-badge">Featured</span>' : ''}</div>
+                <div class="search-result-text">${escapeHtml(p.reference || '')}</div>
+            </div>
+        `).join('');
+
+        elements.searchResultsList.querySelectorAll('.search-passage-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const wasPlaying = state.audioWasPlayingBeforeModal;
+                const id = item.dataset.passageId;
+                closeSearch();
+                await enterPassageMode(id);
+                if (wasPlaying) restartAudioIfPlaying(wasPlaying);
+            });
+        });
+
+        const first = elements.searchResultsList.querySelector('.search-result-item');
+        if (first) first.focus();
     }
 
     function openSearch() {
@@ -1881,7 +2020,9 @@
 
     function closeSearch() {
         state.searchOpen = false;
+        state.searchResultTab = 'verses';
         elements.searchOverlay.hidden = true;
+        if (elements.searchResultTabs) elements.searchResultTabs.hidden = true;
         hideSearchAutocomplete();
         document.body.classList.remove('mobile-search-open');
         if (elements.mobileSearchCancel) elements.mobileSearchCancel.hidden = true;
@@ -5385,6 +5526,13 @@
                 closeSearch();
             }
         });
+        if (elements.searchResultTabs) {
+            elements.searchResultTabs.addEventListener('click', (e) => {
+                const tab = e.target.closest('.search-result-tab');
+                if (!tab || tab.hidden) return;
+                setSearchResultTab(tab.dataset.tab);
+            });
+        }
 
         // Keyboard navigation within search results
         elements.searchResultsList.addEventListener('keydown', (e) => {
