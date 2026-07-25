@@ -5562,9 +5562,9 @@
                 state.bookNotes = {};
                 state.collections = [];
                 state.passages = [];
-                if (state.collection) {
-                    // Don't keep showing an account-owned collection to the
-                    // now-anonymous session (e.g. shared devices)
+                // Account-owned collection/passage sessions can't stay after logout.
+                // Public /read/range?v=… sessions remain — /api/ranges is anonymous.
+                if (state.collection && state.collection.kind !== 'range') {
                     exitCollectionMode();
                 } else {
                     await remeasureCurrentPage();
