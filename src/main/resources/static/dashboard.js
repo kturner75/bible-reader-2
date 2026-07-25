@@ -9,6 +9,21 @@
         return d.innerHTML;
     }
 
+    let _toastTimer = null;
+    function showToast(message, durationMs = 2500) {
+        const existing = document.querySelector('.toast');
+        if (existing) existing.remove();
+        if (_toastTimer) clearTimeout(_toastTimer);
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        _toastTimer = setTimeout(() => {
+            toast.classList.add('toast-hiding');
+            setTimeout(() => toast.remove(), 400);
+        }, durationMs);
+    }
+
     const TODAY = new Date().toISOString().slice(0, 10);
 
     function isDue(entry) {
@@ -843,10 +858,15 @@
     const insertExpandBack = document.getElementById('passage-insert-expand-back');
     const insertExpandCount = document.getElementById('passage-insert-expand-count');
     const insertChapters = document.getElementById('passage-insert-chapters');
+    const insertSave = document.getElementById('passage-insert-save');
+    const insertSaveCb = document.getElementById('passage-insert-save-cb');
+    const insertTitle = document.getElementById('passage-insert-title');
     const insertConfirm = document.getElementById('passage-insert-confirm');
     const insertBtn = document.getElementById('sermon-note-insert-passage-btn');
 
     const INSERT_MAX_VERSES = 500;
+    /** UpsertPassageRequest.naturalKey max is 500 chars — disable Save when key is too long. */
+    const PASSAGE_NATURAL_KEY_MAX = 500;
     let insertTab = 'verses';
     let insertMode = 'browse';
     let insertSearchTimer = null;
@@ -898,12 +918,15 @@
         insertSearch.focus();
     }
 
+    /** @returns {boolean} true if the portable link was inserted */
     function insertVTokenFromNaturalKey(naturalKey) {
         let token;
         try {
             token = serializeVToken(rangesFromNaturalKey(naturalKey));
-        } catch {
-            return;
+        } catch (err) {
+            console.error(err);
+            showToast('Could not insert scripture link');
+            return false;
         }
         const start = textarea.selectionStart ?? textarea.value.length;
         const end = textarea.selectionEnd ?? start;
@@ -915,8 +938,8 @@
         const next = before + insert + after;
         const maxLen = parseInt(textarea.getAttribute('maxlength'), 10);
         if (Number.isFinite(maxLen) && next.length > maxLen) {
-            insertCount.textContent = `Not enough room for that link (${maxLen} char limit)`;
-            return;
+            showToast(`Not enough room for that link (${maxLen} char limit)`);
+            return false;
         }
         textarea.value = next;
         const caret = before.length + insert.length;
@@ -924,6 +947,8 @@
         textarea.setSelectionRange(caret, caret);
         updateCharCount();
         closeInsertPicker();
+        showToast('Scripture link inserted');
+        return true;
     }
 
     function buildNaturalKeyFromIds(ids) {
@@ -1097,6 +1122,7 @@
         insertExpand.hidden = false;
         insertTabs.hidden = true;
         insertSearch.hidden = true;
+        resetInsertSaveUi();
         insertChapters.innerHTML = '<div class="passage-picker-loading">Loading…</div>';
         insertConfirm.disabled = true;
         insertExpandCount.textContent = 'Loading…';
@@ -1190,13 +1216,80 @@
         if (count > INSERT_MAX_VERSES) {
             insertExpandCount.textContent = `Too many verses (max ${INSERT_MAX_VERSES})`;
         }
+        syncInsertSaveAvailability(checked);
+    }
+
+    function syncInsertSaveAvailability(checkedIds) {
+        if (!insertSaveCb) return;
+        const key = checkedIds.length ? buildNaturalKeyFromIds(checkedIds) : '';
+        const tooLong = !!(key && key.length > PASSAGE_NATURAL_KEY_MAX);
+        insertSaveCb.disabled = tooLong;
+        if (tooLong && insertSaveCb.checked) {
+            insertSaveCb.checked = false;
+            syncInsertSaveTitleEnabled();
+        }
+        if (insertSave) {
+            insertSave.title = tooLong
+                ? 'Selection is too fragmented to save as a passage (natural key limit)'
+                : '';
+        }
+    }
+
+    function resetInsertSaveUi() {
+        if (insertSaveCb) {
+            insertSaveCb.checked = false;
+            insertSaveCb.disabled = false;
+        }
+        if (insertTitle) {
+            insertTitle.value = '';
+            insertTitle.disabled = true;
+        }
+        if (insertSave) {
+            insertSave.hidden = false;
+            insertSave.title = '';
+        }
+    }
+
+    function syncInsertSaveTitleEnabled() {
+        if (!insertTitle || !insertSaveCb) return;
+        insertTitle.disabled = !insertSaveCb.checked;
+        if (insertSaveCb.checked) insertTitle.focus();
     }
 
     function confirmInsertExpand() {
         const checked = getInsertCheckedIds();
         if (!checked.length || checked.length > INSERT_MAX_VERSES) return;
         const naturalKey = buildNaturalKeyFromIds(checked);
-        insertVTokenFromNaturalKey(naturalKey);
+        const shouldSave = !!(insertSaveCb
+            && insertSaveCb.checked
+            && naturalKey
+            && naturalKey.length <= PASSAGE_NATURAL_KEY_MAX);
+        const title = (insertTitle?.value || '').trim();
+        // Insert first — saving is optional and must not block the portable link.
+        const inserted = insertVTokenFromNaturalKey(naturalKey);
+        if (inserted && shouldSave) {
+            savePassageFromInsert(naturalKey, title);
+        }
+    }
+
+    async function savePassageFromInsert(naturalKey, title) {
+        try {
+            const res = await fetch('/api/passages', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ naturalKey, title: title || null })
+            });
+            if (!res.ok) throw new Error('save failed');
+            const listRes = await fetch('/api/passages', { credentials: 'include' });
+            if (listRes.ok) {
+                passages = await listRes.json();
+            }
+            showToast(title ? 'Passage saved' : 'Passage saved (untitled)');
+        } catch (err) {
+            console.error('Failed to save passage from insert', err);
+            showToast('Link inserted, but saving the passage failed');
+        }
     }
 
     if (insertBtn) {
@@ -1232,6 +1325,9 @@
         }
         if (insertConfirm) {
             insertConfirm.addEventListener('click', confirmInsertExpand);
+        }
+        if (insertSaveCb) {
+            insertSaveCb.addEventListener('change', syncInsertSaveTitleEnabled);
         }
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape' || insertOverlay.hidden) return;
