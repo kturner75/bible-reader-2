@@ -1,10 +1,11 @@
 package com.readthekjv.service;
 
 import com.readthekjv.exception.BadRequestException;
+import com.readthekjv.model.dto.CollectionMemberSpec;
 import com.readthekjv.model.dto.CollectionReadResponse;
 import com.readthekjv.model.dto.CollectionResponse;
 import com.readthekjv.model.dto.CollectionSummary;
-import com.readthekjv.model.dto.PassageTitleUpdate;
+import com.readthekjv.model.dto.PassageDetailResponse;
 import com.readthekjv.model.entity.Passage;
 import com.readthekjv.model.entity.PassageCollection;
 import com.readthekjv.repository.PassageCollectionRepository;
@@ -21,12 +22,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
 @Transactional
 public class PassageCollectionService {
+
+    /** Matches the collection builder's verse budget (and prior verse-ID cap). */
+    static final int MAX_COLLECTION_VERSES = 500;
 
     private final PassageCollectionRepository collectionRepository;
     private final UserRepository userRepository;
@@ -56,10 +59,8 @@ public class PassageCollectionService {
         return CollectionResponse.from(c, verseCount(c));
     }
 
-    public CollectionResponse create(Long userId, String label, List<UUID> passageIds,
-                                     List<PassageTitleUpdate> passageTitles) {
-        List<UUID> resolved = validateAndResolvePassageIds(userId, passageIds);
-        applyPassageTitles(userId, resolved, passageTitles);
+    public CollectionResponse create(Long userId, String label, List<CollectionMemberSpec> members) {
+        List<UUID> resolved = materializeMembers(userId, members);
         PassageCollection c = new PassageCollection();
         c.setUser(userRepository.getReferenceById(userId));
         c.setLabel(label.trim());
@@ -68,10 +69,8 @@ public class PassageCollectionService {
         return CollectionResponse.from(saved, verseCount(saved));
     }
 
-    public CollectionResponse update(Long userId, Long id, String label, List<UUID> passageIds,
-                                     List<PassageTitleUpdate> passageTitles) {
-        List<UUID> resolved = validateAndResolvePassageIds(userId, passageIds);
-        applyPassageTitles(userId, resolved, passageTitles);
+    public CollectionResponse update(Long userId, Long id, String label, List<CollectionMemberSpec> members) {
+        List<UUID> resolved = materializeMembers(userId, members);
         PassageCollection c = findOwned(userId, id);
         c.setLabel(label.trim());
         c.getPassageIds().clear();
@@ -81,19 +80,50 @@ public class PassageCollectionService {
         return CollectionResponse.from(saved, verseCount(saved));
     }
 
-    /** Apply title edits for collection members in the same transaction as the save. */
-    private void applyPassageTitles(Long userId, List<UUID> allowedIds, List<PassageTitleUpdate> titles) {
-        if (titles == null || titles.isEmpty()) return;
-        Set<UUID> allowed = new HashSet<>(allowedIds);
-        for (PassageTitleUpdate t : titles) {
-            if (t == null || t.id() == null) {
-                throw new BadRequestException("Passage title update requires an id");
-            }
-            if (!allowed.contains(t.id())) {
-                throw new BadRequestException("Passage title update must reference a collection member");
-            }
-            passageService.updateTitle(userId, t.id(), t.title());
+    /**
+     * Resolve ordered members: existing passage ids and/or find-or-create by
+     * natural key. All passage writes happen in this transaction with the
+     * collection save so a failed label/validation rolls everything back.
+     */
+    private List<UUID> materializeMembers(Long userId, List<CollectionMemberSpec> members) {
+        if (members == null || members.isEmpty()) {
+            throw new BadRequestException("Collection must include at least one passage");
         }
+        List<UUID> resolved = new ArrayList<>(members.size());
+        int totalVerses = 0;
+        for (CollectionMemberSpec m : members) {
+            if (m == null) {
+                throw new BadRequestException("Collection member must not be null");
+            }
+            boolean hasId = m.passageId() != null;
+            boolean hasKey = m.naturalKey() != null && !m.naturalKey().isBlank();
+            if (hasId == hasKey) {
+                throw new BadRequestException("Each member needs either passageId or naturalKey");
+            }
+
+            Passage passage;
+            if (hasId) {
+                passage = passageService.findReadable(userId, m.passageId());
+                if (Boolean.TRUE.equals(m.updateTitle())) {
+                    passageService.updateTitle(userId, m.passageId(), m.title());
+                    passage = passageService.findReadable(userId, m.passageId());
+                }
+            } else {
+                // upsert with title only when updateTitle — blank draft titles use null
+                // so reused passages keep their existing title (upsert semantics).
+                String title = Boolean.TRUE.equals(m.updateTitle()) ? m.title() : null;
+                PassageDetailResponse detail = passageService.upsert(userId, m.naturalKey().trim(), title);
+                passage = passageService.findReadable(userId, detail.id());
+            }
+
+            totalVerses += passageService.countVerses(passage);
+            if (totalVerses > MAX_COLLECTION_VERSES) {
+                throw new BadRequestException(
+                        "Collections are limited to " + MAX_COLLECTION_VERSES + " verses");
+            }
+            resolved.add(passage.getId());
+        }
+        return resolved;
     }
 
     public void delete(Long userId, Long id) {
@@ -129,31 +159,6 @@ public class PassageCollectionService {
             if (p != null) total += passageService.countVerses(p);
         }
         return total;
-    }
-
-    /** Matches the collection builder's verse budget (and prior verse-ID cap). */
-    static final int MAX_COLLECTION_VERSES = 500;
-
-    private List<UUID> validateAndResolvePassageIds(Long userId, List<UUID> passageIds) {
-        if (passageIds == null || passageIds.isEmpty()) {
-            throw new BadRequestException("Collection must include at least one passage");
-        }
-        List<UUID> resolved = new ArrayList<>(passageIds.size());
-        int totalVerses = 0;
-        for (UUID pid : passageIds) {
-            if (pid == null) {
-                throw new BadRequestException("Passage id must not be null");
-            }
-            // Ensures the passage exists and is readable by this user
-            var passage = passageService.findReadable(userId, pid);
-            totalVerses += passageService.countVerses(passage);
-            if (totalVerses > MAX_COLLECTION_VERSES) {
-                throw new BadRequestException(
-                        "Collections are limited to " + MAX_COLLECTION_VERSES + " verses");
-            }
-            resolved.add(pid);
-        }
-        return resolved;
     }
 
     private PassageCollection findOwned(Long userId, Long id) {

@@ -2,6 +2,7 @@ package com.readthekjv.service;
 
 import com.readthekjv.exception.BadRequestException;
 import com.readthekjv.model.Verse;
+import com.readthekjv.model.dto.CollectionMemberSpec;
 import com.readthekjv.model.dto.CollectionReadResponse;
 import com.readthekjv.model.dto.CollectionResponse;
 import com.readthekjv.model.dto.PassageDetailResponse;
@@ -115,9 +116,17 @@ class PassageCollectionServiceTest {
         return c;
     }
 
+    private static List<CollectionMemberSpec> members(UUID... ids) {
+        List<CollectionMemberSpec> out = new ArrayList<>();
+        for (UUID id : ids) {
+            out.add(new CollectionMemberSpec(id, null, null, false));
+        }
+        return out;
+    }
+
     @Test
     void createPreservesPassageOrderIncludingRepeats() {
-        CollectionResponse res = service.create(USER_ID, "Study", List.of(idB, idA, idB), List.of());
+        CollectionResponse res = service.create(USER_ID, "Study", members(idB, idA, idB));
 
         ArgumentCaptor<PassageCollection> captor = ArgumentCaptor.forClass(PassageCollection.class);
         verify(collectionRepository).saveAndFlush(captor.capture());
@@ -128,7 +137,7 @@ class PassageCollectionServiceTest {
 
     @Test
     void createTrimsLabel() {
-        CollectionResponse res = service.create(USER_ID, "  My List  ", List.of(idA), List.of());
+        CollectionResponse res = service.create(USER_ID, "  My List  ", members(idA));
         assertEquals("My List", res.label());
     }
 
@@ -139,7 +148,7 @@ class PassageCollectionServiceTest {
         when(passageRepository.findByIdAndUserIsNull(missing)).thenReturn(Optional.empty());
 
         assertThrows(ResponseStatusException.class,
-            () -> service.create(USER_ID, "Bad", List.of(missing), List.of()));
+            () -> service.create(USER_ID, "Bad", members(missing)));
         verify(collectionRepository, never()).saveAndFlush(any());
     }
 
@@ -149,7 +158,7 @@ class PassageCollectionServiceTest {
             .thenThrow(new DataIntegrityViolationException("uq_passage_collections_user_label"));
 
         assertThrows(BadRequestException.class,
-            () -> service.create(USER_ID, "Dup", List.of(idA), List.of()));
+            () -> service.create(USER_ID, "Dup", members(idA)));
     }
 
     @Test
@@ -158,7 +167,7 @@ class PassageCollectionServiceTest {
         List<UUID> managedList = existing.getPassageIds();
         when(collectionRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(existing));
 
-        service.update(USER_ID, 7L, "New", List.of(idB), List.of());
+        service.update(USER_ID, 7L, "New", members(idB));
 
         assertSame(managedList, existing.getPassageIds());
         assertEquals(List.of(idB), existing.getPassageIds());
@@ -172,7 +181,7 @@ class PassageCollectionServiceTest {
         ReflectionTestUtils.setField(existing, "updatedAt", stale);
         when(collectionRepository.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(existing));
 
-        service.update(USER_ID, 7L, "Same Label", List.of(idB), List.of());
+        service.update(USER_ID, 7L, "Same Label", members(idB));
 
         assertTrue(existing.getUpdatedAt().isAfter(stale));
     }
@@ -183,7 +192,7 @@ class PassageCollectionServiceTest {
 
         assertThrows(ResponseStatusException.class, () -> service.get(USER_ID, 7L));
         assertThrows(ResponseStatusException.class,
-            () -> service.update(USER_ID, 7L, "X", List.of(idA), List.of()));
+            () -> service.update(USER_ID, 7L, "X", members(idA)));
         assertThrows(ResponseStatusException.class, () -> service.delete(USER_ID, 7L));
         assertThrows(ResponseStatusException.class, () -> service.getHydrated(USER_ID, 7L));
     }
@@ -219,7 +228,7 @@ class PassageCollectionServiceTest {
         for (int i = 0; i < 251; i++) many.add(idA);
 
         assertThrows(BadRequestException.class,
-                () -> service.create(USER_ID, "Huge", many, List.of()));
+                () -> service.create(USER_ID, "Huge", members(many.toArray(UUID[]::new))));
         verify(collectionRepository, never()).saveAndFlush(any());
     }
 

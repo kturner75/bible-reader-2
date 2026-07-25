@@ -3425,37 +3425,24 @@
 
         elements.cbSave.disabled = true;
         try {
-            // Materialize staged ranges without titles — titles go in passageTitles
-            // so they commit atomically with the collection (and roll back if it fails).
-            for (const item of builder.queue) {
-                if (item.id) continue;
-                const desiredTitle = item.title || '';
-                const created = await libApi('/api/passages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        naturalKey: item.naturalKey,
-                        title: null
-                    })
-                });
-                item.id = created.id;
-                item.pending = false;
-                item.reference = created.reference || item.reference;
-                item.naturalKey = created.naturalKey || item.naturalKey;
-                item.originalTitle = created.title || '';
-                item.title = desiredTitle;
-            }
-
-            const passageIds = builder.queue.map(p => p.id);
-            const seenTitleIds = new Set();
-            const passageTitles = [];
-            for (const p of builder.queue) {
-                if (!p.id || seenTitleIds.has(p.id)) continue;
-                if ((p.title || '') === (p.originalTitle || '')) continue;
-                seenTitleIds.add(p.id);
-                passageTitles.push({ id: p.id, title: p.title || null });
-            }
-            const body = JSON.stringify({ label, passageIds, passageTitles });
+            // Passages + titles materialize in the same backend transaction as the collection
+            const members = builder.queue.map(p => {
+                if (p.id) {
+                    const updateTitle = (p.title || '') !== (p.originalTitle || '');
+                    return {
+                        passageId: p.id,
+                        updateTitle,
+                        title: updateTitle ? (p.title || null) : null
+                    };
+                }
+                const hasTitle = !!(p.title && p.title.trim());
+                return {
+                    naturalKey: p.naturalKey,
+                    updateTitle: hasTitle,
+                    title: hasTitle ? p.title.trim() : null
+                };
+            });
+            const body = JSON.stringify({ label, members });
             if (builder.editingId) {
                 await libApi(`/api/collections/${builder.editingId}`, {
                     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body
