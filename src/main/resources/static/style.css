@@ -386,7 +386,31 @@ body {
     font-variant: normal;
 }
 
-/* Collection header exit button (reuses pencil-button styling, always visible) */
+/* Scoped reader Back control (range / passage / collection) */
+.scoped-back-btn {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-link);
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.2rem 0.55rem;
+    margin-right: 0.65rem;
+    cursor: pointer;
+    vertical-align: middle;
+    opacity: 1;
+}
+.scoped-back-btn:hover {
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+    background: var(--color-header-bg);
+}
+.scoped-title-label {
+    vertical-align: middle;
+}
+
+/* Legacy class kept for any remaining exit affordances */
 .collection-exit-btn {
     opacity: 0.6;
     font-size: 1rem;
@@ -1585,6 +1609,26 @@ body {
     border-radius: 3px;
 }
 
+.note-insert-passage-btn {
+    margin-right: auto;
+}
+
+.passage-insert-search {
+    display: block;
+    width: calc(100% - 3rem);
+    margin: 0 1.5rem 0.75rem;
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-primary);
+    font-size: 0.95rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.passage-insert-modal .collections-list {
+    max-height: min(50vh, 400px);
+}
+
 .chapter-note-signin {
     text-align: center;
     padding: 1rem 0 0.5rem;
@@ -1642,7 +1686,9 @@ body {
 }
 
 .note-verse-link,
-.note-collection-link {
+.note-collection-link,
+.note-passage-link,
+.note-range-link {
     color: var(--color-link);
     text-decoration: underline;
     text-underline-offset: 2px;
@@ -1650,7 +1696,9 @@ body {
 }
 
 .note-verse-link:hover,
-.note-collection-link:hover {
+.note-collection-link:hover,
+.note-passage-link:hover,
+.note-range-link:hover {
     color: var(--color-text);
 }
 
@@ -1924,6 +1972,11 @@ body {
     justify-content: center;
 }
 .collections-overlay[hidden] { display: none; }
+
+/* Above note editors (350) so Insert Passage works while editing a note */
+#passage-insert-overlay {
+    z-index: 360;
+}
 
 .collections-modal {
     background: var(--color-bg);
@@ -2208,12 +2261,27 @@ body {
     border-bottom: 1px solid var(--color-border);
     font-size: .85rem;
 }
-.cb-queue-ref {
+.cb-queue-main {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+}
+.cb-queue-ref {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.cb-queue-title {
+    width: 100%;
+    font-family: var(--font-primary);
+    font-size: .8rem;
+    padding: .2rem .4rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
 }
 .cb-queue-btns { display: flex; gap: .15rem; flex-shrink: 0; }
 .cb-queue-btns button {

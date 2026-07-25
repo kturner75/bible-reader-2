@@ -4,18 +4,20 @@ import com.readthekjv.model.entity.PassageCollection;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 public record CollectionResponse(
     long id,
     String label,
-    List<Integer> verseIds,
+    List<UUID> passageIds,
+    int verseCount,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt
 ) {
-    public static CollectionResponse from(PassageCollection c) {
+    public static CollectionResponse from(PassageCollection c, int verseCount) {
         return new CollectionResponse(
-            c.getId(), c.getLabel(), List.copyOf(c.getVerseIds()),
-            c.getCreatedAt(), c.getUpdatedAt()
+            c.getId(), c.getLabel(), List.copyOf(c.getPassageIds()),
+            verseCount, c.getCreatedAt(), c.getUpdatedAt()
         );
     }
 }

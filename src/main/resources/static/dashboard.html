@@ -162,12 +162,30 @@
                     <input type="text" id="sermon-note-title-input" placeholder="Title" maxlength="200">
                     <textarea id="sermon-note-textarea" placeholder="Notes, outline, scripture links..." maxlength="20000"></textarea>
                     <div class="note-char-count"><span id="sermon-note-char-current">0</span>/<span id="sermon-note-char-max">20000</span></div>
-                    <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <code>[John 3:16]</code> verse link <code>[pid=3]</code> collection link</p>
+                    <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <code>[John 3:16]</code> verse link · Insert scripture stores a portable link</p>
                     <div class="note-actions">
+                        <button type="button" id="sermon-note-insert-passage-btn" class="note-insert-passage-btn">Insert scripture</button>
                         <button id="sermon-note-save-btn" class="primary">Save</button>
                         <button id="sermon-note-cancel-btn">Cancel</button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Insert Passage Picker -->
+    <div class="note-editor-overlay" id="passage-insert-overlay" hidden>
+        <div class="note-editor-modal">
+            <div class="note-editor-header">
+                <h2>Insert Scripture</h2>
+                <button id="passage-insert-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="note-editor-content">
+                <input type="search" id="passage-insert-search" class="passage-insert-search"
+                    placeholder="Search by title or reference…" autocomplete="off"
+                    style="width:100%;margin:0 0 0.75rem;box-sizing:border-box;">
+                <div class="collections-count" id="passage-insert-count" style="margin-bottom:0.5rem;">0 passages</div>
+                <div id="passage-insert-list"></div>
             </div>
         </div>
     </div>

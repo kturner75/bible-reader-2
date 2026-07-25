@@ -781,10 +781,14 @@ a:hover { text-decoration: underline; }
 .note-markdown ul, .note-markdown ol { margin: 0 0 0.75em 1.5em; }
 .note-markdown li { margin-bottom: 0.25em; }
 
-.note-verse-link, .note-collection-link {
+.note-verse-link, .note-collection-link, .note-passage-link, .note-range-link {
     color: var(--color-link);
     text-decoration: underline;
     text-underline-offset: 2px;
     cursor: pointer;
 }
-.note-verse-link:hover, .note-collection-link:hover { color: var(--color-text); }
+.note-verse-link:hover, .note-collection-link:hover, .note-passage-link:hover, .note-range-link:hover { color: var(--color-text); }
+
+.note-insert-passage-btn {
+    margin-right: auto;
+}

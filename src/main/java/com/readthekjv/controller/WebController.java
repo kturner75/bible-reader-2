@@ -31,6 +31,18 @@ public class WebController {
         return "forward:/index.html";
     }
 
+    /** Serve the focused passage reader (frontend reads the id from the URL path). */
+    @GetMapping("/read/passage/{id}")
+    public String readerPassage() {
+        return "forward:/index.html";
+    }
+
+    /** Serve the focused range reader for portable [v=…] links (query param v=). */
+    @GetMapping("/read/range")
+    public String readerRange() {
+        return "forward:/index.html";
+    }
+
     /** Serve the training page at /train (forwards to the static train.html). */
     @GetMapping("/train")
     public String train() {

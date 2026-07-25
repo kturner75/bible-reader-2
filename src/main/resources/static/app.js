@@ -73,10 +73,18 @@
         memorizationDueEntries: [],        // entries due today, set on each queue render
         passagePickerOpen: false,          // passage picker modal state
         // Passage collections (account-only — no localStorage mode)
-        collections: [],                   // summaries [{id, label, verseCount, createdAt, updatedAt}]
+        collections: [],                   // summaries [{id, label, passageCount, verseCount, createdAt, updatedAt}]
+        passages: [],                      // catalog for note picker [{id, title, reference, naturalKey, global}]
         collectionsOpen: false,            // collections hub modal state
         collectionBuilderOpen: false,      // collection builder modal state
-        collection: null,                  // scoped reader mode: { id, label, verses, passageStarts, currentIndex, pageStartIndex } | null
+        passageInsertOpen: false,          // insert-passage picker for notes
+        passageInsertTarget: null,         // textarea element to insert into
+        // Scoped reader: collection OR single focused passage/range
+        // { kind:'collection'|'passage'|'range', id, label, verses, ... }
+        collection: null,
+        // Where to return when leaving scoped mode (reading position + optional note)
+        // { verseId, note: null | { type:'verse', verseId } | { type:'chapter'|'book', ... }, historyPushed }
+        scopedReturn: null,
         // Auth
         currentUser: null                  // null = anonymous; object = { id, email, displayName }
     };
@@ -197,6 +205,14 @@
         collectionsCount: document.getElementById('collections-count'),
         collectionsList: document.getElementById('collections-list'),
         collectionsNew: document.getElementById('collections-new'),
+        // Insert-passage picker (notes)
+        passageInsertOverlay: document.getElementById('passage-insert-overlay'),
+        passageInsertClose: document.getElementById('passage-insert-close'),
+        passageInsertSearch: document.getElementById('passage-insert-search'),
+        passageInsertCount: document.getElementById('passage-insert-count'),
+        passageInsertList: document.getElementById('passage-insert-list'),
+        noteInsertPassageBtn: document.getElementById('note-insert-passage-btn'),
+        chapterNoteInsertPassageBtn: document.getElementById('chapter-note-insert-passage-btn'),
         // Collection builder modal
         cbOverlay: document.getElementById('collection-builder-overlay'),
         cbTitle: document.getElementById('cb-title'),
@@ -807,8 +823,9 @@
             ? `<button class="verse-copy-btn" data-verse-id="${verse.id}" title="Copy verse (y)" aria-label="Copy verse text and reference">${COPY_ICON_SVG}</button>`
             : '';
 
+        const ciAttr = (verse._ci != null) ? ` data-ci="${verse._ci}"` : '';
         return `
-            <p class="verse${currentClass}${savedClass}${memorizedClass}" data-verse-id="${verse.id}">
+            <p class="verse${currentClass}${savedClass}${memorizedClass}" data-verse-id="${verse.id}"${ciAttr}>
                 ${tagDotsHtml}
                 <span class="verse-number">${verse.verse}</span>
                 <span class="verse-text">${escapeHtml(verse.text)}</span>
@@ -853,14 +870,37 @@
         }
     }
 
-    // ─── Collection Scoped Reader ─────────────────────────────────────────────
-    // While state.collection is set, the reader pages over the collection's
-    // ordered verse array instead of sequential global ids. Each verse carries
-    // _ci (its index in the collection) since verse ids may repeat.
+    // ─── Scoped Reader (collection or focused passage) ────────────────────────
+    // While state.collection is set, the reader pages over an ordered verse
+    // array instead of sequential global ids. Each verse carries _ci (index
+    // in the scoped list) since verse ids may repeat in collections.
+    // kind:'passage' is a single first-class passage; kind:'collection' is
+    // an ordered group of passages under one label.
 
-    /** Sub-heading shown at the start of each passage (contiguous run) in a collection. */
+    function passageDisplayLabel(p) {
+        if (!p) return 'Passage';
+        const title = p.title && String(p.title).trim();
+        return title || p.reference || 'Passage';
+    }
+
+    /** Sub-heading shown at the start of each passage in a collection. */
     function createPassageHeaderHTML(reference) {
         return `<div class="chapter-header passage-header"><span>${escapeHtml(reference)}</span></div>`;
+    }
+
+    /** Flatten API collection passages into the scoped-reader verse list. */
+    function flattenCollectionPassages(apiPassages) {
+        const verses = [];
+        const passageStarts = [];
+        const passageRefs = {};
+        (apiPassages || []).forEach(p => {
+            const start = verses.length;
+            passageStarts.push(start);
+            passageRefs[start] = passageDisplayLabel(p);
+            (p.verses || []).forEach(v => verses.push({ ...v }));
+        });
+        verses.forEach((v, i) => { v._ci = i; });
+        return { verses, passageStarts, passageRefs };
     }
 
     /**
@@ -930,12 +970,17 @@
         const col = state.collection;
         elements.readingArea.innerHTML = renderCollectionVersesWithHeaders(state.pageVerses, true);
 
-        // Header: collection label + exit button (no book-note pencil in this mode)
-        elements.chapterTitle.innerHTML = `${escapeHtml(col.label)}<button class="chapter-note-btn collection-exit-btn"
-            title="Exit collection (Esc)" aria-label="Exit collection">&times;</button>`;
+        // Explicit Back control — × alone was too easy to miss after following a note link
+        elements.chapterTitle.innerHTML =
+            `<button type="button" class="scoped-back-btn" title="Back (Esc)" aria-label="Back">← Back</button>` +
+            `<span class="scoped-title-label">${escapeHtml(col.label)}</span>`;
 
-        const passageIdx = col.passageStarts.filter(s => s <= col.currentIndex).length;
-        elements.pageInfo.textContent = `Passage ${passageIdx} of ${col.passageStarts.length}`;
+        if (col.kind === 'collection') {
+            const passageIdx = col.passageStarts.filter(s => s <= col.currentIndex).length;
+            elements.pageInfo.textContent = `Passage ${passageIdx} of ${col.passageStarts.length}`;
+        } else {
+            elements.pageInfo.textContent = col.label;
+        }
 
         updateCurrentReference();
     }
@@ -1020,32 +1065,195 @@
         }
         if (state.audioPlaying) stopAudio();
 
-        const verses = data.verses.map((v, i) => ({ ...v, _ci: i }));
-        const passages = groupIntoPassages(verses);
-        const passageRefs = {};
-        passages.forEach(p => { passageRefs[p.startIndex] = p.reference; });
+        const flat = flattenCollectionPassages(data.passages);
+        if (!flat.verses.length) {
+            hideLoading();
+            showToast('Collection has no passages');
+            return false;
+        }
 
+        rememberScopedReturn(push);
         state.collection = {
+            kind: 'collection',
             id: data.id,
             label: data.label,
-            verses,
-            passageStarts: passages.map(p => p.startIndex),
-            passageRefs,
+            verses: flat.verses,
+            passageStarts: flat.passageStarts,
+            passageRefs: flat.passageRefs,
             currentIndex: 0,
             pageStartIndex: 0
         };
-        state.currentVerseId = verses[0].id;
+        state.currentVerseId = flat.verses[0].id;
         if (push) history.pushState({ collectionId: data.id }, '', `/read/collection/${data.id}`);
         await loadCollectionPage(0);
         return true;
     }
 
-    /** Leave collection mode, landing on the verse that was current inside it. */
+    /**
+     * Enter the focused passage reader for a first-class Passage.
+     * Resolves to a range session (same chrome as [v=…] links).
+     */
+    async function enterPassageMode(id, { push = true } = {}) {
+        showLoading();
+        let data;
+        try {
+            data = await libApi(`/api/passages/${id}/verses`);
+        } catch (err) {
+            hideLoading();
+            console.error('Failed to load passage:', err);
+            showToast(err.message.includes('401')
+                ? 'Sign in to view passages'
+                : 'Passage not found');
+            return false;
+        }
+        return enterRangeModeFromPayload(data, {
+            push,
+            url: push ? `/read/passage/${id}` : null,
+            kind: 'passage',
+            id
+        });
+    }
+
+    /**
+     * Focused range reader for portable [v=…] links. No Passage row required.
+     * @param {string} vBody — e.g. "26136-26138" or full "[v=26136]"
+     */
+    async function enterRangeMode(vBody, { push = true } = {}) {
+        showLoading();
+        const param = String(vBody).replace(/^\[?v=/i, '').replace(/\]$/, '');
+        let data;
+        try {
+            const res = await fetch(`/api/ranges?v=${encodeURIComponent(param)}`);
+            if (!res.ok) throw new Error(String(res.status));
+            data = await res.json();
+        } catch (err) {
+            hideLoading();
+            console.error('Failed to load range:', err);
+            showToast('Could not open that scripture range');
+            return false;
+        }
+        const matched = findPassageByNaturalKey(data.naturalKey);
+        if (matched) {
+            data.title = matched.title || data.title;
+        }
+        const url = `/read/range?v=${encodeURIComponent(data.v)}`;
+        return enterRangeModeFromPayload(data, {
+            push,
+            url: push ? url : null,
+            kind: 'range',
+            id: data.v
+        });
+    }
+
+    async function enterRangeModeFromPayload(data, { push, url, kind, id }) {
+        if (state.audioPlaying) stopAudio();
+
+        const label = passageDisplayLabel(data);
+        const verses = (data.verses || []).map((v, i) => ({ ...v, _ci: i }));
+        if (!verses.length) {
+            hideLoading();
+            showToast('Range has no verses');
+            return false;
+        }
+
+        rememberScopedReturn(push);
+        state.collection = {
+            kind: kind || 'range',
+            id: id != null ? id : data.v,
+            label,
+            verses,
+            passageStarts: [0],
+            passageRefs: { 0: label },
+            rangeV: data.v,
+            naturalKey: data.naturalKey,
+            currentIndex: 0,
+            pageStartIndex: 0
+        };
+        state.currentVerseId = verses[0].id;
+        if (push && url) history.pushState({ rangeV: data.v, kind }, '', url);
+        await loadCollectionPage(0);
+        return true;
+    }
+
+    /**
+     * Snapshot reading position (and any note return already staged) before
+     * entering scoped mode.
+     * push=false on a fresh deep link clears return; push=false while already
+     * in scoped mode (popstate between scoped URLs) keeps the original return.
+     */
+    function rememberScopedReturn(push) {
+        if (!push) {
+            if (!state.collection) {
+                state.scopedReturn = null;
+            }
+            return;
+        }
+        const stagedNote = state.scopedReturn?.note || null;
+        // Prefer the verse the user was reading before this jump — not a verse
+        // already overwritten by a prior scoped session.
+        const verseId = (!state.collection && state.currentVerseId)
+            ? state.currentVerseId
+            : (state.scopedReturn?.verseId || state.currentVerseId);
+        state.scopedReturn = {
+            verseId,
+            note: stagedNote,
+            historyPushed: true
+        };
+    }
+
+    /** Capture open note editor so Back can reopen it after a scripture jump. */
+    function stageNoteReturnFromOpenEditors() {
+        if (state.noteEditorOpen && state.noteEditorVerseId) {
+            state.scopedReturn = {
+                verseId: state.noteEditorVerseId,
+                note: { type: 'verse', verseId: state.noteEditorVerseId },
+                historyPushed: true
+            };
+            return;
+        }
+        if (state.chapterNoteEditorOpen && state.chapterNoteEditorTarget) {
+            const t = state.chapterNoteEditorTarget;
+            state.scopedReturn = {
+                verseId: state.currentVerseId,
+                note: { ...t, type: t.type || 'chapter' },
+                historyPushed: true
+            };
+        }
+    }
+
+    async function restoreScopedNote(note) {
+        if (!note) return;
+        if (note.type === 'verse' && note.verseId) {
+            await openNoteEditor(note.verseId);
+        } else if (note.type === 'chapter' || note.type === 'book') {
+            openChapterNoteEditor(note);
+        }
+    }
+
+    /**
+     * Leave scoped reader; restore prior reading position and optional note.
+     * When we entered via pushState, ← Back / Esc use history.back() so the
+     * browser Back button and in-app Back share the same restore path.
+     */
     async function exitCollectionMode({ push = true } = {}) {
         if (!state.collection) return;
+
+        if (push && state.scopedReturn?.historyPushed) {
+            history.back(); // popstate → exitCollectionMode({ push: false })
+            return;
+        }
+
+        const ret = state.scopedReturn;
         state.collection = null;
-        if (push) history.pushState({}, '', '/read');
-        await goToVerse(state.currentVerseId);
+        state.scopedReturn = null;
+        const verseId = (ret && ret.verseId) || state.currentVerseId;
+
+        if (push) {
+            // Deep-linked scoped session (no return entry to pop)
+            history.replaceState({}, '', '/read');
+        }
+        await goToVerse(verseId);
+        await restoreScopedNote(ret && ret.note);
     }
 
     /**
@@ -1667,10 +1875,7 @@
         if (elements.mobileSearchCancel) elements.mobileSearchCancel.hidden = true;
     }
 
-    // ── Search-bar autocomplete for collection labels ──
-    // Suggests matching collections while typing; navigating to one requires an
-    // explicit selection (arrow keys + Enter, or click) — plain Enter always
-    // runs the normal reference/full-text search.
+    // ── Search-bar autocomplete for passages + collections ──
     const searchAc = { open: false, activeIndex: -1, matches: [] };
 
     function updateSearchAutocomplete() {
@@ -1679,9 +1884,18 @@
             hideSearchAutocomplete();
             return;
         }
-        const matches = state.collections
+        const passageMatches = state.passages
+            .filter(p => {
+                const label = passageDisplayLabel(p).toLowerCase();
+                return label.includes(q) || (p.reference && p.reference.toLowerCase().includes(q));
+            })
+            .slice(0, 6)
+            .map(p => ({ type: 'passage', id: p.id, label: passageDisplayLabel(p) }));
+        const collectionMatches = state.collections
             .filter(c => c.label.toLowerCase().includes(q))
-            .slice(0, 8);
+            .slice(0, 6)
+            .map(c => ({ type: 'collection', id: c.id, label: c.label }));
+        const matches = [...passageMatches, ...collectionMatches].slice(0, 10);
         if (matches.length === 0) {
             hideSearchAutocomplete();
             return;
@@ -1689,16 +1903,38 @@
         searchAc.open = true;
         searchAc.activeIndex = -1;
         searchAc.matches = matches;
-        elements.searchAutocomplete.innerHTML =
-            '<div class="search-ac-heading">Collections</div>' +
-            matches.map((c, i) => {
-                const idx = c.label.toLowerCase().indexOf(q);
-                const label = escapeHtml(c.label.slice(0, idx)) +
-                    '<strong>' + escapeHtml(c.label.slice(idx, idx + q.length)) + '</strong>' +
-                    escapeHtml(c.label.slice(idx + q.length));
-                return `<button class="search-ac-item" data-collection-id="${c.id}" data-index="${i}">${label}</button>`;
-            }).join('');
+        let html = '';
+        const pass = matches.filter(m => m.type === 'passage');
+        const cols = matches.filter(m => m.type === 'collection');
+        if (pass.length) {
+            html += '<div class="search-ac-heading">Passages</div>' +
+                pass.map((m) => {
+                    const i = matches.indexOf(m);
+                    return highlightAcItem(m, q, i);
+                }).join('');
+        }
+        if (cols.length) {
+            html += '<div class="search-ac-heading">Collections</div>' +
+                cols.map((m) => {
+                    const i = matches.indexOf(m);
+                    return highlightAcItem(m, q, i);
+                }).join('');
+        }
+        elements.searchAutocomplete.innerHTML = html;
         elements.searchAutocomplete.hidden = false;
+    }
+
+    function highlightAcItem(m, q, i) {
+        const label = m.label;
+        const idx = label.toLowerCase().indexOf(q);
+        const highlighted = idx < 0 ? escapeHtml(label)
+            : escapeHtml(label.slice(0, idx)) +
+              '<strong>' + escapeHtml(label.slice(idx, idx + q.length)) + '</strong>' +
+              escapeHtml(label.slice(idx + q.length));
+        const dataAttr = m.type === 'passage'
+            ? `data-passage-id="${m.id}"`
+            : `data-collection-id="${m.id}"`;
+        return `<button class="search-ac-item" ${dataAttr} data-index="${i}">${highlighted}</button>`;
     }
 
     function hideSearchAutocomplete() {
@@ -1723,6 +1959,14 @@
         elements.searchInput.blur();
         closeSearch();
         await enterCollectionMode(id);
+    }
+
+    async function selectPassageSuggestion(id) {
+        hideSearchAutocomplete();
+        elements.searchInput.value = '';
+        elements.searchInput.blur();
+        closeSearch();
+        await enterPassageMode(id);
     }
 
     // ============================================
@@ -1974,8 +2218,26 @@
         // Verse links — brackets are reserved for verse refs, not markdown URLs
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
-            // [pid=123] — passage collection link; renders the collection's label
-            // and opens the scoped reader. Must be checked before the ref branches.
+            // [v=26136-26138] — portable scripture pointer
+            const vTok = trimmed.match(/^v=(.+)$/i);
+            if (vTok) {
+                try {
+                    const body = serializeVBody(parseVToken(trimmed));
+                    const p = findPassageByVBody(body);
+                    const label = p ? passageDisplayLabel(p) : body;
+                    return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${escapeHtml(label)}</a>`;
+                } catch {
+                    return match;
+                }
+            }
+            // [passage=<uuid>] — legacy compat → focused reader via passage id
+            const passageTok = trimmed.match(/^passage=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+            if (passageTok) {
+                const p = state.passages.find(x => x.id === passageTok[1]);
+                const label = p ? passageDisplayLabel(p) : 'Passage';
+                return `<a class="note-passage-link" data-passage-id="${passageTok[1]}" href="#">${escapeHtml(label)}</a>`;
+            }
+            // [pid=123] — legacy collection link (still supported)
             const pid = trimmed.match(/^pid=(\d+)$/);
             if (pid) {
                 const collection = state.collections.find(c => c.id === parseInt(pid[1], 10));
@@ -1983,8 +2245,6 @@
                 return `<a class="note-collection-link" data-collection-id="${pid[1]}" href="#">${escapeHtml(label)}</a>`;
             }
             if (ctx && ctx.type === 'book') {
-                // Book scope: [12] = chapter 12, [3:16] = chapter 3 verse 16 —
-                // both resolve via /api/reference with the book name prefixed.
                 if (/^\d+$/.test(trimmed) || /^\d+:\d+$/.test(trimmed)) {
                     return `<a class="note-verse-link" data-ref="${ctx.bookName} ${trimmed}" href="#">${match}</a>`;
                 }
@@ -1996,11 +2256,33 @@
                     const verseId = ctx.firstVerseId + verseNum - 1;
                     return `<a class="note-verse-link" data-verse-id="${verseId}" href="#">${match}</a>`;
                 }
-                return match; // out of chapter range — leave as text
+                return match;
             }
             return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
         });
         return html;
+    }
+
+    /** Fill human-readable labels on [v=…] links that only had a range body. */
+    async function hydrateRangeLinkLabels(root) {
+        if (!root) return;
+        const links = [...root.querySelectorAll('.note-range-link[data-v]')];
+        for (const link of links) {
+            const body = link.dataset.v;
+            const p = findPassageByVBody(body);
+            if (p) {
+                link.textContent = passageDisplayLabel(p);
+                continue;
+            }
+            if (link.dataset.labelReady) continue;
+            try {
+                const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
+                if (!res.ok) continue;
+                const data = await res.json();
+                link.textContent = data.reference || body;
+                link.dataset.labelReady = '1';
+            } catch (_) { /* leave body as label */ }
+        }
     }
 
     /**
@@ -2070,7 +2352,7 @@
             .trim();
     }
 
-    /** Resolve a clicked verse link (data-verse-id or data-ref) and jump to it. */
+    /** Resolve a clicked verse link (data-verse-id or data-ref) and open focused range. */
     async function handleNoteVerseLinkClick(link) {
         let verseId = parseInt(link.dataset.verseId);
         if (!verseId && link.dataset.ref) {
@@ -2086,10 +2368,12 @@
             showToast(`Couldn't find "${link.dataset.ref}"`);
             return;
         }
+        stageNoteReturnFromOpenEditors();
         closeChapterNoteEditor();
         closeNoteEditor();
         closeLibrary();
-        await goToVerse(verseId);
+        // Single-verse focused session so ← Back can restore the note/context
+        await enterRangeMode(String(verseId));
     }
 
     /**
@@ -2270,6 +2554,160 @@
         }
         segs.push(start === end ? `${start}` : `${start}:${end}`);
         return segs.join(',');
+    }
+
+    // ── Portable [v=…] helpers (mirrors VerseRangeParser) ──
+
+    function parseVToken(raw) {
+        let s = String(raw).trim();
+        const m = s.match(/^\[?v=(.+)\]?$/i);
+        if (m) s = m[1].trim();
+        const ranges = [];
+        for (const part of s.split(',')) {
+            const p = part.trim();
+            if (!p) throw new Error('empty segment');
+            if (p.includes('-')) {
+                const [a, b] = p.split('-', 2).map(x => parseInt(x.trim(), 10));
+                if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('bad range');
+                ranges.push({ from: Math.min(a, b), to: Math.max(a, b) });
+            } else {
+                const v = parseInt(p, 10);
+                if (!Number.isFinite(v)) throw new Error('bad id');
+                ranges.push({ from: v, to: v });
+            }
+        }
+        return normalizeVRanges(ranges);
+    }
+
+    function normalizeVRanges(ranges) {
+        const sorted = ranges
+            .map(r => ({ from: Math.min(r.from, r.to), to: Math.max(r.from, r.to) }))
+            .sort((a, b) => a.from - b.from || a.to - b.to);
+        const merged = [];
+        let cur = sorted[0];
+        for (let i = 1; i < sorted.length; i++) {
+            const next = sorted[i];
+            if (next.from <= cur.to + 1) {
+                cur = { from: cur.from, to: Math.max(cur.to, next.to) };
+            } else {
+                merged.push(cur);
+                cur = next;
+            }
+        }
+        merged.push(cur);
+        return merged;
+    }
+
+    function serializeVBody(ranges) {
+        return normalizeVRanges(ranges).map(r =>
+            r.from === r.to ? String(r.from) : `${r.from}-${r.to}`
+        ).join(',');
+    }
+
+    function serializeVToken(ranges) {
+        return `[v=${serializeVBody(ranges)}]`;
+    }
+
+    function rangesFromNaturalKey(naturalKey) {
+        const ranges = [];
+        for (const part of String(naturalKey).split(',')) {
+            const p = part.trim();
+            if (p.includes(':')) {
+                const [a, b] = p.split(':', 2).map(x => parseInt(x.trim(), 10));
+                ranges.push({ from: a, to: b });
+            } else {
+                const v = parseInt(p, 10);
+                ranges.push({ from: v, to: v });
+            }
+        }
+        return normalizeVRanges(ranges);
+    }
+
+    function findPassageByVBody(vBody) {
+        const target = serializeVBody(parseVToken(vBody));
+        return state.passages.find(p => {
+            try {
+                return serializeVBody(rangesFromNaturalKey(p.naturalKey)) === target;
+            } catch {
+                return false;
+            }
+        });
+    }
+
+    function findPassageByNaturalKey(naturalKey) {
+        try {
+            return findPassageByVBody(serializeVBody(rangesFromNaturalKey(naturalKey)));
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Rewrite typed scripture refs in a note body to portable [v=…] tokens.
+     * Leaves [v=…], [pid=…], [passage=…] and markdown alone.
+     */
+    async function normalizeNoteLinksOnSave(text, ctx) {
+        if (!text) return text;
+        const re = /\[([^\]]+)\]/g;
+        const parts = [];
+        let last = 0;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            parts.push(text.slice(last, m.index));
+            const inner = m[1].trim();
+            last = m.index + m[0].length;
+
+            if (/^v=/i.test(inner) || /^pid=\d+$/i.test(inner)
+                || /^passage=[0-9a-f-]{36}$/i.test(inner)) {
+                parts.push(m[0]);
+                continue;
+            }
+
+            try {
+                // Book notes: [12] means the whole chapter, not verse 1 of ch. 12
+                if (ctx && ctx.type === 'book' && ctx.bookId && /^\d+$/.test(inner)) {
+                    const chapterNum = parseInt(inner, 10);
+                    const chapters = await getChaptersForBook(ctx.bookId);
+                    const ch = chapters.find(c => c.chapter === chapterNum);
+                    if (ch && ch.verseCount > 0) {
+                        parts.push(serializeVToken([{
+                            from: ch.firstVerseId,
+                            to: ch.firstVerseId + ch.verseCount - 1
+                        }]));
+                        continue;
+                    }
+                }
+
+                let verseId = null;
+                if (ctx && ctx.type !== 'book' && /^\d+$/.test(inner)
+                    && ctx.firstVerseId && ctx.verseCount) {
+                    const n = parseInt(inner, 10);
+                    if (n >= 1 && n <= ctx.verseCount) {
+                        verseId = ctx.firstVerseId + n - 1;
+                    }
+                }
+                if (verseId == null) {
+                    let ref = inner;
+                    if (ctx && ctx.type === 'book' && (/^\d+$/.test(inner) || /^\d+:\d+$/.test(inner))) {
+                        ref = `${ctx.bookName} ${inner}`;
+                    }
+                    const res = await fetch(`/api/reference?ref=${encodeURIComponent(ref)}`);
+                    if (res.ok) {
+                        const parsed = await res.json();
+                        if (parsed.valid && parsed.verseId) verseId = parsed.verseId;
+                    }
+                }
+                if (verseId != null) {
+                    parts.push(serializeVToken([{ from: verseId, to: verseId }]));
+                } else {
+                    parts.push(m[0]);
+                }
+            } catch {
+                parts.push(m[0]);
+            }
+        }
+        parts.push(text.slice(last));
+        return parts.join('');
     }
 
     /** Returns true if verseId falls within any segment of the given natural key. */
@@ -2460,8 +2898,7 @@
     }
 
     // ─── Passage Collections ──────────────────────────────────────────────────
-    // Account-only feature: a persisted, ordered list of arbitrary verses with a
-    // label. Order is user-defined (may be out of canonical order, may repeat).
+    // Account-only: ordered groups of first-class passages under a label.
 
     /** "Matthew 4:24" for a verse object with book/chapter/verse fields. */
     function verseRefStr(v) {
@@ -2469,9 +2906,8 @@
     }
 
     /**
-     * Group an ordered verse array into contiguous "passages" (runs of consecutive
-     * global ids). Unlike buildNaturalKeyFromIds this does NOT sort — order is data.
-     * Returns [{startIndex, count, reference}].
+     * Group an ordered verse array into contiguous runs.
+     * Returns [{startIndex, count, reference, verseIds}].
      */
     function groupIntoPassages(verses) {
         const passages = [];
@@ -2485,6 +2921,7 @@
         passages.forEach(p => {
             const first = verses[p.startIndex];
             const last = verses[p.startIndex + p.count - 1];
+            p.verseIds = verses.slice(p.startIndex, p.startIndex + p.count).map(v => v.id);
             if (p.count === 1) {
                 p.reference = verseRefStr(first);
             } else if (first.bookId === last.bookId && first.chapter === last.chapter) {
@@ -2507,8 +2944,153 @@
         }
     }
 
+    async function loadPassagesFromApi(q) {
+        try {
+            const url = q ? `/api/passages?q=${encodeURIComponent(q)}` : '/api/passages';
+            state.passages = await libApi(url);
+            refreshScopedRangeLabelFromCatalog();
+        } catch (err) {
+            console.error('Failed to load passages:', err);
+            state.passages = [];
+        }
+    }
+
+    /** Apply a titled Passage label once the catalog arrives after a range deep link. */
+    function refreshScopedRangeLabelFromCatalog() {
+        const col = state.collection;
+        if (!col || !col.naturalKey) return;
+        if (col.kind !== 'range' && col.kind !== 'passage') return;
+        const matched = findPassageByNaturalKey(col.naturalKey);
+        if (!matched) return;
+        const newLabel = passageDisplayLabel(matched);
+        if (newLabel === col.label) return;
+        col.label = newLabel;
+        if (col.passageRefs && col.passageRefs[0] !== undefined) {
+            col.passageRefs[0] = newLabel;
+        }
+        renderCollectionPage();
+    }
+
     function fetchCollectionVerses(id) {
         return libApi(`/api/collections/${id}/verses`);
+    }
+
+    // ── Insert passage into note textarea ──
+
+    async function openPassageInsertPicker(textarea) {
+        if (!state.currentUser) {
+            showToast('Sign in to link passages');
+            return;
+        }
+        state.passageInsertTarget = textarea;
+        state.passageInsertOpen = true;
+        elements.passageInsertOverlay.hidden = false;
+        elements.passageInsertSearch.value = '';
+        await loadPassagesFromApi();
+        renderPassageInsertList();
+        elements.passageInsertSearch.focus();
+    }
+
+    function closePassageInsertPicker() {
+        state.passageInsertOpen = false;
+        state.passageInsertTarget = null;
+        elements.passageInsertOverlay.hidden = true;
+    }
+
+    function renderPassageInsertList() {
+        const q = (elements.passageInsertSearch.value || '').trim().toLowerCase();
+        let list = state.passages;
+        if (q) {
+            list = list.filter(p => {
+                const label = passageDisplayLabel(p).toLowerCase();
+                return label.includes(q)
+                    || (p.reference && p.reference.toLowerCase().includes(q))
+                    || (p.title && p.title.toLowerCase().includes(q));
+            });
+        }
+        elements.passageInsertCount.textContent =
+            list.length === 1 ? '1 passage' : `${list.length} passages`;
+
+        if (list.length === 0) {
+            elements.passageInsertList.innerHTML =
+                '<p class="collections-empty">No passages yet.<br>' +
+                'Create one from a collection builder or by memorizing a selection.</p>';
+            return;
+        }
+
+        elements.passageInsertList.innerHTML = list.map(p => `
+            <div class="collections-item passage-insert-item" data-passage-id="${p.id}"
+                 data-natural-key="${escapeHtml(p.naturalKey || '')}">
+                <div class="collections-item-body">
+                    <div class="collections-item-label">${escapeHtml(passageDisplayLabel(p))}</div>
+                    <div class="collections-item-meta">${escapeHtml(p.reference || '')}${p.global ? ' · Featured' : ''}</div>
+                </div>
+            </div>`).join('');
+
+        elements.passageInsertList.querySelectorAll('.passage-insert-item').forEach(item => {
+            item.addEventListener('click', () => {
+                insertPassageVToken(item.dataset.passageId, item.dataset.naturalKey);
+            });
+        });
+    }
+
+    function insertPassageVToken(passageId, naturalKey) {
+        const ta = state.passageInsertTarget;
+        if (!ta) return;
+        let token;
+        try {
+            const p = state.passages.find(x => x.id === passageId);
+            const key = naturalKey || (p && p.naturalKey);
+            if (!key) {
+                showToast('Could not resolve passage range');
+                return;
+            }
+            token = serializeVToken(rangesFromNaturalKey(key));
+        } catch (err) {
+            console.error(err);
+            showToast('Could not insert passage link');
+            return;
+        }
+        const start = ta.selectionStart ?? ta.value.length;
+        const end = ta.selectionEnd ?? start;
+        const before = ta.value.slice(0, start);
+        const after = ta.value.slice(end);
+        const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
+        const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
+        const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
+        const next = before + insert + after;
+        const maxLen = parseInt(ta.getAttribute('maxlength'), 10);
+        if (Number.isFinite(maxLen) && next.length > maxLen) {
+            showToast(`Not enough room for that link (${maxLen} char limit)`);
+            return;
+        }
+        ta.value = next;
+        const caret = before.length + insert.length;
+        ta.focus();
+        ta.setSelectionRange(caret, caret);
+        ta.dispatchEvent(new Event('input'));
+        closePassageInsertPicker();
+        showToast('Scripture link inserted');
+    }
+
+    function handleNoteRangeLinkClick(link) {
+        const v = link.dataset.v;
+        if (!v) return;
+        stageNoteReturnFromOpenEditors();
+        closeNoteEditor();
+        closeChapterNoteEditor();
+        closeLibrary();
+        enterRangeMode(v);
+    }
+
+    function handleNotePassageLinkClick(link) {
+        const id = link.dataset.passageId;
+        if (!id) return;
+        stageNoteReturnFromOpenEditors();
+        closeNoteEditor();
+        closeChapterNoteEditor();
+        closeLibrary();
+        enterPassageMode(id);
     }
 
     // ── Collections hub modal ──
@@ -2536,20 +3118,29 @@
         if (count === 0) {
             elements.collectionsList.innerHTML =
                 '<p class="collections-empty">No collections yet.<br>' +
-                'A collection is an ordered list of verses from anywhere in the Bible, ' +
+                'A collection is an ordered group of passages from anywhere in the Bible, ' +
                 'read together under one label.</p>';
             return;
         }
 
-        elements.collectionsList.innerHTML = state.collections.map(c => `
+        elements.collectionsList.innerHTML = state.collections.map(c => {
+            const parts = [];
+            if (c.passageCount != null) {
+                parts.push(c.passageCount === 1 ? '1 passage' : `${c.passageCount} passages`);
+            }
+            if (c.verseCount != null) {
+                parts.push(c.verseCount === 1 ? '1 verse' : `${c.verseCount} verses`);
+            }
+            return `
             <div class="collections-item" data-collection-id="${c.id}">
                 <div class="collections-item-body">
                     <div class="collections-item-label">${escapeHtml(c.label)}</div>
-                    <div class="collections-item-meta">${c.verseCount === 1 ? '1 verse' : `${c.verseCount} verses`}</div>
+                    <div class="collections-item-meta">${parts.join(' · ')}</div>
                 </div>
                 <button class="collections-item-edit" data-collection-id="${c.id}" aria-label="Edit collection">Edit</button>
                 <button class="collections-item-remove" data-collection-id="${c.id}" aria-label="Delete collection">&times;</button>
-            </div>`).join('');
+            </div>`;
+        }).join('');
 
         // Row click → read the collection
         elements.collectionsList.querySelectorAll('.collections-item').forEach(item => {
@@ -2587,7 +3178,7 @@
 
     const builder = {
         editingId: null,
-        queue: [],            // ordered snippets {id, book, bookId, chapter, verse, text}
+        queue: [],            // ordered passages [{id, title, reference, naturalKey, verses}]
         bookId: 1,
         chapter: 1,
         currentVerses: [],    // verses rendered in the browser pane
@@ -2616,9 +3207,13 @@
             try {
                 const data = await fetchCollectionVerses(collectionId);
                 elements.cbLabel.value = data.label;
-                builder.queue = data.verses.map(v => ({
-                    id: v.id, book: v.book, bookId: v.bookId,
-                    chapter: v.chapter, verse: v.verse, text: v.text
+                builder.queue = (data.passages || []).map(p => ({
+                    id: p.id,
+                    title: p.title || '',
+                    originalTitle: p.title || '',
+                    reference: p.reference,
+                    naturalKey: p.naturalKey,
+                    verses: p.verses || []
                 }));
             } catch (err) {
                 console.error('Failed to load collection:', err);
@@ -2713,59 +3308,107 @@
             : checked.length === 1 ? 'Add 1 verse' : `Add ${checked.length} verses`;
     }
 
-    function addCheckedToQueue() {
+    async function addCheckedToQueue() {
         const checkedIds = [...elements.cbVerseList.querySelectorAll('.pp-verse-cb:checked')]
             .map(cb => parseInt(cb.dataset.verseId, 10));
         if (!checkedIds.length) return;
-        if (builder.queue.length + checkedIds.length > 500) {
+
+        const snippets = checkedIds.map(id => builder.currentVerses.find(v => v.id === id));
+        const runs = groupIntoPassages(snippets);
+        const pendingVerseCount = runs.reduce((n, r) => n + r.count, 0)
+            + builder.queue.reduce((n, p) => n + (p.verses ? p.verses.length : 0), 0);
+        if (pendingVerseCount > 500) {
             showToast('Collections are limited to 500 verses');
             return;
         }
-        // Checkbox DOM order = chapter order; the segment lands in the queue as-is
-        const snippets = checkedIds.map(id => builder.currentVerses.find(v => v.id === id));
-        builder.queue.push(...snippets);
+
+        // Stage locally — Passage rows are created only when the collection is saved,
+        // so Cancel / remove does not leave orphan catalog entries.
+        const addedLabels = [];
+        for (const run of runs) {
+            const naturalKey = buildNaturalKeyFromIds(run.verseIds);
+            const verses = snippets.slice(run.startIndex, run.startIndex + run.count);
+            builder.queue.push({
+                id: null,
+                pending: true,
+                title: '',
+                originalTitle: '',
+                reference: run.reference,
+                naturalKey,
+                verses
+            });
+            addedLabels.push(run.reference);
+        }
         elements.cbVerseList.querySelectorAll('.pp-verse-cb:checked')
             .forEach(cb => { cb.checked = false; });
         updateBuilderAddButton();
         renderBuilderQueue();
-        const added = groupIntoPassages(snippets).map(p => p.reference).join(', ');
-        showToast(`Added ${added}`);
+        showToast(`Added ${addedLabels.join(', ')}`);
     }
 
     function renderBuilderQueue() {
-        const passages = groupIntoPassages(builder.queue);
-        const verseCount = builder.queue.length;
-        elements.cbQueueCount.textContent = verseCount === 0
-            ? 'No verses yet'
-            : `${passages.length === 1 ? '1 passage' : `${passages.length} passages`} · ` +
+        const verseCount = builder.queue.reduce((n, p) => n + (p.verses ? p.verses.length : 0), 0);
+        elements.cbQueueCount.textContent = builder.queue.length === 0
+            ? 'No passages yet'
+            : `${builder.queue.length === 1 ? '1 passage' : `${builder.queue.length} passages`} · ` +
               `${verseCount === 1 ? '1 verse' : `${verseCount} verses`}`;
 
-        elements.cbQueueList.innerHTML = passages.map((p, i) => `
+        elements.cbQueueList.innerHTML = builder.queue.map((p, i) => `
             <li class="cb-queue-item" data-seg="${i}">
-                <span class="cb-queue-ref">${escapeHtml(p.reference)}</span>
+                <div class="cb-queue-main">
+                    <span class="cb-queue-ref">${escapeHtml(passageDisplayLabel(p))}</span>
+                    <input type="text" class="cb-queue-title" data-seg="${i}"
+                        placeholder="Optional title…" maxlength="100"
+                        value="${escapeHtml(p.title || '')}"
+                        aria-label="Optional passage title">
+                </div>
                 <span class="cb-queue-btns">
                     <button class="cb-seg-up" data-seg="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>&#8593;</button>
-                    <button class="cb-seg-down" data-seg="${i}" aria-label="Move down" ${i === passages.length - 1 ? 'disabled' : ''}>&#8595;</button>
+                    <button class="cb-seg-down" data-seg="${i}" aria-label="Move down" ${i === builder.queue.length - 1 ? 'disabled' : ''}>&#8595;</button>
                     <button class="cb-seg-remove" data-seg="${i}" aria-label="Remove">&times;</button>
                 </span>
             </li>`).join('');
 
+        // Titles are local until Save. Same Passage id (or pending naturalKey) shares one title.
+        elements.cbQueueList.querySelectorAll('.cb-queue-title').forEach(input => {
+            input.addEventListener('change', () => {
+                const i = parseInt(input.dataset.seg, 10);
+                const item = builder.queue[i];
+                if (!item) return;
+                const title = input.value.trim();
+                item.title = title;
+                builder.queue.forEach((p, j) => {
+                    if (j === i) return;
+                    const same = (item.id && p.id === item.id)
+                        || (!item.id && !p.id && p.naturalKey === item.naturalKey);
+                    if (same) p.title = title;
+                });
+                elements.cbQueueList.querySelectorAll('.cb-queue-item').forEach(li => {
+                    const j = parseInt(li.dataset.seg, 10);
+                    const p = builder.queue[j];
+                    if (!p) return;
+                    const same = (item.id && p.id === item.id)
+                        || (!item.id && !p.id && p.naturalKey === item.naturalKey);
+                    if (!same) return;
+                    const titleInput = li.querySelector('.cb-queue-title');
+                    const refEl = li.querySelector('.cb-queue-ref');
+                    if (titleInput && titleInput !== input) titleInput.value = title;
+                    if (refEl) refEl.textContent = passageDisplayLabel(p);
+                });
+            });
+        });
+
         updateBuilderSaveState();
     }
 
-    /** Move or remove one contiguous segment within the flat queue. */
+    /** Move or remove one passage in the queue. */
     function spliceQueueSegment(segIndex, action) {
-        const passages = groupIntoPassages(builder.queue);
-        const seg = passages[segIndex];
-        if (!seg) return;
-        const slice = builder.queue.splice(seg.startIndex, seg.count);
+        if (segIndex < 0 || segIndex >= builder.queue.length) return;
+        const slice = builder.queue.splice(segIndex, 1);
         if (action === 'up') {
-            const prev = passages[segIndex - 1];
-            builder.queue.splice(prev.startIndex, 0, ...slice);
+            builder.queue.splice(segIndex - 1, 0, ...slice);
         } else if (action === 'down') {
-            const next = passages[segIndex + 1];
-            // next.startIndex shifted left by seg.count after the splice-out
-            builder.queue.splice(next.startIndex - seg.count + next.count, 0, ...slice);
+            builder.queue.splice(segIndex + 1, 0, ...slice);
         }
         // 'remove' → slice is simply dropped
         renderBuilderQueue();
@@ -2778,12 +3421,28 @@
 
     async function saveCollectionFromBuilder() {
         const label = elements.cbLabel.value.trim();
-        const verseIds = builder.queue.map(v => v.id);
-        if (!label || !verseIds.length) return;
+        if (!label || !builder.queue.length) return;
 
         elements.cbSave.disabled = true;
-        const body = JSON.stringify({ label, verseIds });
         try {
+            // Passages + titles materialize in the same backend transaction as the collection
+            const members = builder.queue.map(p => {
+                if (p.id) {
+                    const updateTitle = (p.title || '') !== (p.originalTitle || '');
+                    return {
+                        passageId: p.id,
+                        updateTitle,
+                        title: updateTitle ? (p.title || null) : null
+                    };
+                }
+                const hasTitle = !!(p.title && p.title.trim());
+                return {
+                    naturalKey: p.naturalKey,
+                    updateTitle: hasTitle,
+                    title: hasTitle ? p.title.trim() : null
+                };
+            });
+            const body = JSON.stringify({ label, members });
             if (builder.editingId) {
                 await libApi(`/api/collections/${builder.editingId}`, {
                     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body
@@ -2793,12 +3452,13 @@
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body
                 });
             }
+            await loadPassagesFromApi();
             await loadCollectionsFromApi();
             closeCollectionBuilder();
             showToast(`Saved "${label}"`);
             if (state.collectionsOpen) renderCollectionsList();
-            // If the edited collection is open in the scoped reader, refresh it
-            if (state.collection && state.collection.id === builder.editingId) {
+            if (state.collection && state.collection.kind === 'collection'
+                && state.collection.id === builder.editingId) {
                 enterCollectionMode(builder.editingId, { push: false });
             }
         } catch (err) {
@@ -3651,6 +4311,7 @@
             elements.noteView.hidden = false;
             elements.noteViewActions.hidden = false;
             elements.noteEdit.hidden = true;
+            hydrateRangeLinkLabels(elements.noteView);
         } else {
             elements.noteTextarea.value = note || '';
             updateNoteCharCount();
@@ -3681,9 +4342,23 @@
         }
     }
 
-    function saveNote() {
-        const note = elements.noteTextarea.value.trim();
-        setVerseNote(state.noteEditorVerseId, note);
+    async function saveNote() {
+        const verseId = state.noteEditorVerseId;
+        const VERSE_NOTE_LIMIT = 500;
+        let note = elements.noteTextarea.value.trim();
+        try {
+            const ctx = await getRenderCtxForVerse(verseId);
+            note = await normalizeNoteLinksOnSave(note, ctx);
+            elements.noteTextarea.value = note;
+            updateNoteCharCount();
+            if (note.length > VERSE_NOTE_LIMIT) {
+                showToast(`Note is too long after converting scripture links (${VERSE_NOTE_LIMIT} char limit)`);
+                return;
+            }
+        } catch (err) {
+            console.error('Failed to normalize note links:', err);
+        }
+        setVerseNote(verseId, note);
         if (note) {
             setNoteMode('view');
         } else {
@@ -3706,8 +4381,39 @@
 
     /** Renderer ctx for an editor target's verse links. */
     function getRenderCtxForTarget(ref) {
-        if (ref.type === 'book') return { type: 'book', bookName: ref.bookName };
+        if (ref.type === 'book') {
+            return { type: 'book', bookId: ref.bookId, bookName: ref.bookName };
+        }
         return getNoteForTarget(ref); // chapter note object carries firstVerseId/verseCount
+    }
+
+    /** Ensure chapter notes have firstVerseId/verseCount for [N] → [v=…] normalize. */
+    async function resolveNormalizeCtx(ref) {
+        if (!ref) return null;
+        if (ref.type === 'book') {
+            return {
+                type: 'book',
+                bookId: ref.bookId,
+                bookName: ref.bookName || ref.label
+            };
+        }
+        const existing = getNoteForTarget(ref);
+        if (existing && existing.firstVerseId != null && existing.verseCount != null) {
+            return existing;
+        }
+        try {
+            const chapters = await fetchChapters(ref.bookId);
+            const ch = chapters.find(c => c.chapter === ref.chapter);
+            if (ch) {
+                return {
+                    firstVerseId: ch.firstVerseId,
+                    verseCount: ch.verseCount,
+                    bookId: ref.bookId,
+                    chapter: ref.chapter
+                };
+            }
+        } catch (_) { /* fall through */ }
+        return existing || ref;
     }
 
     function openChapterNoteEditor(target) {
@@ -3754,6 +4460,7 @@
             elements.chapterNoteView.hidden = false;
             elements.chapterNoteViewActions.hidden = false;
             elements.chapterNoteEdit.hidden = true;
+            hydrateRangeLinkLabels(elements.chapterNoteView);
         } else {
             elements.chapterNoteTextarea.value = existing ? existing.note : '';
             updateChapterNoteCharCount();
@@ -3787,9 +4494,17 @@
     async function saveChapterNote() {
         const ref = state.chapterNoteEditorTarget;
         if (!ref) return;
-        const note = elements.chapterNoteTextarea.value.trim();
+        let note = elements.chapterNoteTextarea.value.trim();
         const existing = getNoteForTarget(ref);
+        const limit = NOTE_LIMITS[ref.type] || NOTE_LIMITS.chapter;
         try {
+            note = await normalizeNoteLinksOnSave(note, await resolveNormalizeCtx(ref));
+            elements.chapterNoteTextarea.value = note;
+            updateChapterNoteCharCount();
+            if (note.length > limit) {
+                showToast(`Note is too long after converting scripture links (${limit} char limit)`);
+                return;
+            }
             if (note) {
                 if (ref.type === 'book') {
                     await saveBookNoteToApi(ref.bookId, note);
@@ -4135,7 +4850,9 @@
 
         // Close overlays with Escape (in order of z-index)
         if (e.key === 'Escape') {
-            if (state.chapterNoteEditorOpen) {
+            if (state.passageInsertOpen) {
+                closePassageInsertPicker();
+            } else if (state.chapterNoteEditorOpen) {
                 closeChapterNoteEditor();
             } else if (state.noteEditorOpen) {
                 closeNoteEditor();
@@ -4168,7 +4885,7 @@
             state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen ||
             state.memorizationOpen || state.passagePickerOpen ||
             state.chapterNoteEditorOpen || state.collectionsOpen ||
-            state.collectionBuilderOpen) return;
+            state.collectionBuilderOpen || state.passageInsertOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
         if (e.metaKey || e.ctrlKey) return;
@@ -4296,7 +5013,9 @@
                 if (e.key === 'Enter' && searchAc.activeIndex >= 0) {
                     e.preventDefault();
                     e.stopPropagation();
-                    selectCollectionSuggestion(searchAc.matches[searchAc.activeIndex].id);
+                    const m = searchAc.matches[searchAc.activeIndex];
+                    if (m.type === 'passage') selectPassageSuggestion(m.id);
+                    else selectCollectionSuggestion(m.id);
                     return;
                 }
                 if (e.key === 'Escape') {
@@ -4321,7 +5040,11 @@
             const item = e.target.closest('.search-ac-item');
             if (item) {
                 e.preventDefault();
-                selectCollectionSuggestion(parseInt(item.dataset.collectionId, 10));
+                if (item.dataset.passageId) {
+                    selectPassageSuggestion(item.dataset.passageId);
+                } else {
+                    selectCollectionSuggestion(parseInt(item.dataset.collectionId, 10));
+                }
             }
         });
         elements.searchInput.addEventListener('focus', () => {
@@ -4562,10 +5285,27 @@
             }
         });
         elements.noteTextarea.addEventListener('input', updateNoteCharCount);
+        if (elements.noteInsertPassageBtn) {
+            elements.noteInsertPassageBtn.addEventListener('click', () =>
+                openPassageInsertPicker(elements.noteTextarea));
+        }
         elements.noteView.addEventListener('click', (e) => {
+            const rangeLink = e.target.closest('.note-range-link');
+            if (rangeLink) {
+                e.preventDefault();
+                handleNoteRangeLinkClick(rangeLink);
+                return;
+            }
+            const passageLink = e.target.closest('.note-passage-link');
+            if (passageLink) {
+                e.preventDefault();
+                handleNotePassageLinkClick(passageLink);
+                return;
+            }
             const collectionLink = e.target.closest('.note-collection-link');
             if (collectionLink) {
                 e.preventDefault();
+                stageNoteReturnFromOpenEditors();
                 closeNoteEditor();
                 closeLibrary();
                 enterCollectionMode(parseInt(collectionLink.dataset.collectionId, 10));
@@ -4590,10 +5330,27 @@
             }
         });
         elements.chapterNoteTextarea.addEventListener('input', updateChapterNoteCharCount);
+        if (elements.chapterNoteInsertPassageBtn) {
+            elements.chapterNoteInsertPassageBtn.addEventListener('click', () =>
+                openPassageInsertPicker(elements.chapterNoteTextarea));
+        }
         elements.chapterNoteView.addEventListener('click', (e) => {
+            const rangeLink = e.target.closest('.note-range-link');
+            if (rangeLink) {
+                e.preventDefault();
+                handleNoteRangeLinkClick(rangeLink);
+                return;
+            }
+            const passageLink = e.target.closest('.note-passage-link');
+            if (passageLink) {
+                e.preventDefault();
+                handleNotePassageLinkClick(passageLink);
+                return;
+            }
             const collectionLink = e.target.closest('.note-collection-link');
             if (collectionLink) {
                 e.preventDefault();
+                stageNoteReturnFromOpenEditors();
                 closeChapterNoteEditor();
                 closeLibrary();
                 enterCollectionMode(parseInt(collectionLink.dataset.collectionId, 10));
@@ -4606,9 +5363,18 @@
             }
         });
 
-        // Book-note pencil in the page title (title sits outside the reading area)
+        // Passage insert picker
+        if (elements.passageInsertClose) {
+            elements.passageInsertClose.addEventListener('click', closePassageInsertPicker);
+            elements.passageInsertOverlay.addEventListener('click', (e) => {
+                if (e.target === elements.passageInsertOverlay) closePassageInsertPicker();
+            });
+            elements.passageInsertSearch.addEventListener('input', renderPassageInsertList);
+        }
+
+        // Book-note pencil / scoped Back in the page title
         elements.chapterTitle.addEventListener('click', (e) => {
-            if (e.target.closest('.collection-exit-btn')) {
+            if (e.target.closest('.scoped-back-btn') || e.target.closest('.collection-exit-btn')) {
                 exitCollectionMode();
                 return;
             }
@@ -4617,13 +5383,26 @@
             }
         });
 
-        // Browser back/forward restores collection mode from the URL
+        // Browser back/forward restores collection, passage, or range mode from the URL
         window.addEventListener('popstate', async () => {
-            const m = window.location.pathname.match(/^\/read\/collection\/(\d+)$/);
-            if (m) {
-                const id = parseInt(m[1], 10);
-                if (!state.collection || state.collection.id !== id) {
+            const collMatch = window.location.pathname.match(/^\/read\/collection\/(\d+)$/);
+            const passMatch = window.location.pathname.match(/^\/read\/passage\/([0-9a-f-]{36})$/i);
+            const rangeParams = new URLSearchParams(window.location.search);
+            const isRangePath = window.location.pathname === '/read/range' && rangeParams.get('v');
+            if (collMatch) {
+                const id = parseInt(collMatch[1], 10);
+                if (!state.collection || state.collection.kind !== 'collection' || state.collection.id !== id) {
                     await enterCollectionMode(id, { push: false });
+                }
+            } else if (passMatch) {
+                const id = passMatch[1];
+                if (!state.collection || state.collection.kind !== 'passage' || state.collection.id !== id) {
+                    await enterPassageMode(id, { push: false });
+                }
+            } else if (isRangePath) {
+                const v = rangeParams.get('v');
+                if (!state.collection || state.collection.kind !== 'range' || state.collection.rangeV !== v) {
+                    await enterRangeMode(v, { push: false });
                 }
             } else if (state.collection) {
                 await exitCollectionMode({ push: false });
@@ -4661,10 +5440,16 @@
             if (verseEl) {
                 const verseId = parseInt(verseEl.dataset.verseId);
                 if (state.collection) {
-                    const v = state.pageVerses.find(x => x.id === verseId);
+                    // Prefer data-ci — the same verse id can appear more than once
+                    const ci = verseEl.dataset.ci != null
+                        ? parseInt(verseEl.dataset.ci, 10)
+                        : NaN;
+                    const v = Number.isInteger(ci)
+                        ? state.pageVerses.find(x => x._ci === ci)
+                        : state.pageVerses.find(x => x.id === verseId);
                     if (v && v._ci !== state.collection.currentIndex) {
                         state.collection.currentIndex = v._ci;
-                        state.currentVerseId = verseId;
+                        state.currentVerseId = v.id;
                         renderPage();
                     }
                     return;
@@ -4751,6 +5536,7 @@
                 await loadChapterNotesFromApi();
                 await loadBookNotesFromApi();
                 await loadCollectionsFromApi();
+                await loadPassagesFromApi();
                 if (!state.currentUser.localStorageMigrated) {
                     // One-time migration: sync whatever localStorage data existed at login time
                     await migrateLocalStorageToDb(localVerses, localTags);
@@ -4795,9 +5581,10 @@
                 state.chapterNotes = {};
                 state.bookNotes = {};
                 state.collections = [];
-                if (state.collection) {
-                    // Don't keep showing an account-owned collection to the
-                    // now-anonymous session (e.g. shared devices)
+                state.passages = [];
+                // Account-owned collection/passage sessions can't stay after logout.
+                // Public /read/range?v=… sessions remain — /api/ranges is anonymous.
+                if (state.collection && state.collection.kind !== 'range') {
                     exitCollectionMode();
                 } else {
                     await remeasureCurrentPage();
@@ -4866,17 +5653,22 @@
             // area's ResizeObserver reloads the page once it gets a size.
             await waitForReadingAreaLayout();
 
-            // Load initial page — a /read/collection/{id} deep link opens the
-            // scoped reader; on failure (signed out, deleted) fall back to
-            // normal reading without rewriting the URL, so signing in and
-            // reloading still lands on the collection.
+            // Load initial page — collection, passage, or portable range deep links
             const collectionMatch = window.location.pathname.match(/^\/read\/collection\/(\d+)$/);
-            let enteredCollection = false;
+            const passageMatch = window.location.pathname.match(/^\/read\/passage\/([0-9a-f-]{36})$/i);
+            const rangeV = window.location.pathname === '/read/range'
+                ? new URLSearchParams(window.location.search).get('v')
+                : null;
+            let enteredScoped = false;
             if (collectionMatch) {
-                enteredCollection = await enterCollectionMode(
+                enteredScoped = await enterCollectionMode(
                     parseInt(collectionMatch[1], 10), { push: false });
+            } else if (passageMatch) {
+                enteredScoped = await enterPassageMode(passageMatch[1], { push: false });
+            } else if (rangeV) {
+                enteredScoped = await enterRangeMode(rangeV, { push: false });
             }
-            if (!enteredCollection) {
+            if (!enteredScoped) {
                 await goToVerse(state.currentVerseId);
             }
             state.initialPageLoaded = true;

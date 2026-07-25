@@ -1,14 +1,21 @@
 package com.readthekjv.model.dto;
 
-import com.readthekjv.model.Verse;
-
 import java.util.List;
+import java.util.UUID;
 
 public record CollectionReadResponse(
     long id,
     String label,
-    List<CollectionVerse> verses
+    List<CollectionPassage> passages
 ) {
+    public record CollectionPassage(
+        UUID id,
+        String title,
+        String reference,
+        String naturalKey,
+        List<CollectionVerse> verses
+    ) {}
+
     public record CollectionVerse(
         int id,
         String book,
@@ -18,7 +25,7 @@ public record CollectionReadResponse(
         String text,
         String reference
     ) {
-        public static CollectionVerse from(Verse v) {
+        public static CollectionVerse from(com.readthekjv.model.Verse v) {
             return new CollectionVerse(
                 v.id(), v.book(), v.bookId(), v.chapter(), v.verse(), v.text(), v.reference()
             );

@@ -17,4 +17,11 @@ public interface PassageRepository extends JpaRepository<Passage, UUID> {
 
     // All global passages ordered for dashboard display
     List<Passage> findByUserIsNullOrderBySortOrderAsc();
+
+    // User-owned passages for catalog / note picker (newest first)
+    List<Passage> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    Optional<Passage> findByIdAndUserId(UUID id, Long userId);
+
+    Optional<Passage> findByIdAndUserIsNull(UUID id);
 }

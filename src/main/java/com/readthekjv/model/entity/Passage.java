@@ -28,7 +28,8 @@ public class Passage {
     @Column(name = "natural_key", nullable = false, length = 500)
     private String naturalKey;
 
-    // Non-null only for global passages (user IS NULL)
+    // Optional display title. Globals use curated titles; user passages may set one too.
+    // When null/blank, UIs fall back to the derived Bible reference.
     @Column(name = "title", length = 100)
     private String title;
 

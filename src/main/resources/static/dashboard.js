@@ -121,8 +121,9 @@
     let heatmapData    = {};
     let sermonNotes    = [];
     let collections    = [];
+    let passages       = [];
     try {
-        const [queueRes, streakRes, globalRes, plansRes, heatmapRes, sermonNotesRes, collectionsRes] = await Promise.all([
+        const [queueRes, streakRes, globalRes, plansRes, heatmapRes, sermonNotesRes, collectionsRes, passagesRes] = await Promise.all([
             fetch('/api/memorization/queue',           { credentials: 'include' }),
             fetch('/api/memorization/streak',          { credentials: 'include' }),
             fetch('/api/memorization/global-passages', { credentials: 'include' }),
@@ -130,6 +131,7 @@
             fetch('/api/activity/heatmap',             { credentials: 'include' }),
             fetch('/api/sermon-notes',                 { credentials: 'include' }),
             fetch('/api/collections',                  { credentials: 'include' }),
+            fetch('/api/passages',                     { credentials: 'include' }),
         ]);
         if (queueRes.ok)        allEntries     = await queueRes.json();
         if (streakRes.ok)       streakData     = await streakRes.json();
@@ -138,6 +140,7 @@
         if (heatmapRes.ok)      heatmapData    = await heatmapRes.json();
         if (sermonNotesRes.ok)  sermonNotes    = await sermonNotesRes.json();
         if (collectionsRes.ok)  collections    = await collectionsRes.json();
+        if (passagesRes.ok)     passages       = await passagesRes.json();
     } catch (_) { /* stay with defaults */ }
 
     // Streak card
@@ -466,10 +469,59 @@
     // Markdown-lite renderer ported from app.js (renderNoteInline/renderNoteMarkdown) —
     // dashboard.js and app.js are separate unbundled scripts on different pages, so this
     // is a deliberate copy, not a shared module. Sermon notes have no chapter/book scope,
-    // so bare [12]-style numeric refs are left as plain text; only [pid=N] and [Ref] links resolve.
+    // so bare [12]-style numeric refs are left as plain text; [v=…], legacy [passage=uuid],
+    // [pid=N], and [Ref] links resolve.
 
     const collectionsById = {};
     collections.forEach(c => { collectionsById[c.id] = c; });
+    const passagesById = {};
+    passages.forEach(p => { passagesById[p.id] = p; });
+
+    function passageDisplayLabel(p) {
+        if (!p) return 'Passage';
+        const title = p.title && String(p.title).trim();
+        return title || p.reference || 'Passage';
+    }
+
+    function rangesFromNaturalKey(naturalKey) {
+        const ranges = [];
+        for (const part of String(naturalKey).split(',')) {
+            const p = part.trim();
+            if (p.includes(':')) {
+                const [a, b] = p.split(':', 2).map(x => parseInt(x.trim(), 10));
+                ranges.push({ from: Math.min(a, b), to: Math.max(a, b) });
+            } else {
+                const v = parseInt(p, 10);
+                ranges.push({ from: v, to: v });
+            }
+        }
+        ranges.sort((a, b) => a.from - b.from);
+        const merged = [];
+        let cur = ranges[0];
+        for (let i = 1; i < ranges.length; i++) {
+            const next = ranges[i];
+            if (next.from <= cur.to + 1) cur = { from: cur.from, to: Math.max(cur.to, next.to) };
+            else { merged.push(cur); cur = next; }
+        }
+        if (cur) merged.push(cur);
+        return merged;
+    }
+
+    function serializeVBody(ranges) {
+        return ranges.map(r => r.from === r.to ? String(r.from) : `${r.from}-${r.to}`).join(',');
+    }
+
+    function serializeVToken(ranges) {
+        return `[v=${serializeVBody(ranges)}]`;
+    }
+
+    function findPassageByVBody(body) {
+        return passages.find(p => {
+            try {
+                return serializeVBody(rangesFromNaturalKey(p.naturalKey)) === body;
+            } catch { return false; }
+        });
+    }
 
     function renderNoteInline(text) {
         let html = escapeHtml(text);
@@ -477,13 +529,26 @@
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
+            const vTok = trimmed.match(/^v=(.+)$/i);
+            if (vTok) {
+                const body = vTok[1].replace(/\s/g, '');
+                const p = findPassageByVBody(body);
+                const label = p ? passageDisplayLabel(p) : body;
+                return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${escapeHtml(label)}</a>`;
+            }
+            const passageTok = trimmed.match(/^passage=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+            if (passageTok) {
+                const p = passagesById[passageTok[1]];
+                const label = p ? passageDisplayLabel(p) : 'Passage';
+                return `<a class="note-passage-link" data-passage-id="${passageTok[1]}" href="#">${escapeHtml(label)}</a>`;
+            }
             const pid = trimmed.match(/^pid=(\d+)$/);
             if (pid) {
                 const collection = collectionsById[parseInt(pid[1], 10)];
                 const label = collection ? collection.label : `Collection #${pid[1]}`;
                 return `<a class="note-collection-link" data-collection-id="${pid[1]}" href="#">${escapeHtml(label)}</a>`;
             }
-            if (/^\d+$/.test(trimmed)) return match; // no chapter scope to resolve against
+            if (/^\d+$/.test(trimmed)) return match;
             return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
         });
         return html;
@@ -592,11 +657,60 @@
         charCurrent.textContent = textarea.value.length;
     }
 
+    async function normalizeNoteLinksOnSave(text) {
+        if (!text) return text;
+        const re = /\[([^\]]+)\]/g;
+        const parts = [];
+        let last = 0;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            parts.push(text.slice(last, m.index));
+            const inner = m[1].trim();
+            last = m.index + m[0].length;
+            if (/^v=/i.test(inner) || /^pid=\d+$/i.test(inner)
+                || /^passage=[0-9a-f-]{36}$/i.test(inner) || /^\d+$/.test(inner)) {
+                parts.push(m[0]);
+                continue;
+            }
+            try {
+                const res = await fetch(`/api/reference?ref=${encodeURIComponent(inner)}`);
+                if (res.ok) {
+                    const parsed = await res.json();
+                    if (parsed.valid && parsed.verseId) {
+                        parts.push(serializeVToken([{ from: parsed.verseId, to: parsed.verseId }]));
+                        continue;
+                    }
+                }
+            } catch (_) { /* keep original */ }
+            parts.push(m[0]);
+        }
+        parts.push(text.slice(last));
+        return parts.join('');
+    }
+
+    async function hydrateRangeLinkLabels(root) {
+        if (!root) return;
+        for (const link of root.querySelectorAll('.note-range-link[data-v]')) {
+            const body = link.dataset.v;
+            const p = findPassageByVBody(body);
+            if (p) { link.textContent = passageDisplayLabel(p); continue; }
+            if (link.dataset.labelReady) continue;
+            try {
+                const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
+                if (!res.ok) continue;
+                const data = await res.json();
+                link.textContent = data.reference || body;
+                link.dataset.labelReady = '1';
+            } catch (_) { /* ignore */ }
+        }
+    }
+
     function setMode(mode) {
         if (mode === 'view') {
             viewSection.hidden = false;
             viewActions.hidden = false;
             editSection.hidden = true;
+            hydrateRangeLinkLabels(viewBody);
         } else {
             viewSection.hidden = true;
             viewActions.hidden = true;
@@ -643,9 +757,17 @@
 
     async function saveSermonNote() {
         const title = titleInput.value.trim();
-        const note = textarea.value.trim();
+        let note = textarea.value.trim();
         if (!title || !note) return;
         try {
+            note = await normalizeNoteLinksOnSave(note);
+            textarea.value = note;
+            updateCharCount();
+            const maxLen = parseInt(textarea.getAttribute('maxlength'), 10) || 20000;
+            if (note.length > maxLen) {
+                window.alert(`Note is too long after converting scripture links (${maxLen} char limit)`);
+                return;
+            }
             const res = await fetch(
                 editingNoteId ? `/api/sermon-notes/${editingNoteId}` : '/api/sermon-notes',
                 {
@@ -709,8 +831,100 @@
     textarea.addEventListener('input', updateCharCount);
     overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
-    // Verse / collection links inside a rendered sermon note navigate away to the reader
+    // Insert passage picker
+    const insertOverlay = document.getElementById('passage-insert-overlay');
+    const insertClose = document.getElementById('passage-insert-close');
+    const insertSearch = document.getElementById('passage-insert-search');
+    const insertCount = document.getElementById('passage-insert-count');
+    const insertList = document.getElementById('passage-insert-list');
+    const insertBtn = document.getElementById('sermon-note-insert-passage-btn');
+
+    function renderInsertList() {
+        const q = (insertSearch.value || '').trim().toLowerCase();
+        let list = passages;
+        if (q) {
+            list = list.filter(p => {
+                const label = passageDisplayLabel(p).toLowerCase();
+                return label.includes(q)
+                    || (p.reference && p.reference.toLowerCase().includes(q))
+                    || (p.title && p.title.toLowerCase().includes(q));
+            });
+        }
+        insertCount.textContent = list.length === 1 ? '1 passage' : `${list.length} passages`;
+        if (list.length === 0) {
+            insertList.innerHTML = '<p style="color:var(--color-text-muted);">No passages yet. Create one from the reader collections builder.</p>';
+            return;
+        }
+        insertList.innerHTML = list.map(p => `
+            <button type="button" class="sermon-note-row passage-insert-row" data-passage-id="${p.id}"
+                data-natural-key="${escapeHtml(p.naturalKey || '')}"
+                style="display:block;width:100%;text-align:left;margin-bottom:0.35rem;">
+                <span class="sermon-note-row-title">${escapeHtml(passageDisplayLabel(p))}</span>
+                <span class="sermon-note-row-meta">${escapeHtml(p.reference || '')}</span>
+            </button>`).join('');
+        insertList.querySelectorAll('.passage-insert-row').forEach(btn => {
+            btn.addEventListener('click', () => {
+                let token;
+                try {
+                    const p = passages.find(x => x.id === btn.dataset.passageId);
+                    const key = btn.dataset.naturalKey || (p && p.naturalKey);
+                    token = serializeVToken(rangesFromNaturalKey(key));
+                } catch {
+                    return;
+                }
+                const start = textarea.selectionStart ?? textarea.value.length;
+                const end = textarea.selectionEnd ?? start;
+                const before = textarea.value.slice(0, start);
+                const after = textarea.value.slice(end);
+                const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
+                const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
+                const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
+                const next = before + insert + after;
+                const maxLen = parseInt(textarea.getAttribute('maxlength'), 10);
+                if (Number.isFinite(maxLen) && next.length > maxLen) {
+                    insertCount.textContent = `Not enough room for that link (${maxLen} char limit)`;
+                    return;
+                }
+                textarea.value = next;
+                const caret = before.length + insert.length;
+                textarea.focus();
+                textarea.setSelectionRange(caret, caret);
+                updateCharCount();
+                insertOverlay.hidden = true;
+            });
+        });
+    }
+
+    if (insertBtn) {
+        insertBtn.addEventListener('click', () => {
+            insertSearch.value = '';
+            renderInsertList();
+            insertOverlay.hidden = false;
+            insertSearch.focus();
+        });
+    }
+    if (insertClose) {
+        insertClose.addEventListener('click', () => { insertOverlay.hidden = true; });
+        insertOverlay.addEventListener('click', e => {
+            if (e.target === insertOverlay) insertOverlay.hidden = true;
+        });
+        insertSearch.addEventListener('input', renderInsertList);
+    }
+
+    // Verse / range / passage / collection links inside a rendered sermon note
     viewBody.addEventListener('click', async e => {
+        const rangeLink = e.target.closest('.note-range-link');
+        if (rangeLink) {
+            e.preventDefault();
+            window.location.href = `/read/range?v=${encodeURIComponent(rangeLink.dataset.v)}`;
+            return;
+        }
+        const passageLink = e.target.closest('.note-passage-link');
+        if (passageLink) {
+            e.preventDefault();
+            window.location.href = `/read/passage/${passageLink.dataset.passageId}`;
+            return;
+        }
         const collectionLink = e.target.closest('.note-collection-link');
         if (collectionLink) {
             e.preventDefault();
