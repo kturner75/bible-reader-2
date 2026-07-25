@@ -6161,6 +6161,8 @@
                 // 12px narrower), so the page measured before this data
                 // arrived may no longer fit — re-measure, don't just re-render
                 await remeasureCurrentPage();
+                // Auth/catalog may finish after an early search — surface Matching Passages.
+                await refreshOpenSearchForAuth();
             } else {
                 state.currentUser = null;
                 updateAuthHeader();
@@ -6169,6 +6171,21 @@
             state.currentUser = null;
             updateAuthHeader();
         }
+    }
+
+    /** If search opened before auth/catalog finished, enable Matching Passages in place. */
+    async function refreshOpenSearchForAuth() {
+        if (!state.searchOpen || !state.lastSearchQuery || !state.currentUser) return;
+        const hitGen = state.searchHitIdsGen;
+        const hasPassages = await prepareSearchResultTabs();
+        if (hitGen !== state.searchHitIdsGen || !state.searchOpen) return;
+        if (!hasPassages) return;
+        loadSearchHitIdsForPassages(state.lastSearchQuery, hitGen).then(() => {
+            if (hitGen !== state.searchHitIdsGen || !state.searchOpen) return;
+            if (state.searchResultTab === 'passages') {
+                renderSearchPassages();
+            }
+        });
     }
 
     function updateAuthHeader() {
