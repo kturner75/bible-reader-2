@@ -96,6 +96,15 @@ class PassageCollectionServiceTest {
         when(passageRepository.findByIdAndUserId(idB, USER_ID)).thenReturn(Optional.of(passageB));
         when(passageRepository.findById(idA)).thenReturn(Optional.of(passageA));
         when(passageRepository.findById(idB)).thenReturn(Optional.of(passageB));
+        when(passageRepository.findAllById(any())).thenAnswer(inv -> {
+            Iterable<UUID> ids = inv.getArgument(0);
+            List<Passage> found = new ArrayList<>();
+            for (UUID id : ids) {
+                if (idA.equals(id)) found.add(passageA);
+                else if (idB.equals(id)) found.add(passageB);
+            }
+            return found;
+        });
     }
 
     private PassageCollection existingCollection(String label, List<UUID> passageIds) {

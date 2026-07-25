@@ -3425,24 +3425,25 @@
 
         elements.cbSave.disabled = true;
         try {
-            // Materialize staged ranges (find-or-create), then save membership + titles together
+            // Materialize staged ranges without titles — titles go in passageTitles
+            // so they commit atomically with the collection (and roll back if it fails).
             for (const item of builder.queue) {
                 if (item.id) continue;
+                const desiredTitle = item.title || '';
                 const created = await libApi('/api/passages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         naturalKey: item.naturalKey,
-                        title: item.title || null
+                        title: null
                     })
                 });
                 item.id = created.id;
                 item.pending = false;
                 item.reference = created.reference || item.reference;
                 item.naturalKey = created.naturalKey || item.naturalKey;
-                // Title already applied on upsert when provided
                 item.originalTitle = created.title || '';
-                item.title = created.title || item.title || '';
+                item.title = desiredTitle;
             }
 
             const passageIds = builder.queue.map(p => p.id);

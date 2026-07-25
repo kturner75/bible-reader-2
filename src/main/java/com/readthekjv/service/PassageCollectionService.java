@@ -17,8 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -115,9 +117,15 @@ public class PassageCollectionService {
     }
 
     private int verseCount(PassageCollection c) {
+        List<UUID> ids = c.getPassageIds();
+        if (ids.isEmpty()) return 0;
+        Map<UUID, Passage> byId = new HashMap<>();
+        for (Passage p : passageRepository.findAllById(new HashSet<>(ids))) {
+            byId.put(p.getId(), p);
+        }
         int total = 0;
-        for (UUID pid : c.getPassageIds()) {
-            Passage p = passageRepository.findById(pid).orElse(null);
+        for (UUID pid : ids) {
+            Passage p = byId.get(pid);
             if (p != null) total += passageService.countVerses(p);
         }
         return total;
