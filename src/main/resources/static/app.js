@@ -83,6 +83,7 @@
         passageInsertMode: 'browse',       // 'browse' | 'expand'
         passageInsertSearchTimer: null,
         passageInsertSearchGen: 0,
+        passageInsertExpandGen: 0,
         // Scoped reader: collection OR single focused passage/range
         // { kind:'collection'|'passage'|'range', id, label, verses, ... }
         collection: null,
@@ -3016,6 +3017,8 @@
         state.passageInsertOpen = false;
         state.passageInsertTarget = null;
         state.passageInsertMode = 'browse';
+        state.passageInsertSearchGen++;
+        state.passageInsertExpandGen++;
         if (state.passageInsertSearchTimer) {
             clearTimeout(state.passageInsertSearchTimer);
             state.passageInsertSearchTimer = null;
@@ -3037,6 +3040,7 @@
 
     function showPassageInsertBrowse() {
         state.passageInsertMode = 'browse';
+        state.passageInsertExpandGen++;
         if (elements.passageInsertBrowse) elements.passageInsertBrowse.hidden = false;
         if (elements.passageInsertExpand) elements.passageInsertExpand.hidden = true;
         if (elements.passageInsertTabs) elements.passageInsertTabs.hidden = false;
@@ -3045,6 +3049,11 @@
 
     function setPassageInsertTab(tab) {
         state.passageInsertTab = tab === 'passages' ? 'passages' : 'verses';
+        state.passageInsertSearchGen++;
+        if (state.passageInsertSearchTimer) {
+            clearTimeout(state.passageInsertSearchTimer);
+            state.passageInsertSearchTimer = null;
+        }
         syncPassageInsertTabs();
         showPassageInsertBrowse();
         renderPassageInsertBrowse();
@@ -3054,6 +3063,11 @@
     function onPassageInsertSearchInput() {
         if (state.passageInsertMode === 'expand') showPassageInsertBrowse();
         if (state.passageInsertTab === 'passages') {
+            state.passageInsertSearchGen++;
+            if (state.passageInsertSearchTimer) {
+                clearTimeout(state.passageInsertSearchTimer);
+                state.passageInsertSearchTimer = null;
+            }
             renderPassageInsertPassages();
             return;
         }
@@ -3207,6 +3221,7 @@
 
     async function openPassageInsertExpand(verseId) {
         if (!Number.isFinite(verseId)) return;
+        const expandGen = ++state.passageInsertExpandGen;
         state.passageInsertMode = 'expand';
         elements.passageInsertBrowse.hidden = true;
         elements.passageInsertExpand.hidden = false;
@@ -3222,11 +3237,17 @@
             context = await libApi(`/api/memorization/context/${verseId}`);
         } catch (err) {
             console.error(err);
+            if (expandGen !== state.passageInsertExpandGen || state.passageInsertMode !== 'expand') {
+                return;
+            }
             elements.passageInsertChapters.innerHTML =
                 '<div class="passage-picker-loading">Could not load surrounding verses.</div>';
             return;
         }
 
+        if (expandGen !== state.passageInsertExpandGen || state.passageInsertMode !== 'expand') {
+            return;
+        }
         const checkedIds = new Set([verseId]);
         renderPassageInsertExpandChapters(context, checkedIds, verseId);
     }

@@ -851,10 +851,13 @@
     let insertMode = 'browse';
     let insertSearchTimer = null;
     let insertSearchGen = 0;
+    let insertExpandGen = 0;
 
     function closeInsertPicker() {
         insertOverlay.hidden = true;
         insertMode = 'browse';
+        insertSearchGen++;
+        insertExpandGen++;
         if (insertSearchTimer) {
             clearTimeout(insertSearchTimer);
             insertSearchTimer = null;
@@ -875,6 +878,7 @@
 
     function showInsertBrowse() {
         insertMode = 'browse';
+        insertExpandGen++;
         if (insertBrowse) insertBrowse.hidden = false;
         if (insertExpand) insertExpand.hidden = true;
         if (insertTabs) insertTabs.hidden = false;
@@ -883,6 +887,11 @@
 
     function setInsertTab(tab) {
         insertTab = tab === 'passages' ? 'passages' : 'verses';
+        insertSearchGen++;
+        if (insertSearchTimer) {
+            clearTimeout(insertSearchTimer);
+            insertSearchTimer = null;
+        }
         syncInsertTabs();
         showInsertBrowse();
         renderInsertBrowse();
@@ -1065,6 +1074,11 @@
     function onInsertSearchInput() {
         if (insertMode === 'expand') showInsertBrowse();
         if (insertTab === 'passages') {
+            insertSearchGen++;
+            if (insertSearchTimer) {
+                clearTimeout(insertSearchTimer);
+                insertSearchTimer = null;
+            }
             renderInsertPassages();
             return;
         }
@@ -1077,6 +1091,7 @@
 
     async function openInsertExpand(verseId) {
         if (!Number.isFinite(verseId)) return;
+        const expandGen = ++insertExpandGen;
         insertMode = 'expand';
         insertBrowse.hidden = true;
         insertExpand.hidden = false;
@@ -1093,10 +1108,12 @@
             context = await res.json();
         } catch (err) {
             console.error(err);
+            if (expandGen !== insertExpandGen || insertMode !== 'expand') return;
             insertChapters.innerHTML = '<div class="passage-picker-loading">Could not load surrounding verses.</div>';
             return;
         }
 
+        if (expandGen !== insertExpandGen || insertMode !== 'expand') return;
         const checkedIds = new Set([verseId]);
         renderInsertExpandChapters(context, checkedIds, verseId);
     }
