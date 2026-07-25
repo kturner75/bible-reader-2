@@ -120,7 +120,8 @@ public class BibleController {
             return ResponseEntity.badRequest().build();
         }
         
-        limit = Math.min(Math.max(limit, 1), 100);
+        // Cap high enough for passage-overlap discovery; verse UI still pages a smaller slice.
+        limit = Math.min(Math.max(limit, 1), 200);
         
         SearchResult result = luceneService.search(q.trim(), limit);
         return ResponseEntity.ok(result);

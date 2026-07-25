@@ -547,6 +547,11 @@ body {
     border-bottom: 1px solid var(--color-border);
 }
 
+.search-result-tabs[hidden],
+.search-result-tab[hidden] {
+    display: none;
+}
+
 .search-result-tab {
     font-family: var(--font-primary);
     font-size: 0.85rem;

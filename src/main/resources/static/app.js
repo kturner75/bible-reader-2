@@ -87,7 +87,8 @@
         // Header search overlay tabs (verses always; passages only when catalog non-empty)
         searchResultTab: 'verses',         // 'verses' | 'passages' | future lanes
         lastSearchQuery: '',
-        lastSearchResults: null,           // { query, count, verses: [...] }
+        lastSearchResults: null,           // { query, count, verses: [...] } display slice
+        lastSearchHitIds: null,            // Set<number> wider hit ids for passage overlap
         // Scoped reader: collection OR single focused passage/range
         // { kind:'collection'|'passage'|'range', id, label, verses, ... }
         collection: null,
@@ -624,8 +625,10 @@
         return response.json();
     }
 
-    async function searchBible(query) {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=50`);
+    async function searchBible(query, limit = 50) {
+        const response = await fetch(
+            `/api/search?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`
+        );
         if (!response.ok) throw new Error('Search failed');
         return response.json();
     }
@@ -1838,11 +1841,19 @@
             // Not a reference, continue with text search
         }
 
-        // Perform full-text search
+        // Perform full-text search. Fetch a wider hit window so Matching Passages
+        // can overlap beyond the first 50 display results; verses tab still shows 50.
         try {
-            const results = await searchBible(query);
+            const SEARCH_VERSES_DISPLAY = 50;
+            const SEARCH_HIT_IDS_LIMIT = 200;
+            const wide = await searchBible(query, SEARCH_HIT_IDS_LIMIT);
             state.lastSearchQuery = query;
-            state.lastSearchResults = results;
+            state.lastSearchHitIds = new Set((wide.verses || []).map(v => v.id));
+            state.lastSearchResults = {
+                query: wide.query,
+                count: wide.count,
+                verses: (wide.verses || []).slice(0, SEARCH_VERSES_DISPLAY)
+            };
             state.searchResultTab = 'verses';
             await prepareSearchResultTabs();
             openSearch();
@@ -1959,9 +1970,9 @@
         return false;
     }
 
-    function filterMatchingPassages(query, hitVerses) {
+    function filterMatchingPassages(query) {
         const q = (query || '').trim().toLowerCase();
-        const hitIds = new Set((hitVerses || []).map(v => v.id));
+        const hitIds = state.lastSearchHitIds || new Set();
         return (state.passages || []).filter(p => {
             if (q) {
                 const label = passageDisplayLabel(p).toLowerCase();
@@ -1977,8 +1988,7 @@
 
     function renderSearchPassages() {
         const query = state.lastSearchQuery || '';
-        const hits = state.lastSearchResults?.verses || [];
-        const list = filterMatchingPassages(query, hits);
+        const list = filterMatchingPassages(query);
 
         elements.searchResultsTitle.textContent =
             `${list.length} passage${list.length !== 1 ? 's' : ''} for "${query}"`;
@@ -2021,6 +2031,7 @@
     function closeSearch() {
         state.searchOpen = false;
         state.searchResultTab = 'verses';
+        state.lastSearchHitIds = null;
         elements.searchOverlay.hidden = true;
         if (elements.searchResultTabs) elements.searchResultTabs.hidden = true;
         hideSearchAutocomplete();
