@@ -83,7 +83,7 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 
 ## Reader Enhancements
 
-- **Tabbed search results (verses | passages)** *(in progress — header `/`)* — see Notes → *Tabbed header search*. Future lanes can join the same strip.
+- **Tabbed search results (verses | passages)** *(done — PR #41)* — header `/` search. Future lanes can join the same strip.
 - **Cross-references** — inline links to parallel passages (e.g. Psalm 22 ↔ Matthew 27)
 - **Concordance** — click a word to see all verses containing it
 - **Red-letter edition** — words of Christ highlighted
