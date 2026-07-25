@@ -3322,37 +3322,28 @@
             return;
         }
 
-        elements.cbAddChecked.disabled = true;
+        // Stage locally — Passage rows are created only when the collection is saved,
+        // so Cancel / remove does not leave orphan catalog entries.
         const addedLabels = [];
-        try {
-            for (const run of runs) {
-                const naturalKey = buildNaturalKeyFromIds(run.verseIds);
-                const created = await libApi('/api/passages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ naturalKey, title: null })
-                });
-                builder.queue.push({
-                    id: created.id,
-                    title: created.title || '',
-                    originalTitle: created.title || '',
-                    reference: created.reference,
-                    naturalKey: created.naturalKey,
-                    verses: snippets.slice(run.startIndex, run.startIndex + run.count)
-                });
-                addedLabels.push(passageDisplayLabel(created));
-            }
-            await loadPassagesFromApi();
-            elements.cbVerseList.querySelectorAll('.pp-verse-cb:checked')
-                .forEach(cb => { cb.checked = false; });
-            updateBuilderAddButton();
-            renderBuilderQueue();
-            showToast(`Added ${addedLabels.join(', ')}`);
-        } catch (err) {
-            console.error('Failed to create passage:', err);
-            showToast('Could not add passage');
-            updateBuilderAddButton();
+        for (const run of runs) {
+            const naturalKey = buildNaturalKeyFromIds(run.verseIds);
+            const verses = snippets.slice(run.startIndex, run.startIndex + run.count);
+            builder.queue.push({
+                id: null,
+                pending: true,
+                title: '',
+                originalTitle: '',
+                reference: run.reference,
+                naturalKey,
+                verses
+            });
+            addedLabels.push(run.reference);
         }
+        elements.cbVerseList.querySelectorAll('.pp-verse-cb:checked')
+            .forEach(cb => { cb.checked = false; });
+        updateBuilderAddButton();
+        renderBuilderQueue();
+        showToast(`Added ${addedLabels.join(', ')}`);
     }
 
     function renderBuilderQueue() {
@@ -3378,15 +3369,32 @@
                 </span>
             </li>`).join('');
 
-        // Titles are local until Save — Cancel must not leave shared Passage rows dirty
+        // Titles are local until Save. Same Passage id (or pending naturalKey) shares one title.
         elements.cbQueueList.querySelectorAll('.cb-queue-title').forEach(input => {
             input.addEventListener('change', () => {
                 const i = parseInt(input.dataset.seg, 10);
                 const item = builder.queue[i];
                 if (!item) return;
-                item.title = input.value.trim();
-                const refEl = input.closest('.cb-queue-item').querySelector('.cb-queue-ref');
-                if (refEl) refEl.textContent = passageDisplayLabel(item);
+                const title = input.value.trim();
+                item.title = title;
+                builder.queue.forEach((p, j) => {
+                    if (j === i) return;
+                    const same = (item.id && p.id === item.id)
+                        || (!item.id && !p.id && p.naturalKey === item.naturalKey);
+                    if (same) p.title = title;
+                });
+                elements.cbQueueList.querySelectorAll('.cb-queue-item').forEach(li => {
+                    const j = parseInt(li.dataset.seg, 10);
+                    const p = builder.queue[j];
+                    if (!p) return;
+                    const same = (item.id && p.id === item.id)
+                        || (!item.id && !p.id && p.naturalKey === item.naturalKey);
+                    if (!same) return;
+                    const titleInput = li.querySelector('.cb-queue-title');
+                    const refEl = li.querySelector('.cb-queue-ref');
+                    if (titleInput && titleInput !== input) titleInput.value = title;
+                    if (refEl) refEl.textContent = passageDisplayLabel(p);
+                });
             });
         });
 
@@ -3413,16 +3421,40 @@
 
     async function saveCollectionFromBuilder() {
         const label = elements.cbLabel.value.trim();
-        const passageIds = builder.queue.map(p => p.id);
-        if (!label || !passageIds.length) return;
+        if (!label || !builder.queue.length) return;
 
         elements.cbSave.disabled = true;
-        const passageTitles = builder.queue
-            .filter(p => (p.title || '') !== (p.originalTitle || ''))
-            .map(p => ({ id: p.id, title: p.title || null }));
-        const body = JSON.stringify({ label, passageIds, passageTitles });
         try {
-            // Titles + membership commit together server-side (one transaction)
+            // Materialize staged ranges (find-or-create), then save membership + titles together
+            for (const item of builder.queue) {
+                if (item.id) continue;
+                const created = await libApi('/api/passages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        naturalKey: item.naturalKey,
+                        title: item.title || null
+                    })
+                });
+                item.id = created.id;
+                item.pending = false;
+                item.reference = created.reference || item.reference;
+                item.naturalKey = created.naturalKey || item.naturalKey;
+                // Title already applied on upsert when provided
+                item.originalTitle = created.title || '';
+                item.title = created.title || item.title || '';
+            }
+
+            const passageIds = builder.queue.map(p => p.id);
+            const seenTitleIds = new Set();
+            const passageTitles = [];
+            for (const p of builder.queue) {
+                if (!p.id || seenTitleIds.has(p.id)) continue;
+                if ((p.title || '') === (p.originalTitle || '')) continue;
+                seenTitleIds.add(p.id);
+                passageTitles.push({ id: p.id, title: p.title || null });
+            }
+            const body = JSON.stringify({ label, passageIds, passageTitles });
             if (builder.editingId) {
                 await libApi(`/api/collections/${builder.editingId}`, {
                     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body
