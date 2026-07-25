@@ -19,6 +19,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -202,9 +203,21 @@ class PassageCollectionServiceTest {
     }
 
     @Test
+    void createRejectsWhenExpandedVerseCountExceedsCap() {
+        // passageA is 2 verses; 251 repeats → 502 > 500
+        List<UUID> many = new ArrayList<>();
+        for (int i = 0; i < 251; i++) many.add(idA);
+
+        assertThrows(BadRequestException.class,
+                () -> service.create(USER_ID, "Huge", many));
+        verify(collectionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void upsertCreatesUserPassage() {
         when(passageRepository.findByUserIsNullAndNaturalKey("3:4")).thenReturn(Optional.empty());
         when(passageRepository.findByUserIdAndNaturalKey(USER_ID, "3:4")).thenReturn(Optional.empty());
+        when(passageRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of());
         when(passageRepository.save(any(Passage.class))).thenAnswer(inv -> {
             Passage p = inv.getArgument(0);
             ReflectionTestUtils.setField(p, "id", UUID.randomUUID());
@@ -214,5 +227,27 @@ class PassageCollectionServiceTest {
         PassageDetailResponse res = passageService.upsert(USER_ID, "3:4", "Creation");
         assertEquals("Creation", res.title());
         assertEquals("Genesis 2:1–2", res.reference());
+    }
+
+    @Test
+    void upsertReusesEquivalentNoncanonicalNaturalKey() {
+        Passage existing = new Passage();
+        UUID existingId = UUID.randomUUID();
+        ReflectionTestUtils.setField(existing, "id", existingId);
+        existing.setNaturalKey("2,1"); // same ranges as canonical "1:2"
+        existing.setFromVerseId(1);
+        existing.setToVerseId(2);
+        User owner = new User();
+        ReflectionTestUtils.setField(owner, "id", USER_ID);
+        existing.setUser(owner);
+
+        when(passageRepository.findByUserIdAndNaturalKey(USER_ID, "1:2")).thenReturn(Optional.empty());
+        when(passageRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(existing));
+        when(passageRepository.save(any(Passage.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PassageDetailResponse res = passageService.upsert(USER_ID, "1:2", "Title");
+        assertEquals(existingId, res.id());
+        assertEquals("1:2", existing.getNaturalKey());
+        assertEquals("Title", existing.getTitle());
     }
 }

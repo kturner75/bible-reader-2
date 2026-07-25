@@ -101,17 +101,26 @@ public class PassageCollectionService {
         return total;
     }
 
+    /** Matches the collection builder's verse budget (and prior verse-ID cap). */
+    static final int MAX_COLLECTION_VERSES = 500;
+
     private List<UUID> validateAndResolvePassageIds(Long userId, List<UUID> passageIds) {
         if (passageIds == null || passageIds.isEmpty()) {
             throw new BadRequestException("Collection must include at least one passage");
         }
         List<UUID> resolved = new ArrayList<>(passageIds.size());
+        int totalVerses = 0;
         for (UUID pid : passageIds) {
             if (pid == null) {
                 throw new BadRequestException("Passage id must not be null");
             }
             // Ensures the passage exists and is readable by this user
-            passageService.findReadable(userId, pid);
+            var passage = passageService.findReadable(userId, pid);
+            totalVerses += passageService.countVerses(passage);
+            if (totalVerses > MAX_COLLECTION_VERSES) {
+                throw new BadRequestException(
+                        "Collections are limited to " + MAX_COLLECTION_VERSES + " verses");
+            }
             resolved.add(pid);
         }
         return resolved;

@@ -3037,7 +3037,13 @@
         const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
         const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
         const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
-        ta.value = before + insert + after;
+        const next = before + insert + after;
+        const maxLen = parseInt(ta.getAttribute('maxlength'), 10);
+        if (Number.isFinite(maxLen) && next.length > maxLen) {
+            showToast(`Not enough room for that link (${maxLen} char limit)`);
+            return;
+        }
+        ta.value = next;
         const caret = before.length + insert.length;
         ta.focus();
         ta.setSelectionRange(caret, caret);
