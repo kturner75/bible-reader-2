@@ -634,10 +634,11 @@
         return response.json();
     }
 
-    /** Lightweight id-only search for Matching Passages overlap (full KJV window). */
+    /** Auth-only id search for Matching Passages overlap (full KJV window). */
     async function searchBibleIds(query, limit = 32000) {
         const response = await fetch(
-            `/api/search/ids?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`
+            `/api/search/ids?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(limit)}`,
+            { credentials: 'include' }
         );
         if (!response.ok) throw new Error('Search ids failed');
         return response.json();
@@ -1856,7 +1857,7 @@
             // Not a reference, continue with text search
         }
 
-        // Full-text search: display top verses; load id-only hits for passage overlap.
+        // Full-text search: show verses immediately; widen overlap ids in the background.
         try {
             const results = await searchBible(query, 50);
             if (hitGen !== state.searchHitIdsGen) return;
@@ -1866,12 +1867,16 @@
             state.searchResultTab = 'verses';
             const hasPassages = await prepareSearchResultTabs();
             if (hitGen !== state.searchHitIdsGen) return;
-            if (hasPassages) {
-                await loadSearchHitIdsForPassages(query, hitGen);
-                if (hitGen !== state.searchHitIdsGen) return;
-            }
             openSearch();
             renderSearchBrowse();
+            if (hasPassages) {
+                loadSearchHitIdsForPassages(query, hitGen).then(() => {
+                    if (hitGen !== state.searchHitIdsGen) return;
+                    if (state.searchOpen && state.searchResultTab === 'passages') {
+                        renderSearchPassages();
+                    }
+                });
+            }
         } catch (e) {
             console.error('Search failed', e);
         }

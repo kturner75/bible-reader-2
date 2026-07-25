@@ -45,8 +45,7 @@ public class SecurityConfig {
                     "/dashboard", "/dashboard.html", "/dashboard.css", "/dashboard.js",
                     "/style.css", "/app.js",
                     "/error",                              // Spring Boot error controller — must be public
-                    "/api/verses", "/api/books/**",
-                    "/api/search", "/api/search/**",
+                    "/api/verses", "/api/books/**", "/api/search",
                     "/api/reference", "/api/navigate/**",
                     "/api/ranges", "/api/ranges/**",       // portable [v=…] hydrate + surrounding context — public
                     "/api/audio/**", "/api/tts/status",   // audio + TTS feature detection
