@@ -1073,3 +1073,26 @@ a:hover { text-decoration: underline; }
     opacity: 0.45;
     cursor: default;
 }
+
+/* ── Toast ────────────────────────────────────────────────── */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-text);
+    color: var(--color-bg);
+    padding: 0.6rem 1.25rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    z-index: 500;
+    opacity: 1;
+    transition: opacity 400ms ease, transform 400ms ease;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.toast.toast-hiding {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0.5rem);
+}

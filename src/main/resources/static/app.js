@@ -3623,6 +3623,26 @@
             elements.passageInsertExpandCount.textContent =
                 `Too many verses (max ${PASSAGE_INSERT_MAX_VERSES})`;
         }
+        syncPassageInsertSaveAvailability(checked);
+    }
+
+    /** UpsertPassageRequest.naturalKey max is 500 chars — disable Save when key is too long. */
+    const PASSAGE_NATURAL_KEY_MAX = 500;
+
+    function syncPassageInsertSaveAvailability(checkedIds) {
+        if (!elements.passageInsertSaveCb || !state.currentUser) return;
+        const key = checkedIds.length ? buildNaturalKeyFromIds(checkedIds) : '';
+        const tooLong = !!(key && key.length > PASSAGE_NATURAL_KEY_MAX);
+        elements.passageInsertSaveCb.disabled = tooLong;
+        if (tooLong && elements.passageInsertSaveCb.checked) {
+            elements.passageInsertSaveCb.checked = false;
+            syncPassageInsertSaveTitleEnabled();
+        }
+        if (elements.passageInsertSave) {
+            elements.passageInsertSave.title = tooLong
+                ? 'Selection is too fragmented to save as a passage (natural key limit)'
+                : '';
+        }
     }
 
     function confirmPassageInsertExpand() {
@@ -3635,11 +3655,13 @@
         const naturalKey = buildNaturalKeyFromIds(checked);
         const shouldSave = !!(state.currentUser
             && elements.passageInsertSaveCb
-            && elements.passageInsertSaveCb.checked);
+            && elements.passageInsertSaveCb.checked
+            && naturalKey
+            && naturalKey.length <= PASSAGE_NATURAL_KEY_MAX);
         const title = (elements.passageInsertTitle?.value || '').trim();
         // Insert first — saving is optional and must not block the portable link.
-        insertVTokenFromNaturalKey(naturalKey);
-        if (shouldSave) {
+        const inserted = insertVTokenFromNaturalKey(naturalKey);
+        if (inserted && shouldSave) {
             savePassageFromInsert(naturalKey, title);
         }
     }
@@ -3672,16 +3694,17 @@
         insertVTokenFromNaturalKey(key);
     }
 
+    /** @returns {boolean} true if the portable link was inserted */
     function insertVTokenFromNaturalKey(naturalKey) {
         const ta = state.passageInsertTarget;
-        if (!ta) return;
+        if (!ta) return false;
         let token;
         try {
             token = serializeVToken(rangesFromNaturalKey(naturalKey));
         } catch (err) {
             console.error(err);
             showToast('Could not insert scripture link');
-            return;
+            return false;
         }
         const start = ta.selectionStart ?? ta.value.length;
         const end = ta.selectionEnd ?? start;
@@ -3694,7 +3717,7 @@
         const maxLen = parseInt(ta.getAttribute('maxlength'), 10);
         if (Number.isFinite(maxLen) && next.length > maxLen) {
             showToast(`Not enough room for that link (${maxLen} char limit)`);
-            return;
+            return false;
         }
         ta.value = next;
         const caret = before.length + insert.length;
@@ -3703,6 +3726,7 @@
         ta.dispatchEvent(new Event('input'));
         closePassageInsertPicker();
         showToast('Scripture link inserted');
+        return true;
     }
 
     function handleNoteRangeLinkClick(link) {
