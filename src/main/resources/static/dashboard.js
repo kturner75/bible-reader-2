@@ -1103,7 +1103,7 @@
 
         let context;
         try {
-            const res = await fetch(`/api/memorization/context/${verseId}`, { credentials: 'include' });
+            const res = await fetch(`/api/ranges/context/${verseId}`, { credentials: 'include' });
             if (!res.ok) throw new Error('context failed');
             context = await res.json();
         } catch (err) {

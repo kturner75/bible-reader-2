@@ -2992,10 +2992,8 @@
     const PASSAGE_INSERT_MAX_VERSES = 500;
 
     async function openPassageInsertPicker(textarea) {
-        if (!state.currentUser) {
-            showToast('Sign in to link scripture');
-            return;
-        }
+        // Matching Verses + [v=…] insert work signed-out (localStorage verse notes).
+        // My Passages stays account-only.
         state.passageInsertTarget = textarea;
         state.passageInsertOpen = true;
         state.passageInsertTab = 'verses';
@@ -3008,7 +3006,11 @@
         elements.passageInsertSearch.value = '';
         syncPassageInsertTabs();
         showPassageInsertBrowse();
-        await loadPassagesFromApi();
+        if (state.currentUser) {
+            await loadPassagesFromApi();
+        } else {
+            state.passages = [];
+        }
         renderPassageInsertBrowse();
         elements.passageInsertSearch.focus();
     }
@@ -3043,11 +3045,18 @@
         state.passageInsertExpandGen++;
         if (elements.passageInsertBrowse) elements.passageInsertBrowse.hidden = false;
         if (elements.passageInsertExpand) elements.passageInsertExpand.hidden = true;
-        if (elements.passageInsertTabs) elements.passageInsertTabs.hidden = false;
+        // Hide tab bar when signed out — Matching Verses is the only lane.
+        if (elements.passageInsertTabs) {
+            elements.passageInsertTabs.hidden = !state.currentUser;
+        }
         elements.passageInsertSearch.hidden = false;
     }
 
     function setPassageInsertTab(tab) {
+        if (tab === 'passages' && !state.currentUser) {
+            showToast('Sign in to use saved passages');
+            return;
+        }
         state.passageInsertTab = tab === 'passages' ? 'passages' : 'verses';
         state.passageInsertSearchGen++;
         if (state.passageInsertSearchTimer) {
@@ -3234,7 +3243,10 @@
 
         let context;
         try {
-            context = await libApi(`/api/memorization/context/${verseId}`);
+            // Public endpoint — works for anonymous localStorage note editors too.
+            const response = await fetch(`/api/ranges/context/${verseId}`);
+            if (!response.ok) throw new Error('Failed to load surrounding verses');
+            context = await response.json();
         } catch (err) {
             console.error(err);
             if (expandGen !== state.passageInsertExpandGen || state.passageInsertMode !== 'expand') {
