@@ -3193,6 +3193,7 @@
                 builder.queue = (data.passages || []).map(p => ({
                     id: p.id,
                     title: p.title || '',
+                    originalTitle: p.title || '',
                     reference: p.reference,
                     naturalKey: p.naturalKey,
                     verses: p.verses || []
@@ -3317,6 +3318,7 @@
                 builder.queue.push({
                     id: created.id,
                     title: created.title || '',
+                    originalTitle: created.title || '',
                     reference: created.reference,
                     naturalKey: created.naturalKey,
                     verses: snippets.slice(run.startIndex, run.startIndex + run.count)
@@ -3359,28 +3361,15 @@
                 </span>
             </li>`).join('');
 
+        // Titles are local until Save — Cancel must not leave shared Passage rows dirty
         elements.cbQueueList.querySelectorAll('.cb-queue-title').forEach(input => {
-            input.addEventListener('change', async () => {
+            input.addEventListener('change', () => {
                 const i = parseInt(input.dataset.seg, 10);
                 const item = builder.queue[i];
                 if (!item) return;
-                const title = input.value.trim() || null;
-                try {
-                    const updated = await libApi(`/api/passages/${item.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title })
-                    });
-                    item.title = updated.title || '';
-                    item.reference = updated.reference || item.reference;
-                    const refEl = input.closest('.cb-queue-item').querySelector('.cb-queue-ref');
-                    if (refEl) refEl.textContent = passageDisplayLabel(item);
-                    await loadPassagesFromApi();
-                } catch (err) {
-                    console.error('Failed to update passage title:', err);
-                    showToast('Could not update title');
-                    input.value = item.title || '';
-                }
+                item.title = input.value.trim();
+                const refEl = input.closest('.cb-queue-item').querySelector('.cb-queue-ref');
+                if (refEl) refEl.textContent = passageDisplayLabel(item);
             });
         });
 
@@ -3413,6 +3402,20 @@
         elements.cbSave.disabled = true;
         const body = JSON.stringify({ label, passageIds });
         try {
+            // Commit deferred passage titles only when the collection is saved
+            for (const item of builder.queue) {
+                const next = item.title || '';
+                const prev = item.originalTitle || '';
+                if (next === prev) continue;
+                const updated = await libApi(`/api/passages/${item.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: next || null })
+                });
+                item.title = updated.title || '';
+                item.originalTitle = item.title;
+                item.reference = updated.reference || item.reference;
+            }
             if (builder.editingId) {
                 await libApi(`/api/collections/${builder.editingId}`, {
                     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body
@@ -3422,6 +3425,7 @@
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body
                 });
             }
+            await loadPassagesFromApi();
             await loadCollectionsFromApi();
             closeCollectionBuilder();
             showToast(`Saved "${label}"`);
@@ -4313,12 +4317,17 @@
 
     async function saveNote() {
         const verseId = state.noteEditorVerseId;
+        const VERSE_NOTE_LIMIT = 500;
         let note = elements.noteTextarea.value.trim();
         try {
             const ctx = await getRenderCtxForVerse(verseId);
             note = await normalizeNoteLinksOnSave(note, ctx);
             elements.noteTextarea.value = note;
             updateNoteCharCount();
+            if (note.length > VERSE_NOTE_LIMIT) {
+                showToast(`Note is too long after converting scripture links (${VERSE_NOTE_LIMIT} char limit)`);
+                return;
+            }
         } catch (err) {
             console.error('Failed to normalize note links:', err);
         }
@@ -4460,10 +4469,15 @@
         if (!ref) return;
         let note = elements.chapterNoteTextarea.value.trim();
         const existing = getNoteForTarget(ref);
+        const limit = NOTE_LIMITS[ref.type] || NOTE_LIMITS.chapter;
         try {
             note = await normalizeNoteLinksOnSave(note, await resolveNormalizeCtx(ref));
             elements.chapterNoteTextarea.value = note;
             updateChapterNoteCharCount();
+            if (note.length > limit) {
+                showToast(`Note is too long after converting scripture links (${limit} char limit)`);
+                return;
+            }
             if (note) {
                 if (ref.type === 'book') {
                     await saveBookNoteToApi(ref.bookId, note);
