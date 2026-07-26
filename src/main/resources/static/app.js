@@ -146,7 +146,10 @@
         tagList: document.getElementById('tag-list'),
         newTagInput: document.getElementById('new-tag-input'),
         createTagBtn: document.getElementById('create-tag-btn'),
-        // Note editor
+        // Notes dock (verse / chapter / book panels)
+        readerWorkspace: document.getElementById('reader-workspace'),
+        noteDock: document.getElementById('note-dock'),
+        noteDockHandle: document.getElementById('note-dock-handle'),
         noteEditorOverlay: document.getElementById('note-editor-overlay'),
         noteEditorClose: document.getElementById('note-editor-close'),
         noteEditorVerseRef: document.getElementById('note-editor-verse-ref'),
@@ -4936,14 +4939,79 @@
         return { type: 'verse', firstVerseId: chapterInfo.firstVerseId, verseCount: chapterInfo.verseCount };
     }
 
+    const NOTE_DOCK_WIDTH_KEY = 'kjv_note_dock_width';
+    const NOTE_DOCK_WIDTH_DEFAULT = 380;
+    const NOTE_DOCK_WIDTH_MIN = 280;
+    const NOTE_DOCK_WIDTH_MAX = 640;
+
+    function clampNoteDockWidth(px) {
+        const workspace = elements.readerWorkspace;
+        const maxByViewport = workspace
+            ? Math.min(NOTE_DOCK_WIDTH_MAX, Math.floor(workspace.clientWidth * 0.55))
+            : NOTE_DOCK_WIDTH_MAX;
+        const max = Math.max(NOTE_DOCK_WIDTH_MIN, maxByViewport);
+        return Math.min(max, Math.max(NOTE_DOCK_WIDTH_MIN, Math.round(px)));
+    }
+
+    function applyNoteDockWidth(px) {
+        if (!elements.noteDock) return;
+        const width = clampNoteDockWidth(px);
+        elements.noteDock.style.setProperty('--note-dock-width', `${width}px`);
+        return width;
+    }
+
+    function loadNoteDockWidth() {
+        try {
+            const raw = localStorage.getItem(NOTE_DOCK_WIDTH_KEY);
+            const n = raw ? parseInt(raw, 10) : NOTE_DOCK_WIDTH_DEFAULT;
+            applyNoteDockWidth(Number.isFinite(n) ? n : NOTE_DOCK_WIDTH_DEFAULT);
+        } catch (_) {
+            applyNoteDockWidth(NOTE_DOCK_WIDTH_DEFAULT);
+        }
+    }
+
+    function persistNoteDockWidth(px) {
+        try {
+            localStorage.setItem(NOTE_DOCK_WIDTH_KEY, String(px));
+        } catch (_) { /* ignore */ }
+    }
+
+    /** Show dock with one panel; reading-area ResizeObserver relayouts columns. */
+    function showNoteDock(panel) {
+        if (!elements.noteDock) return;
+        if (panel === 'verse') {
+            elements.noteEditorOverlay.hidden = false;
+            elements.chapterNoteOverlay.hidden = true;
+        } else {
+            elements.chapterNoteOverlay.hidden = false;
+            elements.noteEditorOverlay.hidden = true;
+        }
+        elements.noteDock.hidden = false;
+    }
+
+    function syncNoteDockVisibility() {
+        if (!elements.noteDock) return;
+        const open = state.noteEditorOpen || state.chapterNoteEditorOpen;
+        if (!open) {
+            elements.noteDock.hidden = true;
+            elements.noteEditorOverlay.hidden = true;
+            elements.chapterNoteOverlay.hidden = true;
+        }
+    }
+
     async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
+        // One dock panel at a time
+        if (state.chapterNoteEditorOpen) {
+            state.chapterNoteEditorOpen = false;
+            state.chapterNoteEditorTarget = null;
+        }
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
         }
         state.noteEditorVerseId = verseId;
         state.noteEditorOpen = true;
-        elements.noteEditorOverlay.hidden = false;
+        showNoteDock('verse');
 
         // Set verse reference
         const verse = state.pageVerses.find(v => v.id === verseId);
@@ -4984,6 +5052,7 @@
         state.noteEditorOpen = false;
         state.noteEditorVerseId = null;
         elements.noteEditorOverlay.hidden = true;
+        syncNoteDockVisibility();
     }
 
     function updateNoteCharCount() {
@@ -5079,9 +5148,14 @@
         if (!ref) return;
         if (!ref.type) ref.type = 'chapter';
         stopAudioOnUIEvent();
+        // One dock panel at a time
+        if (state.noteEditorOpen) {
+            state.noteEditorOpen = false;
+            state.noteEditorVerseId = null;
+        }
         state.chapterNoteEditorTarget = ref;
         state.chapterNoteEditorOpen = true;
-        elements.chapterNoteOverlay.hidden = false;
+        showNoteDock('chapter');
         elements.chapterNoteRef.textContent = ref.label;
 
         // Scope-dependent chrome — set on every open (modal is shared)
@@ -5133,6 +5207,7 @@
         state.chapterNoteEditorOpen = false;
         state.chapterNoteEditorTarget = null;
         elements.chapterNoteOverlay.hidden = true;
+        syncNoteDockVisibility();
     }
 
     function updateChapterNoteCharCount() {
@@ -5944,17 +6019,12 @@
         });
         elements.createTagBtn.addEventListener('click', handleCreateTag);
 
-        // Note editor
+        // Note editor (dock panels — no backdrop dismiss)
         elements.noteEditorClose.addEventListener('click', closeNoteEditor);
         elements.noteDoneBtn.addEventListener('click', closeNoteEditor);
         elements.noteEditBtn.addEventListener('click', () => setNoteMode('edit'));
         elements.noteCancelBtn.addEventListener('click', cancelNoteEdit);
         elements.noteSaveBtn.addEventListener('click', saveNote);
-        elements.noteEditorOverlay.addEventListener('click', (e) => {
-            if (e.target === elements.noteEditorOverlay) {
-                closeNoteEditor();
-            }
-        });
         elements.noteTextarea.addEventListener('input', updateNoteCharCount);
         if (elements.noteInsertPassageBtn) {
             elements.noteInsertPassageBtn.addEventListener('click', () =>
@@ -5989,17 +6059,12 @@
             }
         });
 
-        // Chapter note editor
+        // Chapter / book note editor (dock panel)
         elements.chapterNoteClose.addEventListener('click', closeChapterNoteEditor);
         elements.chapterNoteDoneBtn.addEventListener('click', closeChapterNoteEditor);
         elements.chapterNoteEditBtn.addEventListener('click', () => setChapterNoteMode('edit'));
         elements.chapterNoteCancelBtn.addEventListener('click', cancelChapterNoteEdit);
         elements.chapterNoteSaveBtn.addEventListener('click', saveChapterNote);
-        elements.chapterNoteOverlay.addEventListener('click', (e) => {
-            if (e.target === elements.chapterNoteOverlay) {
-                closeChapterNoteEditor();
-            }
-        });
         elements.chapterNoteTextarea.addEventListener('input', updateChapterNoteCharCount);
         if (elements.chapterNoteInsertPassageBtn) {
             elements.chapterNoteInsertPassageBtn.addEventListener('click', () =>
@@ -6159,6 +6224,51 @@
         window.addEventListener('resize', scheduleRelayout);
         if (typeof ResizeObserver !== 'undefined') {
             new ResizeObserver(scheduleRelayout).observe(elements.readingArea);
+        }
+
+        // Notes dock resize handle (desktop side-by-side)
+        if (elements.noteDockHandle && elements.noteDock) {
+            let resizing = false;
+            const onPointerMove = (e) => {
+                if (!resizing || !elements.readerWorkspace) return;
+                const bounds = elements.readerWorkspace.getBoundingClientRect();
+                const width = clampNoteDockWidth(bounds.right - e.clientX);
+                applyNoteDockWidth(width);
+            };
+            const endResize = (e) => {
+                if (!resizing) return;
+                resizing = false;
+                document.body.classList.remove('note-dock-resizing');
+                try {
+                    elements.noteDockHandle.releasePointerCapture(e.pointerId);
+                } catch (_) { /* ignore */ }
+                const raw = getComputedStyle(elements.noteDock)
+                    .getPropertyValue('--note-dock-width').trim();
+                const px = parseInt(raw, 10);
+                if (Number.isFinite(px)) persistNoteDockWidth(px);
+            };
+            elements.noteDockHandle.addEventListener('pointerdown', (e) => {
+                if (window.matchMedia('(max-width: 900px)').matches) return;
+                e.preventDefault();
+                resizing = true;
+                document.body.classList.add('note-dock-resizing');
+                elements.noteDockHandle.setPointerCapture(e.pointerId);
+            });
+            elements.noteDockHandle.addEventListener('pointermove', onPointerMove);
+            elements.noteDockHandle.addEventListener('pointerup', endResize);
+            elements.noteDockHandle.addEventListener('pointercancel', endResize);
+            elements.noteDockHandle.addEventListener('keydown', (e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                const current = parseInt(
+                    getComputedStyle(elements.noteDock)
+                        .getPropertyValue('--note-dock-width').trim(),
+                    10
+                ) || NOTE_DOCK_WIDTH_DEFAULT;
+                const delta = e.key === 'ArrowLeft' ? 20 : -20;
+                const next = applyNoteDockWidth(current + delta);
+                persistNoteDockWidth(next);
+            });
         }
 
         // ── Mobile: swipe left/right on reading area to turn pages ──
@@ -6337,6 +6447,7 @@
             loadSavedVerses();
             loadTags();
             loadAudioSpeed();
+            loadNoteDockWidth();
 
             // Check auth state (fire-and-forget — doesn't block page load)
             checkAuthState();
