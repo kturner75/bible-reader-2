@@ -2837,7 +2837,9 @@ body.note-dock-resizing {
     }
 }
 
-/* Narrow viewports: notes dock covers the reader (side-by-side needs desktop width) */
+/* Narrow viewports: notes dock covers the reader (side-by-side needs desktop width).
+   z-index 150 sits above the reading chrome but below search (200), library (250),
+   help (300), and Insert Scripture (360) so header-triggered overlays still win. */
 @media (max-width: 900px) {
     .note-dock:not([hidden]) {
         position: absolute;
@@ -2846,7 +2848,7 @@ body.note-dock-resizing {
         max-width: none;
         min-width: 0;
         flex: none;
-        z-index: 350;
+        z-index: 150;
         border-left: none;
     }
 
