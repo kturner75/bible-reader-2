@@ -54,6 +54,7 @@
         noteEditorOpen: false,     // note editor modal state
         tagPickerVerseId: null,    // which verse the tag picker is for
         noteEditorVerseId: null,   // which verse the note editor is for
+        noteEditorVerseMeta: null, // { id, bookId, book, chapter, verse } — survives page turns
         // Chapter notes (account-only — no localStorage mode)
         chapterNotes: {},              // { "bookId:chapter": { bookId, bookName, chapter, firstVerseId, verseCount, note, updatedAt } }
         bookNotes: {},                 // { bookId: { bookId, bookName, firstVerseId, note, updatedAt } }
@@ -4930,8 +4931,25 @@
     }
 
     /** Renderer ctx for a verse note's [N] links: same-chapter verse shorthand. */
+    async function resolveVerseForNote(verseId) {
+        let verse = state.pageVerses.find(v => v.id === verseId);
+        if (!verse && state.noteEditorVerseMeta && state.noteEditorVerseMeta.id === verseId) {
+            verse = state.noteEditorVerseMeta;
+        }
+        if (!verse) {
+            try {
+                verse = await fetchVerse(verseId);
+            } catch (_) {
+                return null;
+            }
+        }
+        return verse;
+    }
+
     async function getRenderCtxForVerse(verseId) {
-        const verse = state.pageVerses.find(v => v.id === verseId);
+        // Must not depend solely on the current page — the dock stays open across
+        // navigation, and [12]-style links still need chapter context to normalize.
+        const verse = await resolveVerseForNote(verseId);
         if (!verse) return null;
         const chapters = await getChaptersForBook(verse.bookId);
         const chapterInfo = chapters.find(c => c.chapter === verse.chapter);
@@ -5049,12 +5067,21 @@
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
         }
+        const verse = await resolveVerseForNote(verseId);
         state.noteEditorVerseId = verseId;
+        state.noteEditorVerseMeta = verse
+            ? {
+                id: verse.id,
+                bookId: verse.bookId,
+                book: verse.book,
+                chapter: verse.chapter,
+                verse: verse.verse
+            }
+            : null;
         state.noteEditorOpen = true;
         showNoteDock('verse');
 
         // Set verse reference
-        const verse = state.pageVerses.find(v => v.id === verseId);
         if (verse) {
             elements.noteEditorVerseRef.textContent = `${verse.book} ${verse.chapter}:${verse.verse}`;
         }
@@ -5091,6 +5118,7 @@
     function closeNoteEditor({ keepDock = false } = {}) {
         state.noteEditorOpen = false;
         state.noteEditorVerseId = null;
+        state.noteEditorVerseMeta = null;
         elements.noteEditorOverlay.hidden = true;
         if (!keepDock) syncNoteDockVisibility();
     }
