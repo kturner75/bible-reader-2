@@ -1452,7 +1452,16 @@
             if (state.collection) {
                 loadCollectionPage(state.collection.pageStartIndex);
             } else {
-                loadPage(state.pageStartVerseId);
+                // Keep the selected verse on-page after shrink (e.g. notes dock
+                // open). Prefer the prior page start; if that page no longer
+                // contains the selection, restart from the selected verse.
+                const start = state.pageStartVerseId;
+                const anchor = state.currentVerseId;
+                loadPage(start).then(() => {
+                    if (anchor && !state.pageVerses.some(v => v.id === anchor)) {
+                        return loadPage(anchor);
+                    }
+                });
             }
         }, 200);
     }
