@@ -4999,12 +4999,33 @@
         }
     }
 
+    function isVerseNoteDirty() {
+        if (!state.noteEditorOpen || !state.noteEditorVerseId) return false;
+        if (!elements.noteEdit || elements.noteEdit.hidden) return false;
+        const saved = state.savedVerses[state.noteEditorVerseId];
+        const existing = saved && saved.note ? saved.note : '';
+        return elements.noteTextarea.value !== existing;
+    }
+
+    function isChapterNoteDirty() {
+        if (!state.chapterNoteEditorOpen || !state.chapterNoteEditorTarget) return false;
+        if (!state.currentUser) return false;
+        if (!elements.chapterNoteEdit || elements.chapterNoteEdit.hidden) return false;
+        const existing = getNoteForTarget(state.chapterNoteEditorTarget);
+        const note = existing && existing.note ? existing.note : '';
+        return elements.chapterNoteTextarea.value !== note;
+    }
+
+    function confirmDiscardNoteEdits() {
+        return window.confirm('Discard unsaved note changes?');
+    }
+
     async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
-        // One dock panel at a time
+        // One dock panel at a time — don't silently drop an in-progress edit
         if (state.chapterNoteEditorOpen) {
-            state.chapterNoteEditorOpen = false;
-            state.chapterNoteEditorTarget = null;
+            if (isChapterNoteDirty() && !confirmDiscardNoteEdits()) return;
+            closeChapterNoteEditor();
         }
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
@@ -5148,10 +5169,10 @@
         if (!ref) return;
         if (!ref.type) ref.type = 'chapter';
         stopAudioOnUIEvent();
-        // One dock panel at a time
+        // One dock panel at a time — don't silently drop an in-progress edit
         if (state.noteEditorOpen) {
-            state.noteEditorOpen = false;
-            state.noteEditorVerseId = null;
+            if (isVerseNoteDirty() && !confirmDiscardNoteEdits()) return;
+            closeNoteEditor();
         }
         state.chapterNoteEditorTarget = ref;
         state.chapterNoteEditorOpen = true;
@@ -5561,7 +5582,7 @@
         if (document.activeElement === elements.noteTextarea) {
             if (e.key === 'Escape') {
                 elements.noteTextarea.blur();
-                closeNoteEditor();
+                cancelNoteEdit();
             }
             return;
         }
@@ -5569,7 +5590,7 @@
         if (document.activeElement === elements.chapterNoteTextarea) {
             if (e.key === 'Escape') {
                 elements.chapterNoteTextarea.blur();
-                closeChapterNoteEditor();
+                cancelChapterNoteEdit();
             }
             return;
         }
@@ -5581,7 +5602,8 @@
             return;
         }
 
-        // Close overlays with Escape (in order of z-index)
+        // Close overlays with Escape (highest z-index first). Notes dock sits
+        // below search/library/help, so those must close before the dock.
         if (e.key === 'Escape') {
             if (state.passageInsertOpen) {
                 if (state.passageInsertMode === 'expand') {
@@ -5591,16 +5613,14 @@
                 } else {
                     closePassageInsertPicker();
                 }
-            } else if (state.chapterNoteEditorOpen) {
-                closeChapterNoteEditor();
-            } else if (state.noteEditorOpen) {
-                closeNoteEditor();
             } else if (state.tagPickerOpen) {
                 closeTagPicker();
             } else if (state.collectionBuilderOpen) {
                 closeCollectionBuilder();
             } else if (state.passagePickerOpen) {
                 closePassagePicker();
+            } else if (state.helpOpen) {
+                closeHelp();
             } else if (state.memorizationOpen) {
                 closeMemorization();
             } else if (state.collectionsOpen) {
@@ -5611,19 +5631,22 @@
                 closeMobileMenu();
             } else if (state.searchOpen) {
                 closeSearch();
-            } else if (state.helpOpen) {
-                closeHelp();
+            } else if (state.chapterNoteEditorOpen) {
+                closeChapterNoteEditor();
+            } else if (state.noteEditorOpen) {
+                closeNoteEditor();
             } else if (state.collection) {
                 exitCollectionMode();
             }
             return;
         }
 
-        // Don't process other keys if overlays are open
+        // Modal overlays still capture keys. The notes dock does not — reader
+        // shortcuts stay active unless focus is in a note textarea (handled above).
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
-            state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen ||
+            state.tagPickerOpen || state.mobileMenuOpen ||
             state.memorizationOpen || state.passagePickerOpen ||
-            state.chapterNoteEditorOpen || state.collectionsOpen ||
+            state.collectionsOpen ||
             state.collectionBuilderOpen || state.passageInsertOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
