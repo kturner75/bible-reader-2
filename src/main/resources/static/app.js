@@ -5030,13 +5030,21 @@
 
     async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
+        // Same verse already open — keep the in-memory edit buffer (don't reload).
+        if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+            showNoteDock('verse');
+            if (elements.noteEdit && !elements.noteEdit.hidden) {
+                elements.noteTextarea.focus();
+            }
+            return;
+        }
         // One dock panel at a time — don't silently drop an in-progress edit
         if (state.chapterNoteEditorOpen) {
             if (isChapterNoteDirty() && !confirmDiscardNoteEdits()) return;
             closeChapterNoteEditor({ keepDock: true });
         }
-        if (state.noteEditorOpen && state.noteEditorVerseId !== verseId) {
-            if (isVerseNoteDirty() && !confirmDiscardNoteEdits()) return;
+        if (state.noteEditorOpen && isVerseNoteDirty() && !confirmDiscardNoteEdits()) {
+            return;
         }
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
@@ -5180,13 +5188,21 @@
         if (!ref) return;
         if (!ref.type) ref.type = 'chapter';
         stopAudioOnUIEvent();
+        // Same chapter/book already open — keep the in-memory edit buffer.
+        if (state.chapterNoteEditorOpen
+            && sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)) {
+            showNoteDock('chapter');
+            if (elements.chapterNoteEdit && !elements.chapterNoteEdit.hidden) {
+                elements.chapterNoteTextarea.focus();
+            }
+            return;
+        }
         // One dock panel at a time — don't silently drop an in-progress edit
         if (state.noteEditorOpen) {
             if (isVerseNoteDirty() && !confirmDiscardNoteEdits()) return;
             closeNoteEditor({ keepDock: true });
         }
         if (state.chapterNoteEditorOpen
-            && !sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)
             && isChapterNoteDirty()
             && !confirmDiscardNoteEdits()) {
             return;
