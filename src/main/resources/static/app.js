@@ -1393,13 +1393,14 @@
      */
     let loadGeneration = 0;
 
+    /** @returns {Promise<boolean>} true if this load still owns the page (not superseded) */
     async function loadPage(startVerseId) {
         const gen = ++loadGeneration;
         state.isLoading = true;
 
         try {
             const result = await calculatePageVerses(startVerseId);
-            if (gen !== loadGeneration) return; // superseded by newer navigation
+            if (gen !== loadGeneration) return false; // superseded by newer navigation
             state.pageVerses = result.verses;
             state.totalVerses = result.total || state.totalVerses;
             
@@ -1416,6 +1417,7 @@
             renderPage();
             saveState();
             updateDropdowns();
+            return true;
         } finally {
             state.isLoading = false;
             hideLoading();
@@ -1457,7 +1459,10 @@
                 // contains the selection, restart from the selected verse.
                 const start = state.pageStartVerseId;
                 const anchor = state.currentVerseId;
-                loadPage(start).then(() => {
+                loadPage(start).then((applied) => {
+                    // Don't reverse newer navigation (or stomp collection mode)
+                    // if the first load was superseded mid-flight.
+                    if (!applied || state.collection) return;
                     if (anchor && !state.pageVerses.some(v => v.id === anchor)) {
                         return loadPage(anchor);
                     }
