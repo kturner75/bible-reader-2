@@ -25,11 +25,10 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 - **Insert Scripture: Bible search + range expand** *(done — PR #40)* — Insert Scripture has Matching Verses (Lucene + reference parse) and My Passages / Featured. Selecting a verse opens chapter-aware surrounding checkboxes (prev/current/next), then inserts portable `[v=…]`.
 - **Save as passage from Insert expand** *(done — PR #42/#43)* — optional checkbox + title on the expand step; inserts `[v=…]` first, then fire-and-forget `POST /api/passages` (signed-in only). Natural-key length gated; save only after successful insert.
 - **Tabbed header search (verses | passages)** *(done — PR #41)* — header `/` search overlay shares the discovery-tab model: Matching Verses + Matching Passages (title/reference/overlap with hit ranges). Omit Matching Passages when the catalog is empty so the strip stays an expansion joint for future lanes (collections, plans, …).
-- **First-class Notes Editor (not a modal)** *(in progress — dock first)* — verse / chapter / book notes move out of compact modals into a dedicated surface. Sermon / lesson notes stay on the dashboard for now; a dedicated notes workspace page comes later when sermon notes need it.
-  - **Chosen shape:** (B) resizable dock beside the reader for verse / chapter / book notes (desktop side-by-side; full-bleed sheet ≤900px). (A)/(C) reserved for a future sermon/lesson notes workspace.
-  - **Why:** room for longer writing, Insert Scripture / search, preview of rendered markdown + scripture labels, backlinks to open ranges, without fighting z-index and focus traps over the scripture columns.
-  - **Preserve rkj constraints:** reading area stays no-scroll / two-column when the editor is closed or side-by-side; desktop-first; scripture remains the focus when reading. Dock open/resize triggers existing page remeasure.
-  - **Depends on / pairs with:** portable `[v=…]` links, Insert Scripture search, focused range reader; feeds character/location studies and focused study plans later.
+- **First-class Notes Editor — reader dock** *(done — PR #45)* — verse / chapter / book notes open in a resizable dock beside the reader (desktop side-by-side; full-bleed sheet ≤900px). Insert Scripture stays a modal; reading area remeasures on open/resize; dirty-edit guards and reader shortcuts while docked.
+- **Notes workspace for sermon / lesson notes** — dedicated page (shape A/C) for managing longer sermon/lesson notes and multi-note study work. Dashboard modals remain until this lands. Builds on the reader dock patterns from PR #45.
+  - **Preserve rkj constraints:** when linked from the reader, scripture stays no-scroll / two-column; desktop-first.
+  - **Depends on / pairs with:** portable `[v=…]` links, Insert Scripture search, reader notes dock.
 - **Character studies** — verses tagged to a person (Abraham, David, Paul…); auto-populated from a concordance or user-curated.
 - **Location studies** — same concept for places (Jerusalem, Egypt, Bethlehem…).
 
