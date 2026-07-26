@@ -54,6 +54,7 @@
         noteEditorOpen: false,     // note editor modal state
         tagPickerVerseId: null,    // which verse the tag picker is for
         noteEditorVerseId: null,   // which verse the note editor is for
+        noteEditorVerseMeta: null, // { id, bookId, book, chapter, verse } — survives page turns
         // Chapter notes (account-only — no localStorage mode)
         chapterNotes: {},              // { "bookId:chapter": { bookId, bookName, chapter, firstVerseId, verseCount, note, updatedAt } }
         bookNotes: {},                 // { bookId: { bookId, bookName, firstVerseId, note, updatedAt } }
@@ -146,7 +147,10 @@
         tagList: document.getElementById('tag-list'),
         newTagInput: document.getElementById('new-tag-input'),
         createTagBtn: document.getElementById('create-tag-btn'),
-        // Note editor
+        // Notes dock (verse / chapter / book panels)
+        readerWorkspace: document.getElementById('reader-workspace'),
+        noteDock: document.getElementById('note-dock'),
+        noteDockHandle: document.getElementById('note-dock-handle'),
         noteEditorOverlay: document.getElementById('note-editor-overlay'),
         noteEditorClose: document.getElementById('note-editor-close'),
         noteEditorVerseRef: document.getElementById('note-editor-verse-ref'),
@@ -1389,13 +1393,14 @@
      */
     let loadGeneration = 0;
 
+    /** @returns {Promise<boolean>} true if this load still owns the page (not superseded) */
     async function loadPage(startVerseId) {
         const gen = ++loadGeneration;
         state.isLoading = true;
 
         try {
             const result = await calculatePageVerses(startVerseId);
-            if (gen !== loadGeneration) return; // superseded by newer navigation
+            if (gen !== loadGeneration) return false; // superseded by newer navigation
             state.pageVerses = result.verses;
             state.totalVerses = result.total || state.totalVerses;
             
@@ -1412,6 +1417,7 @@
             renderPage();
             saveState();
             updateDropdowns();
+            return true;
         } finally {
             state.isLoading = false;
             hideLoading();
@@ -1448,7 +1454,19 @@
             if (state.collection) {
                 loadCollectionPage(state.collection.pageStartIndex);
             } else {
-                loadPage(state.pageStartVerseId);
+                // Keep the selected verse on-page after shrink (e.g. notes dock
+                // open). Prefer the prior page start; if that page no longer
+                // contains the selection, restart from the selected verse.
+                const start = state.pageStartVerseId;
+                const anchor = state.currentVerseId;
+                loadPage(start).then((applied) => {
+                    // Don't reverse newer navigation (or stomp collection mode)
+                    // if the first load was superseded mid-flight.
+                    if (!applied || state.collection) return;
+                    if (anchor && !state.pageVerses.some(v => v.id === anchor)) {
+                        return loadPage(anchor);
+                    }
+                });
             }
         }, 200);
     }
@@ -4927,8 +4945,25 @@
     }
 
     /** Renderer ctx for a verse note's [N] links: same-chapter verse shorthand. */
+    async function resolveVerseForNote(verseId) {
+        let verse = state.pageVerses.find(v => v.id === verseId);
+        if (!verse && state.noteEditorVerseMeta && state.noteEditorVerseMeta.id === verseId) {
+            verse = state.noteEditorVerseMeta;
+        }
+        if (!verse) {
+            try {
+                verse = await fetchVerse(verseId);
+            } catch (_) {
+                return null;
+            }
+        }
+        return verse;
+    }
+
     async function getRenderCtxForVerse(verseId) {
-        const verse = state.pageVerses.find(v => v.id === verseId);
+        // Must not depend solely on the current page — the dock stays open across
+        // navigation, and [12]-style links still need chapter context to normalize.
+        const verse = await resolveVerseForNote(verseId);
         if (!verse) return null;
         const chapters = await getChaptersForBook(verse.bookId);
         const chapterInfo = chapters.find(c => c.chapter === verse.chapter);
@@ -4936,17 +4971,131 @@
         return { type: 'verse', firstVerseId: chapterInfo.firstVerseId, verseCount: chapterInfo.verseCount };
     }
 
+    const NOTE_DOCK_WIDTH_KEY = 'kjv_note_dock_width';
+    const NOTE_DOCK_WIDTH_DEFAULT = 380;
+    const NOTE_DOCK_WIDTH_MIN = 280;
+    const NOTE_DOCK_WIDTH_MAX = 640;
+
+    function clampNoteDockWidth(px) {
+        const workspace = elements.readerWorkspace;
+        const maxByViewport = workspace
+            ? Math.min(NOTE_DOCK_WIDTH_MAX, Math.floor(workspace.clientWidth * 0.55))
+            : NOTE_DOCK_WIDTH_MAX;
+        const max = Math.max(NOTE_DOCK_WIDTH_MIN, maxByViewport);
+        return Math.min(max, Math.max(NOTE_DOCK_WIDTH_MIN, Math.round(px)));
+    }
+
+    function applyNoteDockWidth(px) {
+        if (!elements.noteDock) return;
+        const width = clampNoteDockWidth(px);
+        elements.noteDock.style.setProperty('--note-dock-width', `${width}px`);
+        return width;
+    }
+
+    function loadNoteDockWidth() {
+        try {
+            const raw = localStorage.getItem(NOTE_DOCK_WIDTH_KEY);
+            const n = raw ? parseInt(raw, 10) : NOTE_DOCK_WIDTH_DEFAULT;
+            applyNoteDockWidth(Number.isFinite(n) ? n : NOTE_DOCK_WIDTH_DEFAULT);
+        } catch (_) {
+            applyNoteDockWidth(NOTE_DOCK_WIDTH_DEFAULT);
+        }
+    }
+
+    function persistNoteDockWidth(px) {
+        try {
+            localStorage.setItem(NOTE_DOCK_WIDTH_KEY, String(px));
+        } catch (_) { /* ignore */ }
+    }
+
+    /** Show dock with one panel; reading-area ResizeObserver relayouts columns. */
+    function showNoteDock(panel) {
+        if (!elements.noteDock) return;
+        if (panel === 'verse') {
+            elements.noteEditorOverlay.hidden = false;
+            elements.chapterNoteOverlay.hidden = true;
+        } else {
+            elements.chapterNoteOverlay.hidden = false;
+            elements.noteEditorOverlay.hidden = true;
+        }
+        elements.noteDock.hidden = false;
+    }
+
+    function syncNoteDockVisibility() {
+        if (!elements.noteDock) return;
+        const open = state.noteEditorOpen || state.chapterNoteEditorOpen;
+        if (!open) {
+            elements.noteDock.hidden = true;
+            elements.noteEditorOverlay.hidden = true;
+            elements.chapterNoteOverlay.hidden = true;
+        }
+    }
+
+    function isVerseNoteDirty() {
+        if (!state.noteEditorOpen || !state.noteEditorVerseId) return false;
+        if (!elements.noteEdit || elements.noteEdit.hidden) return false;
+        const saved = state.savedVerses[state.noteEditorVerseId];
+        const existing = saved && saved.note ? saved.note : '';
+        return elements.noteTextarea.value !== existing;
+    }
+
+    function isChapterNoteDirty() {
+        if (!state.chapterNoteEditorOpen || !state.chapterNoteEditorTarget) return false;
+        if (!state.currentUser) return false;
+        if (!elements.chapterNoteEdit || elements.chapterNoteEdit.hidden) return false;
+        const existing = getNoteForTarget(state.chapterNoteEditorTarget);
+        const note = existing && existing.note ? existing.note : '';
+        return elements.chapterNoteTextarea.value !== note;
+    }
+
+    function confirmDiscardNoteEdits() {
+        return window.confirm('Discard unsaved note changes?');
+    }
+
+    function sameChapterNoteTarget(a, b) {
+        if (!a || !b) return false;
+        const aType = a.type || 'chapter';
+        const bType = b.type || 'chapter';
+        if (aType !== bType || a.bookId !== b.bookId) return false;
+        return aType === 'book' || a.chapter === b.chapter;
+    }
+
     async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
+        // Same verse already open — keep the in-memory edit buffer (don't reload).
+        if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+            showNoteDock('verse');
+            if (elements.noteEdit && !elements.noteEdit.hidden) {
+                elements.noteTextarea.focus();
+            }
+            return;
+        }
+        // One dock panel at a time — don't silently drop an in-progress edit
+        if (state.chapterNoteEditorOpen) {
+            if (isChapterNoteDirty() && !confirmDiscardNoteEdits()) return;
+            closeChapterNoteEditor({ keepDock: true });
+        }
+        if (state.noteEditorOpen && isVerseNoteDirty() && !confirmDiscardNoteEdits()) {
+            return;
+        }
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
         }
+        const verse = await resolveVerseForNote(verseId);
         state.noteEditorVerseId = verseId;
+        state.noteEditorVerseMeta = verse
+            ? {
+                id: verse.id,
+                bookId: verse.bookId,
+                book: verse.book,
+                chapter: verse.chapter,
+                verse: verse.verse
+            }
+            : null;
         state.noteEditorOpen = true;
-        elements.noteEditorOverlay.hidden = false;
+        showNoteDock('verse');
 
         // Set verse reference
-        const verse = state.pageVerses.find(v => v.id === verseId);
         if (verse) {
             elements.noteEditorVerseRef.textContent = `${verse.book} ${verse.chapter}:${verse.verse}`;
         }
@@ -4980,10 +5129,12 @@
         }
     }
 
-    function closeNoteEditor() {
+    function closeNoteEditor({ keepDock = false } = {}) {
         state.noteEditorOpen = false;
         state.noteEditorVerseId = null;
+        state.noteEditorVerseMeta = null;
         elements.noteEditorOverlay.hidden = true;
+        if (!keepDock) syncNoteDockVisibility();
     }
 
     function updateNoteCharCount() {
@@ -5079,9 +5230,28 @@
         if (!ref) return;
         if (!ref.type) ref.type = 'chapter';
         stopAudioOnUIEvent();
+        // Same chapter/book already open — keep the in-memory edit buffer.
+        if (state.chapterNoteEditorOpen
+            && sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)) {
+            showNoteDock('chapter');
+            if (elements.chapterNoteEdit && !elements.chapterNoteEdit.hidden) {
+                elements.chapterNoteTextarea.focus();
+            }
+            return;
+        }
+        // One dock panel at a time — don't silently drop an in-progress edit
+        if (state.noteEditorOpen) {
+            if (isVerseNoteDirty() && !confirmDiscardNoteEdits()) return;
+            closeNoteEditor({ keepDock: true });
+        }
+        if (state.chapterNoteEditorOpen
+            && isChapterNoteDirty()
+            && !confirmDiscardNoteEdits()) {
+            return;
+        }
         state.chapterNoteEditorTarget = ref;
         state.chapterNoteEditorOpen = true;
-        elements.chapterNoteOverlay.hidden = false;
+        showNoteDock('chapter');
         elements.chapterNoteRef.textContent = ref.label;
 
         // Scope-dependent chrome — set on every open (modal is shared)
@@ -5129,10 +5299,11 @@
         }
     }
 
-    function closeChapterNoteEditor() {
+    function closeChapterNoteEditor({ keepDock = false } = {}) {
         state.chapterNoteEditorOpen = false;
         state.chapterNoteEditorTarget = null;
         elements.chapterNoteOverlay.hidden = true;
+        if (!keepDock) syncNoteDockVisibility();
     }
 
     function updateChapterNoteCharCount() {
@@ -5486,7 +5657,7 @@
         if (document.activeElement === elements.noteTextarea) {
             if (e.key === 'Escape') {
                 elements.noteTextarea.blur();
-                closeNoteEditor();
+                cancelNoteEdit();
             }
             return;
         }
@@ -5494,7 +5665,7 @@
         if (document.activeElement === elements.chapterNoteTextarea) {
             if (e.key === 'Escape') {
                 elements.chapterNoteTextarea.blur();
-                closeChapterNoteEditor();
+                cancelChapterNoteEdit();
             }
             return;
         }
@@ -5506,7 +5677,8 @@
             return;
         }
 
-        // Close overlays with Escape (in order of z-index)
+        // Close overlays with Escape (highest z-index first). Notes dock sits
+        // below search/library/help, so those must close before the dock.
         if (e.key === 'Escape') {
             if (state.passageInsertOpen) {
                 if (state.passageInsertMode === 'expand') {
@@ -5516,16 +5688,14 @@
                 } else {
                     closePassageInsertPicker();
                 }
-            } else if (state.chapterNoteEditorOpen) {
-                closeChapterNoteEditor();
-            } else if (state.noteEditorOpen) {
-                closeNoteEditor();
             } else if (state.tagPickerOpen) {
                 closeTagPicker();
             } else if (state.collectionBuilderOpen) {
                 closeCollectionBuilder();
             } else if (state.passagePickerOpen) {
                 closePassagePicker();
+            } else if (state.helpOpen) {
+                closeHelp();
             } else if (state.memorizationOpen) {
                 closeMemorization();
             } else if (state.collectionsOpen) {
@@ -5536,19 +5706,22 @@
                 closeMobileMenu();
             } else if (state.searchOpen) {
                 closeSearch();
-            } else if (state.helpOpen) {
-                closeHelp();
+            } else if (state.chapterNoteEditorOpen) {
+                closeChapterNoteEditor();
+            } else if (state.noteEditorOpen) {
+                closeNoteEditor();
             } else if (state.collection) {
                 exitCollectionMode();
             }
             return;
         }
 
-        // Don't process other keys if overlays are open
+        // Modal overlays still capture keys. The notes dock does not — reader
+        // shortcuts stay active unless focus is in a note textarea (handled above).
         if (state.searchOpen || state.helpOpen || state.libraryOpen ||
-            state.tagPickerOpen || state.noteEditorOpen || state.mobileMenuOpen ||
+            state.tagPickerOpen || state.mobileMenuOpen ||
             state.memorizationOpen || state.passagePickerOpen ||
-            state.chapterNoteEditorOpen || state.collectionsOpen ||
+            state.collectionsOpen ||
             state.collectionBuilderOpen || state.passageInsertOpen) return;
 
         // Don't intercept browser shortcuts (Cmd/Ctrl + key)
@@ -5944,17 +6117,12 @@
         });
         elements.createTagBtn.addEventListener('click', handleCreateTag);
 
-        // Note editor
+        // Note editor (dock panels — no backdrop dismiss)
         elements.noteEditorClose.addEventListener('click', closeNoteEditor);
         elements.noteDoneBtn.addEventListener('click', closeNoteEditor);
         elements.noteEditBtn.addEventListener('click', () => setNoteMode('edit'));
         elements.noteCancelBtn.addEventListener('click', cancelNoteEdit);
         elements.noteSaveBtn.addEventListener('click', saveNote);
-        elements.noteEditorOverlay.addEventListener('click', (e) => {
-            if (e.target === elements.noteEditorOverlay) {
-                closeNoteEditor();
-            }
-        });
         elements.noteTextarea.addEventListener('input', updateNoteCharCount);
         if (elements.noteInsertPassageBtn) {
             elements.noteInsertPassageBtn.addEventListener('click', () =>
@@ -5989,17 +6157,12 @@
             }
         });
 
-        // Chapter note editor
+        // Chapter / book note editor (dock panel)
         elements.chapterNoteClose.addEventListener('click', closeChapterNoteEditor);
         elements.chapterNoteDoneBtn.addEventListener('click', closeChapterNoteEditor);
         elements.chapterNoteEditBtn.addEventListener('click', () => setChapterNoteMode('edit'));
         elements.chapterNoteCancelBtn.addEventListener('click', cancelChapterNoteEdit);
         elements.chapterNoteSaveBtn.addEventListener('click', saveChapterNote);
-        elements.chapterNoteOverlay.addEventListener('click', (e) => {
-            if (e.target === elements.chapterNoteOverlay) {
-                closeChapterNoteEditor();
-            }
-        });
         elements.chapterNoteTextarea.addEventListener('input', updateChapterNoteCharCount);
         if (elements.chapterNoteInsertPassageBtn) {
             elements.chapterNoteInsertPassageBtn.addEventListener('click', () =>
@@ -6159,6 +6322,52 @@
         window.addEventListener('resize', scheduleRelayout);
         if (typeof ResizeObserver !== 'undefined') {
             new ResizeObserver(scheduleRelayout).observe(elements.readingArea);
+        }
+
+        // Notes dock resize handle (desktop side-by-side)
+        if (elements.noteDockHandle && elements.noteDock) {
+            let resizing = false;
+            const onPointerMove = (e) => {
+                if (!resizing || !elements.readerWorkspace) return;
+                const bounds = elements.readerWorkspace.getBoundingClientRect();
+                const width = clampNoteDockWidth(bounds.right - e.clientX);
+                applyNoteDockWidth(width);
+            };
+            const endResize = (e) => {
+                if (!resizing) return;
+                resizing = false;
+                document.body.classList.remove('note-dock-resizing');
+                try {
+                    elements.noteDockHandle.releasePointerCapture(e.pointerId);
+                } catch (_) { /* ignore */ }
+                const raw = getComputedStyle(elements.noteDock)
+                    .getPropertyValue('--note-dock-width').trim();
+                const px = parseInt(raw, 10);
+                if (Number.isFinite(px)) persistNoteDockWidth(px);
+            };
+            elements.noteDockHandle.addEventListener('pointerdown', (e) => {
+                if (window.matchMedia('(max-width: 900px)').matches) return;
+                e.preventDefault();
+                resizing = true;
+                document.body.classList.add('note-dock-resizing');
+                elements.noteDockHandle.setPointerCapture(e.pointerId);
+            });
+            elements.noteDockHandle.addEventListener('pointermove', onPointerMove);
+            elements.noteDockHandle.addEventListener('pointerup', endResize);
+            elements.noteDockHandle.addEventListener('pointercancel', endResize);
+            elements.noteDockHandle.addEventListener('keydown', (e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                e.stopPropagation();
+                const current = parseInt(
+                    getComputedStyle(elements.noteDock)
+                        .getPropertyValue('--note-dock-width').trim(),
+                    10
+                ) || NOTE_DOCK_WIDTH_DEFAULT;
+                const delta = e.key === 'ArrowLeft' ? 20 : -20;
+                const next = applyNoteDockWidth(current + delta);
+                persistNoteDockWidth(next);
+            });
         }
 
         // ── Mobile: swipe left/right on reading area to turn pages ──
@@ -6337,6 +6546,7 @@
             loadSavedVerses();
             loadTags();
             loadAudioSpeed();
+            loadNoteDockWidth();
 
             // Check auth state (fire-and-forget — doesn't block page load)
             checkAuthState();

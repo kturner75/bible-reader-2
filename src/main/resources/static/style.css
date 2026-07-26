@@ -68,7 +68,8 @@ body {
     height: var(--header-height);
     background: var(--color-header-bg);
     border-bottom: 1px solid var(--color-border);
-    z-index: 100;
+    /* Above narrow notes dock (150) so search autocomplete can paint over it */
+    z-index: 160;
     display: flex;
     align-items: center;
     padding: 0 1rem;
@@ -324,17 +325,106 @@ body {
 /* ============================================
    Reading Container & Layout
    ============================================ */
-.reading-container {
+.reader-workspace {
     position: fixed;
     top: var(--header-height);
     left: 0;
     right: 0;
     bottom: var(--footer-height);
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+}
+
+.reading-container {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
     padding: var(--reading-padding);
     padding-top: calc(var(--reading-padding) / 2);
     overflow: hidden;
     display: flex;
     flex-direction: column;
+}
+
+/* Notes dock — beside scripture on desktop; not a z-index overlay */
+.note-dock {
+    --note-dock-width: 380px;
+    position: relative;
+    flex: 0 0 var(--note-dock-width);
+    width: var(--note-dock-width);
+    max-width: min(640px, 55vw);
+    min-width: 280px;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    background: var(--color-bg);
+    border-left: 1px solid var(--color-border);
+    z-index: 50;
+    overflow: hidden;
+}
+
+.note-dock[hidden] {
+    display: none !important;
+}
+
+.note-dock-handle {
+    flex: 0 0 6px;
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    touch-action: none;
+}
+
+.note-dock-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 1px;
+    width: 2px;
+    height: 2.5rem;
+    margin-top: -1.25rem;
+    border-radius: 1px;
+    background: var(--color-border);
+}
+
+.note-dock-handle:hover::after,
+.note-dock-handle:focus-visible::after,
+body.note-dock-resizing .note-dock-handle::after {
+    background: var(--color-link);
+}
+
+.note-dock-handle:focus-visible {
+    outline: none;
+}
+
+.note-dock-panels {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.note-dock-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.note-dock-panel[hidden] {
+    display: none !important;
+}
+
+body.note-dock-resizing {
+    cursor: col-resize;
+    user-select: none;
 }
 
 .chapter-title {
@@ -1411,40 +1501,32 @@ body {
 }
 
 /* ============================================
-   Note Editor Modal
+   Note Editor (dock panels)
    ============================================ */
-.note-editor-overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--color-overlay-bg);
-    z-index: 350;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.note-editor-overlay[hidden] {
-    display: none;
-}
-
 .note-editor-modal {
     background: var(--color-bg);
-    border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    width: 90%;
-    max-width: 500px;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    border-radius: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .note-editor-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem 1.5rem;
+    padding: 0.85rem 1.1rem;
     border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+    background: var(--color-header-bg);
 }
 
 .note-editor-header h2 {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 500;
 }
 
@@ -1463,7 +1545,10 @@ body {
 }
 
 .note-editor-content {
-    padding: 1.5rem;
+    padding: 1.1rem 1.25rem 1.25rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .note-editor-verse-ref {
@@ -1830,10 +1915,10 @@ body {
     background: var(--color-text);
 }
 
-/* Rendered markdown-lite note view */
+/* Rendered markdown-lite note view — dock content scrolls as a whole */
 .note-markdown {
-    max-height: 50vh;
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
     margin-bottom: 1rem;
     line-height: 1.6;
 }
@@ -2753,6 +2838,26 @@ body {
     }
 }
 
+/* Narrow viewports: notes dock covers the reader (side-by-side needs desktop width).
+   z-index 150 sits above the reading chrome but below search (200), library (250),
+   help (300), and Insert Scripture (360) so header-triggered overlays still win. */
+@media (max-width: 900px) {
+    .note-dock:not([hidden]) {
+        position: absolute;
+        inset: 0;
+        width: 100% !important;
+        max-width: none;
+        min-width: 0;
+        flex: none;
+        z-index: 150;
+        border-left: none;
+    }
+
+    .note-dock-handle {
+        display: none;
+    }
+}
+
 @media (max-width: 700px) {
     :root {
         --reading-padding: 1.25rem;
@@ -2993,17 +3098,6 @@ body {
         border-radius: 12px 12px 0 0;
     }
 
-    /* Note editor: sheet from bottom */
-    .note-editor-overlay {
-        align-items: flex-end;
-    }
-
-    .note-editor-modal {
-        width: 100%;
-        max-width: none;
-        border-radius: 12px 12px 0 0;
-    }
-
     /* Slightly larger touch targets inside library */
     .library-item {
         padding: 1rem 0.75rem;
@@ -3200,7 +3294,7 @@ body {
     .reading-footer {
         display: none;
     }
-    .reading-container {
+    .reader-workspace {
         bottom: 0;
     }
 }
@@ -3213,8 +3307,13 @@ body {
     .page-indicators,
     .search-overlay,
     .help-overlay,
-    .loading-overlay {
+    .loading-overlay,
+    .note-dock {
         display: none !important;
+    }
+
+    .reader-workspace {
+        position: static;
     }
     
     .reading-container {

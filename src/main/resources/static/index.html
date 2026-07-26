@@ -85,23 +85,93 @@
     <!-- Mobile Search Cancel (shown only when mobile search is active) -->
     <button id="mobile-search-cancel" aria-label="Cancel search" hidden>Cancel</button>
 
-    <!-- Main Reading Area -->
-    <main class="reading-container">
-        <!-- Chapter Title -->
-        <h1 class="chapter-title" id="chapter-title">Genesis 1</h1>
+    <!-- Reader workspace: scripture + optional notes dock -->
+    <div class="reader-workspace" id="reader-workspace">
+        <!-- Main Reading Area -->
+        <main class="reading-container">
+            <!-- Chapter Title -->
+            <h1 class="chapter-title" id="chapter-title">Genesis 1</h1>
 
-        <!-- Two-Column Scripture Display -->
-        <div class="reading-area" id="reading-area">
-            <!-- Verses render here -->
-        </div>
+            <!-- Two-Column Scripture Display -->
+            <div class="reading-area" id="reading-area">
+                <!-- Verses render here -->
+            </div>
 
-        <!-- Page Navigation Indicators -->
-        <div class="page-indicators">
-            <button class="mobile-nav-btn" id="mobile-prev" aria-label="Previous page">&#8249;</button>
-            <span id="page-info"></span>
-            <button class="mobile-nav-btn" id="mobile-next" aria-label="Next page">&#8250;</button>
-        </div>
-    </main>
+            <!-- Page Navigation Indicators -->
+            <div class="page-indicators">
+                <button class="mobile-nav-btn" id="mobile-prev" aria-label="Previous page">&#8249;</button>
+                <span id="page-info"></span>
+                <button class="mobile-nav-btn" id="mobile-next" aria-label="Next page">&#8250;</button>
+            </div>
+        </main>
+
+        <!-- Notes dock (verse / chapter / book) — desktop side panel; sheet on narrow viewports -->
+        <aside class="note-dock" id="note-dock" hidden>
+            <div class="note-dock-handle" id="note-dock-handle" role="separator"
+                 aria-orientation="vertical" aria-label="Resize notes panel" tabindex="0"></div>
+            <div class="note-dock-panels">
+                <!-- Verse Note -->
+                <div class="note-dock-panel" id="note-editor-overlay" hidden>
+                    <div class="note-editor-modal">
+                        <div class="note-editor-header">
+                            <h2>Verse Note</h2>
+                            <button id="note-editor-close" aria-label="Close">&times;</button>
+                        </div>
+                        <div class="note-editor-content">
+                            <div class="note-editor-verse-ref" id="note-editor-verse-ref"></div>
+                            <div class="note-markdown" id="note-view" hidden></div>
+                            <div class="note-actions" id="note-view-actions" hidden>
+                                <button id="note-edit-btn" class="primary">Edit</button>
+                                <button id="note-done-btn">Close</button>
+                            </div>
+                            <div id="note-edit" hidden>
+                                <textarea id="note-textarea" placeholder="Add a note..." maxlength="500"></textarea>
+                                <div class="note-char-count"><span id="note-char-current">0</span>/500</div>
+                                <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code>[12]</code> verse link <code>[John 3:16]</code> reference · Insert scripture stores a portable link</p>
+                                <div class="note-actions">
+                                    <button type="button" id="note-insert-passage-btn" class="note-insert-passage-btn">Insert scripture</button>
+                                    <button id="note-save-btn" class="primary">Save</button>
+                                    <button id="note-cancel-btn">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chapter / Book Note -->
+                <div class="note-dock-panel" id="chapter-note-overlay" hidden>
+                    <div class="note-editor-modal">
+                        <div class="note-editor-header">
+                            <h2 id="chapter-note-title">Chapter Note</h2>
+                            <button id="chapter-note-close" aria-label="Close">&times;</button>
+                        </div>
+                        <div class="note-editor-content">
+                            <div class="note-editor-verse-ref" id="chapter-note-ref"></div>
+                            <div class="chapter-note-signin" id="chapter-note-signin" hidden>
+                                <p>Notes are saved to your account.</p>
+                                <a href="/login.html" class="chapter-note-signin-link">Sign in to add notes</a>
+                            </div>
+                            <div class="note-markdown" id="chapter-note-view" hidden></div>
+                            <div class="note-actions" id="chapter-note-view-actions" hidden>
+                                <button id="chapter-note-edit-btn" class="primary">Edit</button>
+                                <button id="chapter-note-done-btn">Close</button>
+                            </div>
+                            <div id="chapter-note-edit" hidden>
+                                <textarea id="chapter-note-textarea" placeholder="Study notes, outline, themes..." maxlength="5000"></textarea>
+                                <div class="note-char-count"><span id="chapter-note-char-current">0</span>/<span id="chapter-note-char-max">5000</span></div>
+                                <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <span id="chapter-note-hint-links"><code>[12]</code> verse link</span> · Insert scripture stores a portable link</p>
+                                <div class="note-actions">
+                                    <button type="button" id="chapter-note-insert-passage-btn" class="note-insert-passage-btn">Insert scripture</button>
+                                    <button id="chapter-note-save-btn" class="primary">Save</button>
+                                    <button id="chapter-note-cancel-btn">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
 
     <!-- Search Results Overlay -->
     <div class="search-overlay" id="search-overlay" hidden>
@@ -254,66 +324,6 @@
                     <button id="create-tag-btn">Add</button>
                 </div>
                 <p class="tag-limit-info">Max 5 tags per verse, 50 total tags</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Note Editor Modal -->
-    <div class="note-editor-overlay" id="note-editor-overlay" hidden>
-        <div class="note-editor-modal">
-            <div class="note-editor-header">
-                <h2>Verse Note</h2>
-                <button id="note-editor-close" aria-label="Close">&times;</button>
-            </div>
-            <div class="note-editor-content">
-                <div class="note-editor-verse-ref" id="note-editor-verse-ref"></div>
-                <div class="note-markdown" id="note-view" hidden></div>
-                <div class="note-actions" id="note-view-actions" hidden>
-                    <button id="note-edit-btn" class="primary">Edit</button>
-                    <button id="note-done-btn">Close</button>
-                </div>
-                <div id="note-edit" hidden>
-                    <textarea id="note-textarea" placeholder="Add a note..." maxlength="500"></textarea>
-                    <div class="note-char-count"><span id="note-char-current">0</span>/500</div>
-                    <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code>[12]</code> verse link <code>[John 3:16]</code> reference · Insert scripture stores a portable link</p>
-                    <div class="note-actions">
-                        <button type="button" id="note-insert-passage-btn" class="note-insert-passage-btn">Insert scripture</button>
-                        <button id="note-save-btn" class="primary">Save</button>
-                        <button id="note-cancel-btn">Cancel</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Chapter Note Editor Modal -->
-    <div class="note-editor-overlay" id="chapter-note-overlay" hidden>
-        <div class="note-editor-modal">
-            <div class="note-editor-header">
-                <h2 id="chapter-note-title">Chapter Note</h2>
-                <button id="chapter-note-close" aria-label="Close">&times;</button>
-            </div>
-            <div class="note-editor-content">
-                <div class="note-editor-verse-ref" id="chapter-note-ref"></div>
-                <div class="chapter-note-signin" id="chapter-note-signin" hidden>
-                    <p>Notes are saved to your account.</p>
-                    <a href="/login.html" class="chapter-note-signin-link">Sign in to add notes</a>
-                </div>
-                <div class="note-markdown" id="chapter-note-view" hidden></div>
-                <div class="note-actions" id="chapter-note-view-actions" hidden>
-                    <button id="chapter-note-edit-btn" class="primary">Edit</button>
-                    <button id="chapter-note-done-btn">Close</button>
-                </div>
-                <div id="chapter-note-edit" hidden>
-                    <textarea id="chapter-note-textarea" placeholder="Study notes, outline, themes..." maxlength="5000"></textarea>
-                    <div class="note-char-count"><span id="chapter-note-char-current">0</span>/<span id="chapter-note-char-max">5000</span></div>
-                    <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <span id="chapter-note-hint-links"><code>[12]</code> verse link</span> · Insert scripture stores a portable link</p>
-                    <div class="note-actions">
-                        <button type="button" id="chapter-note-insert-passage-btn" class="note-insert-passage-btn">Insert scripture</button>
-                        <button id="chapter-note-save-btn" class="primary">Save</button>
-                        <button id="chapter-note-cancel-btn">Cancel</button>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
