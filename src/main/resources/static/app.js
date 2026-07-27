@@ -2772,6 +2772,11 @@
     }
 
     async function toggleSaveVerse(verseId) {
+        // Drain any in-flight auto-unsave from closeNoteEditor so a rapid b/tag-picker save
+        // cannot POST before the DELETE completes and then get silently removed by it.
+        if (state.noteEditorCleanupPromise) {
+            await state.noteEditorCleanupPromise.catch(() => {});
+        }
         if (state.currentUser) {
             if (state.savedVerses[verseId]) {
                 // Delete from state immediately, then DELETE on server before remeasuring so a
@@ -5066,7 +5071,7 @@
     async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
         // Drain any in-flight auto-unsave from a previous close so savedVerses is settled.
-        if (state.noteEditorCleanupPromise) await state.noteEditorCleanupPromise;
+        if (state.noteEditorCleanupPromise) await state.noteEditorCleanupPromise.catch(() => {});
         // Same verse already open — keep the in-memory edit buffer (don't reload).
         if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
             showNoteDock('verse');
@@ -5156,12 +5161,12 @@
         elements.noteEditorOverlay.hidden = true;
         if (!keepDock) syncNoteDockVisibility();
 
-        // Store and await the DELETE so a rapid reopen (which checks noteEditorCleanupPromise)
-        // cannot observe stale savedVerses state while the server call is in flight.
+        // Store and await the DELETE. The finally block ensures the promise is always
+        // cleared — including on rejection — so a failed remeasure cannot poison future opens.
         if (shouldUnsave) {
-            state.noteEditorCleanupPromise = toggleSaveVerse(autoSavedVerseId);
-            await state.noteEditorCleanupPromise;
-            state.noteEditorCleanupPromise = null;
+            state.noteEditorCleanupPromise = toggleSaveVerse(autoSavedVerseId)
+                .finally(() => { state.noteEditorCleanupPromise = null; });
+            await state.noteEditorCleanupPromise.catch(() => {});
         }
     }
 
