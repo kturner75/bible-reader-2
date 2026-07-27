@@ -118,25 +118,70 @@ public class V18__canonicalize_passage_natural_keys extends BaseJavaMigration {
                         ps.executeUpdate();
                     }
 
-                    // memorization_entries: repoint unless canonical already has an entry (avoid uq violation)
+                    // memorization_entries: merge entries preserving review_history
                     if (row.userId != null) {
-                        boolean memExists;
-                        try (PreparedStatement ps = conn.prepareStatement(
-                                "SELECT COUNT(*) FROM memorization_entries WHERE user_id = ? AND passage_id = ?")) {
+                        // Fetch both entries to compare scheduling state
+                        UUID nonCanEntryId = null;
+                        UUID canEntryId = null;
+                        int[] nonCanState = null; // [mastery_level, interval_days]
+                        int[] canState = null;
+                        String getEntrySql =
+                                "SELECT id, mastery_level, interval_days FROM memorization_entries " +
+                                "WHERE user_id = ? AND passage_id = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(getEntrySql)) {
+                            ps.setObject(1, row.userId);
+                            ps.setObject(2, row.id);
+                            try (ResultSet r2 = ps.executeQuery()) {
+                                if (r2.next()) {
+                                    nonCanEntryId = (UUID) r2.getObject(1);
+                                    nonCanState = new int[]{r2.getInt(2), r2.getInt(3)};
+                                }
+                            }
+                        }
+                        try (PreparedStatement ps = conn.prepareStatement(getEntrySql)) {
                             ps.setObject(1, row.userId);
                             ps.setObject(2, canonicalId);
                             try (ResultSet r2 = ps.executeQuery()) {
-                                r2.next();
-                                memExists = r2.getInt(1) > 0;
+                                if (r2.next()) {
+                                    canEntryId = (UUID) r2.getObject(1);
+                                    canState = new int[]{r2.getInt(2), r2.getInt(3)};
+                                }
                             }
                         }
-                        String memSql = memExists
-                                ? "DELETE FROM memorization_entries WHERE user_id = ? AND passage_id = ?"
-                                : "UPDATE memorization_entries SET passage_id = ? WHERE passage_id = ?";
-                        try (PreparedStatement ps = conn.prepareStatement(memSql)) {
-                            ps.setObject(1, memExists ? row.userId : canonicalId);
-                            ps.setObject(2, memExists ? row.id : row.id);
-                            ps.executeUpdate();
+
+                        if (nonCanEntryId != null && canEntryId != null) {
+                            // Both exist: re-point non-canonical review_history to canonical entry,
+                            // then take the better scheduling state, then delete non-canonical entry.
+                            try (PreparedStatement ps = conn.prepareStatement(
+                                    "UPDATE review_history SET entry_id = ? WHERE entry_id = ?")) {
+                                ps.setObject(1, canEntryId);
+                                ps.setObject(2, nonCanEntryId);
+                                ps.executeUpdate();
+                            }
+                            boolean nonCanBetter = nonCanState[0] > canState[0] ||
+                                    (nonCanState[0] == canState[0] && nonCanState[1] > canState[1]);
+                            if (nonCanBetter) {
+                                try (PreparedStatement ps = conn.prepareStatement(
+                                        "UPDATE memorization_entries SET mastery_level = ?, interval_days = ? WHERE id = ?")) {
+                                    ps.setInt(1, nonCanState[0]);
+                                    ps.setInt(2, nonCanState[1]);
+                                    ps.setObject(3, canEntryId);
+                                    ps.executeUpdate();
+                                }
+                            }
+                            try (PreparedStatement ps = conn.prepareStatement(
+                                    "DELETE FROM memorization_entries WHERE id = ?")) {
+                                ps.setObject(1, nonCanEntryId);
+                                ps.executeUpdate();
+                            }
+                        } else if (nonCanEntryId != null) {
+                            // Only non-canonical has an entry: repoint it to the canonical passage
+                            try (PreparedStatement ps = conn.prepareStatement(
+                                    "UPDATE memorization_entries SET passage_id = ? WHERE id = ?")) {
+                                ps.setObject(1, canonicalId);
+                                ps.setObject(2, nonCanEntryId);
+                                ps.executeUpdate();
+                            }
                         }
                     }
 

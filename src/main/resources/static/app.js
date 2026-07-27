@@ -5139,19 +5139,21 @@
         }
     }
 
-    function closeNoteEditor({ keepDock = false } = {}) {
-        // If the editor auto-saved an unsaved verse on open and the user closes
-        // without saving a note, undo the auto-save so no stray marker is left.
-        if (state.noteEditorAutoSaved) {
-            const sv = state.savedVerses[state.noteEditorVerseId];
-            if (!sv?.note && !(sv?.tagIds?.length > 0)) toggleSaveVerse(state.noteEditorVerseId);
-        }
+    async function closeNoteEditor({ keepDock = false } = {}) {
+        // Capture auto-save state before clearing, so the unsave can run after the UI is hidden.
+        const autoSavedVerseId = state.noteEditorAutoSaved ? state.noteEditorVerseId : null;
+        const sv = autoSavedVerseId ? state.savedVerses[autoSavedVerseId] : null;
+        const shouldUnsave = autoSavedVerseId && !sv?.note && !(sv?.tagIds?.length > 0);
+
         state.noteEditorOpen = false;
         state.noteEditorAutoSaved = false;
         state.noteEditorVerseId = null;
         state.noteEditorVerseMeta = null;
         elements.noteEditorOverlay.hidden = true;
         if (!keepDock) syncNoteDockVisibility();
+
+        // Await the DELETE so a rapid reopen cannot race against the in-flight server call.
+        if (shouldUnsave) await toggleSaveVerse(autoSavedVerseId);
     }
 
     function updateNoteCharCount() {
