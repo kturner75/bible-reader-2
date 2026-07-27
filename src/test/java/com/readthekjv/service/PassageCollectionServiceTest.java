@@ -248,25 +248,4 @@ class PassageCollectionServiceTest {
         assertEquals("Genesis 2:1–2", res.reference());
     }
 
-    @Test
-    void upsertReusesEquivalentNoncanonicalNaturalKey() {
-        Passage existing = new Passage();
-        UUID existingId = UUID.randomUUID();
-        ReflectionTestUtils.setField(existing, "id", existingId);
-        existing.setNaturalKey("2,1"); // same ranges as canonical "1:2"
-        existing.setFromVerseId(1);
-        existing.setToVerseId(2);
-        User owner = new User();
-        ReflectionTestUtils.setField(owner, "id", USER_ID);
-        existing.setUser(owner);
-
-        when(passageRepository.findByUserIdAndNaturalKey(USER_ID, "1:2")).thenReturn(Optional.empty());
-        when(passageRepository.findByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(existing));
-        when(passageRepository.save(any(Passage.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        PassageDetailResponse res = passageService.upsert(USER_ID, "1:2", "Title");
-        assertEquals(existingId, res.id());
-        assertEquals("1:2", existing.getNaturalKey());
-        assertEquals("Title", existing.getTitle());
-    }
 }

@@ -101,7 +101,6 @@ public class PassageService {
         String normalizedTitle = blankToNull(title);
 
         Passage passage = passageRepository.findByUserIdAndNaturalKey(userId, key)
-                .or(() -> findEquivalentOwnedPassage(userId, key))
                 .orElseGet(() -> {
                     Passage p = new Passage();
                     p.setUser(userRepository.getReferenceById(userId));
@@ -122,27 +121,6 @@ public class PassageService {
         passage.setToVerseId(to);
 
         return toDetail(passageRepository.save(passage));
-    }
-
-    /**
-     * Find an owned passage whose natural key normalizes to the same ranges
-     * (e.g. memorization-created {@code 2,1} matches upsert {@code 1:2}).
-     */
-    private java.util.Optional<Passage> findEquivalentOwnedPassage(Long userId, String canonicalKey) {
-        var target = VerseRangeParser.rangesFromNaturalKey(canonicalKey);
-        for (Passage p : passageRepository.findByUserIdOrderByCreatedAtDesc(userId)) {
-            if (p.getNaturalKey() == null) continue;
-            if (canonicalKey.equals(p.getNaturalKey())) continue; // already checked by exact lookup
-            try {
-                var existing = VerseRangeParser.rangesFromNaturalKey(p.getNaturalKey());
-                if (VerseRangeParser.equalRanges(target, existing)) {
-                    return java.util.Optional.of(p);
-                }
-            } catch (IllegalArgumentException ignored) {
-                // skip corrupt/unparseable keys
-            }
-        }
-        return java.util.Optional.empty();
     }
 
     public PassageDetailResponse updateTitle(Long userId, UUID id, String title) {

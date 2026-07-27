@@ -52,6 +52,7 @@
         libraryView: 'verses',     // 'verses' | 'chapter-notes'
         tagPickerOpen: false,      // tag picker modal state
         noteEditorOpen: false,     // note editor modal state
+        noteEditorAutoSaved: false, // true when editor auto-saved an unsaved verse on open
         tagPickerVerseId: null,    // which verse the tag picker is for
         noteEditorVerseId: null,   // which verse the note editor is for
         noteEditorVerseMeta: null, // { id, bookId, book, chapter, verse } — survives page turns
@@ -5078,8 +5079,10 @@
         if (state.noteEditorOpen && isVerseNoteDirty() && !confirmDiscardNoteEdits()) {
             return;
         }
+        state.noteEditorAutoSaved = false;
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
+            state.noteEditorAutoSaved = true;
         }
         const verse = await resolveVerseForNote(verseId);
         state.noteEditorVerseId = verseId;
@@ -5130,7 +5133,14 @@
     }
 
     function closeNoteEditor({ keepDock = false } = {}) {
+        // If the editor auto-saved an unsaved verse on open and the user closes
+        // without saving a note, undo the auto-save so no stray marker is left.
+        if (state.noteEditorAutoSaved) {
+            const sv = state.savedVerses[state.noteEditorVerseId];
+            if (!sv?.note) toggleSaveVerse(state.noteEditorVerseId);
+        }
         state.noteEditorOpen = false;
+        state.noteEditorAutoSaved = false;
         state.noteEditorVerseId = null;
         state.noteEditorVerseMeta = null;
         elements.noteEditorOverlay.hidden = true;
@@ -5167,6 +5177,7 @@
         } catch (err) {
             console.error('Failed to normalize note links:', err);
         }
+        state.noteEditorAutoSaved = false; // committed — don't auto-unsave on close
         setVerseNote(verseId, note);
         if (note) {
             setNoteMode('view');

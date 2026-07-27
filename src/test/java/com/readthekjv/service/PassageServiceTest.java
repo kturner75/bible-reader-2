@@ -96,6 +96,15 @@ class PassageServiceTest {
     }
 
     @Test
+    void upsertNeverScansAllPassages() {
+        // Non-canonical input "1,2,3" normalizes to "1:3". The exact lookup for
+        // "1:3" misses; a new row is created. No full-table scan should occur.
+        service.upsert(USER_ID, "1,2,3", null);
+
+        verify(passageRepository, never()).findByUserIdOrderByCreatedAtDesc(any());
+    }
+
+    @Test
     void upsertSetsTitle() {
         PassageDetailResponse result = service.upsert(USER_ID, "1:2", "My Passage");
 
