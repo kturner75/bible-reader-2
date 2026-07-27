@@ -15,6 +15,7 @@ import com.readthekjv.repository.PassageRepository;
 import com.readthekjv.repository.ReviewHistoryRepository;
 import com.readthekjv.repository.UserRepository;
 import com.readthekjv.util.NaturalKeyParser;
+import com.readthekjv.util.VerseRangeParser;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -123,17 +124,19 @@ public class MemorizationService {
         }
         int fromVerseId = NaturalKeyParser.outerFrom(segments);
         int toVerseId   = NaturalKeyParser.outerTo(segments);
+        String canonicalKey = VerseRangeParser.naturalKeyFromRanges(
+                VerseRangeParser.rangesFromNaturalKey(naturalKey));
 
         // Prefer a global passage (user IS NULL) with this key so all users share one row.
         // Fall back to the user's own per-user passage, creating it if needed.
-        Passage passage = passageRepo.findByUserIsNullAndNaturalKey(naturalKey)
-                .or(() -> passageRepo.findByUserIdAndNaturalKey(userId, naturalKey))
+        Passage passage = passageRepo.findByUserIsNullAndNaturalKey(canonicalKey)
+                .or(() -> passageRepo.findByUserIdAndNaturalKey(userId, canonicalKey))
                 .orElseGet(() -> {
                     Passage p = new Passage();
                     p.setUser(userRepo.getReferenceById(userId));
                     p.setFromVerseId(fromVerseId);
                     p.setToVerseId(toVerseId);
-                    p.setNaturalKey(naturalKey);
+                    p.setNaturalKey(canonicalKey);
                     return passageRepo.save(p);
                 });
 
@@ -169,14 +172,16 @@ public class MemorizationService {
         }
         int fromVerseId = NaturalKeyParser.outerFrom(segments);
         int toVerseId   = NaturalKeyParser.outerTo(segments);
+        String canonicalKey = VerseRangeParser.naturalKeyFromRanges(
+                VerseRangeParser.rangesFromNaturalKey(naturalKey));
 
-        Passage passage = passageRepo.findByUserIdAndNaturalKey(userId, naturalKey)
+        Passage passage = passageRepo.findByUserIdAndNaturalKey(userId, canonicalKey)
                 .orElseGet(() -> {
                     Passage p = new Passage();
                     p.setUser(userRepo.getReferenceById(userId));
                     p.setFromVerseId(fromVerseId);
                     p.setToVerseId(toVerseId);
-                    p.setNaturalKey(naturalKey);
+                    p.setNaturalKey(canonicalKey);
                     return passageRepo.save(p);
                 });
 

@@ -52,6 +52,8 @@
         libraryView: 'verses',     // 'verses' | 'chapter-notes'
         tagPickerOpen: false,      // tag picker modal state
         noteEditorOpen: false,     // note editor modal state
+        noteEditorAutoSaved: false, // true when editor auto-saved an unsaved verse on open
+        noteEditorCleanupPromise: null, // in-flight auto-unsave from closeNoteEditor
         tagPickerVerseId: null,    // which verse the tag picker is for
         noteEditorVerseId: null,   // which verse the note editor is for
         noteEditorVerseMeta: null, // { id, bookId, book, chapter, verse } — survives page turns
@@ -2770,16 +2772,22 @@
     }
 
     async function toggleSaveVerse(verseId) {
+        // Drain any in-flight auto-unsave from closeNoteEditor so a rapid b/tag-picker save
+        // cannot POST before the DELETE completes and then get silently removed by it.
+        if (state.noteEditorCleanupPromise) {
+            await state.noteEditorCleanupPromise.catch(() => {});
+        }
         if (state.currentUser) {
             if (state.savedVerses[verseId]) {
-                // Optimistic delete
+                // Delete from state immediately, then DELETE on server before remeasuring so a
+                // rapid reopen cannot POST a new save in the gap before the DELETE is issued.
                 delete state.savedVerses[verseId];
-                await remeasureCurrentPage();
                 try {
                     await libApi(`/api/library/verses/${verseId}`, { method: 'DELETE' });
                 } catch (err) {
                     console.error('Failed to unsave verse:', err);
                 }
+                await remeasureCurrentPage();
             } else {
                 // Save via API — need the server-assigned savedAt timestamp
                 try {
@@ -5062,6 +5070,8 @@
 
     async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
+        // Drain any in-flight auto-unsave from a previous close so savedVerses is settled.
+        if (state.noteEditorCleanupPromise) await state.noteEditorCleanupPromise.catch(() => {});
         // Same verse already open — keep the in-memory edit buffer (don't reload).
         if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
             showNoteDock('verse');
@@ -5078,8 +5088,17 @@
         if (state.noteEditorOpen && isVerseNoteDirty() && !confirmDiscardNoteEdits()) {
             return;
         }
+        // If switching verses while a previous verse was auto-saved with no note/tags, undo that save
+        if (state.noteEditorAutoSaved && state.noteEditorVerseId !== verseId) {
+            const prevSv = state.savedVerses[state.noteEditorVerseId];
+            if (!prevSv?.note && !(prevSv?.tagIds?.length > 0)) {
+                await toggleSaveVerse(state.noteEditorVerseId);
+            }
+        }
+        state.noteEditorAutoSaved = false;
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
+            state.noteEditorAutoSaved = !!state.savedVerses[verseId]; // only if save actually landed
         }
         const verse = await resolveVerseForNote(verseId);
         state.noteEditorVerseId = verseId;
@@ -5129,12 +5148,26 @@
         }
     }
 
-    function closeNoteEditor({ keepDock = false } = {}) {
+    async function closeNoteEditor({ keepDock = false } = {}) {
+        // Capture auto-save state before clearing, so the unsave can run after the UI is hidden.
+        const autoSavedVerseId = state.noteEditorAutoSaved ? state.noteEditorVerseId : null;
+        const sv = autoSavedVerseId ? state.savedVerses[autoSavedVerseId] : null;
+        const shouldUnsave = autoSavedVerseId && !sv?.note && !(sv?.tagIds?.length > 0);
+
         state.noteEditorOpen = false;
+        state.noteEditorAutoSaved = false;
         state.noteEditorVerseId = null;
         state.noteEditorVerseMeta = null;
         elements.noteEditorOverlay.hidden = true;
         if (!keepDock) syncNoteDockVisibility();
+
+        // Store and await the DELETE. The finally block ensures the promise is always
+        // cleared — including on rejection — so a failed remeasure cannot poison future opens.
+        if (shouldUnsave) {
+            state.noteEditorCleanupPromise = toggleSaveVerse(autoSavedVerseId)
+                .finally(() => { state.noteEditorCleanupPromise = null; });
+            await state.noteEditorCleanupPromise.catch(() => {});
+        }
     }
 
     function updateNoteCharCount() {
@@ -5167,6 +5200,7 @@
         } catch (err) {
             console.error('Failed to normalize note links:', err);
         }
+        state.noteEditorAutoSaved = false; // committed — don't auto-unsave on close
         setVerseNote(verseId, note);
         if (note) {
             setNoteMode('view');
