@@ -5079,6 +5079,13 @@
         if (state.noteEditorOpen && isVerseNoteDirty() && !confirmDiscardNoteEdits()) {
             return;
         }
+        // If switching verses while a previous verse was auto-saved with no note/tags, undo that save
+        if (state.noteEditorAutoSaved && state.noteEditorVerseId !== verseId) {
+            const prevSv = state.savedVerses[state.noteEditorVerseId];
+            if (!prevSv?.note && !(prevSv?.tagIds?.length > 0)) {
+                await toggleSaveVerse(state.noteEditorVerseId);
+            }
+        }
         state.noteEditorAutoSaved = false;
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
@@ -5137,7 +5144,7 @@
         // without saving a note, undo the auto-save so no stray marker is left.
         if (state.noteEditorAutoSaved) {
             const sv = state.savedVerses[state.noteEditorVerseId];
-            if (!sv?.note) toggleSaveVerse(state.noteEditorVerseId);
+            if (!sv?.note && !(sv?.tagIds?.length > 0)) toggleSaveVerse(state.noteEditorVerseId);
         }
         state.noteEditorOpen = false;
         state.noteEditorAutoSaved = false;

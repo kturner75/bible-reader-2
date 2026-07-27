@@ -90,9 +90,65 @@ public class V18__canonicalize_passage_natural_keys extends BaseJavaMigration {
                 }
 
                 if (conflict) {
-                    log.warn("V18: skipping passage {} (key='{}') — canonical form '{}' already exists for same user",
-                            row.id, row.naturalKey, canonical);
-                    skipped++;
+                    // Re-point FK dependents to the canonical passage then delete the duplicate.
+                    UUID canonicalId = null;
+                    String findSql = row.userId == null
+                            ? "SELECT id FROM passages WHERE user_id IS NULL AND natural_key = ? AND id <> ?"
+                            : "SELECT id FROM passages WHERE user_id = ? AND natural_key = ? AND id <> ?";
+                    try (PreparedStatement pf = conn.prepareStatement(findSql)) {
+                        int i = 1;
+                        if (row.userId != null) pf.setObject(i++, row.userId);
+                        pf.setString(i++, canonical);
+                        pf.setObject(i, row.id);
+                        try (ResultSet r2 = pf.executeQuery()) {
+                            if (r2.next()) canonicalId = (UUID) r2.getObject(1);
+                        }
+                    }
+                    if (canonicalId == null) {
+                        log.warn("V18: conflict for passage {} but canonical id not found — skipping", row.id);
+                        skipped++;
+                        continue;
+                    }
+
+                    // passage_collection_members uses ON DELETE RESTRICT — must repoint before delete
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "UPDATE passage_collection_members SET passage_id = ? WHERE passage_id = ?")) {
+                        ps.setObject(1, canonicalId);
+                        ps.setObject(2, row.id);
+                        ps.executeUpdate();
+                    }
+
+                    // memorization_entries: repoint unless canonical already has an entry (avoid uq violation)
+                    if (row.userId != null) {
+                        boolean memExists;
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT COUNT(*) FROM memorization_entries WHERE user_id = ? AND passage_id = ?")) {
+                            ps.setObject(1, row.userId);
+                            ps.setObject(2, canonicalId);
+                            try (ResultSet r2 = ps.executeQuery()) {
+                                r2.next();
+                                memExists = r2.getInt(1) > 0;
+                            }
+                        }
+                        String memSql = memExists
+                                ? "DELETE FROM memorization_entries WHERE user_id = ? AND passage_id = ?"
+                                : "UPDATE memorization_entries SET passage_id = ? WHERE passage_id = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(memSql)) {
+                            ps.setObject(1, memExists ? row.userId : canonicalId);
+                            ps.setObject(2, memExists ? row.id : row.id);
+                            ps.executeUpdate();
+                        }
+                    }
+
+                    // Delete the now-orphaned non-canonical passage (memorization_entries cascade)
+                    try (PreparedStatement ps = conn.prepareStatement("DELETE FROM passages WHERE id = ?")) {
+                        ps.setObject(1, row.id);
+                        ps.executeUpdate();
+                    }
+
+                    log.info("V18: merged passage {} ('{}') into canonical {} ('{}')",
+                            row.id, row.naturalKey, canonicalId, canonical);
+                    updated++;
                     continue;
                 }
 
