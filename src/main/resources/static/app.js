@@ -2773,14 +2773,15 @@
     async function toggleSaveVerse(verseId) {
         if (state.currentUser) {
             if (state.savedVerses[verseId]) {
-                // Optimistic delete
+                // Delete from state immediately, then DELETE on server before remeasuring so a
+                // rapid reopen cannot POST a new save in the gap before the DELETE is issued.
                 delete state.savedVerses[verseId];
-                await remeasureCurrentPage();
                 try {
                     await libApi(`/api/library/verses/${verseId}`, { method: 'DELETE' });
                 } catch (err) {
                     console.error('Failed to unsave verse:', err);
                 }
+                await remeasureCurrentPage();
             } else {
                 // Save via API — need the server-assigned savedAt timestamp
                 try {
@@ -5089,7 +5090,7 @@
         state.noteEditorAutoSaved = false;
         if (!state.savedVerses[verseId]) {
             await toggleSaveVerse(verseId);
-            state.noteEditorAutoSaved = true;
+            state.noteEditorAutoSaved = !!state.savedVerses[verseId]; // only if save actually landed
         }
         const verse = await resolveVerseForNote(verseId);
         state.noteEditorVerseId = verseId;

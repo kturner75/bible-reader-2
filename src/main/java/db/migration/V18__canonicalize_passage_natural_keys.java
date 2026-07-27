@@ -7,7 +7,9 @@ import org.flywaydb.core.api.migration.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -118,68 +120,69 @@ public class V18__canonicalize_passage_natural_keys extends BaseJavaMigration {
                         ps.executeUpdate();
                     }
 
-                    // memorization_entries: merge entries preserving review_history
+                    // memorization_entries: merge entries preserving review_history and full schedule
                     if (row.userId != null) {
-                        // Fetch both entries to compare scheduling state
-                        UUID nonCanEntryId = null;
-                        UUID canEntryId = null;
-                        int[] nonCanState = null; // [mastery_level, interval_days]
-                        int[] canState = null;
+                        record EntryState(UUID id, int mastery, int intervalDays,
+                                          BigDecimal easeFactor, Date nextReviewAt) {}
                         String getEntrySql =
-                                "SELECT id, mastery_level, interval_days FROM memorization_entries " +
-                                "WHERE user_id = ? AND passage_id = ?";
+                                "SELECT id, mastery_level, interval_days, ease_factor, next_review_at " +
+                                "FROM memorization_entries WHERE user_id = ? AND passage_id = ?";
+                        EntryState nonCanEntry = null;
+                        EntryState canEntry = null;
                         try (PreparedStatement ps = conn.prepareStatement(getEntrySql)) {
                             ps.setObject(1, row.userId);
                             ps.setObject(2, row.id);
                             try (ResultSet r2 = ps.executeQuery()) {
-                                if (r2.next()) {
-                                    nonCanEntryId = (UUID) r2.getObject(1);
-                                    nonCanState = new int[]{r2.getInt(2), r2.getInt(3)};
-                                }
+                                if (r2.next()) nonCanEntry = new EntryState(
+                                        (UUID) r2.getObject(1), r2.getInt(2), r2.getInt(3),
+                                        r2.getBigDecimal(4), r2.getDate(5));
                             }
                         }
                         try (PreparedStatement ps = conn.prepareStatement(getEntrySql)) {
                             ps.setObject(1, row.userId);
                             ps.setObject(2, canonicalId);
                             try (ResultSet r2 = ps.executeQuery()) {
-                                if (r2.next()) {
-                                    canEntryId = (UUID) r2.getObject(1);
-                                    canState = new int[]{r2.getInt(2), r2.getInt(3)};
-                                }
+                                if (r2.next()) canEntry = new EntryState(
+                                        (UUID) r2.getObject(1), r2.getInt(2), r2.getInt(3),
+                                        r2.getBigDecimal(4), r2.getDate(5));
                             }
                         }
 
-                        if (nonCanEntryId != null && canEntryId != null) {
-                            // Both exist: re-point non-canonical review_history to canonical entry,
-                            // then take the better scheduling state, then delete non-canonical entry.
+                        if (nonCanEntry != null && canEntry != null) {
+                            // Both exist: re-point review_history to canonical, merge full schedule.
                             try (PreparedStatement ps = conn.prepareStatement(
                                     "UPDATE review_history SET entry_id = ? WHERE entry_id = ?")) {
-                                ps.setObject(1, canEntryId);
-                                ps.setObject(2, nonCanEntryId);
+                                ps.setObject(1, canEntry.id());
+                                ps.setObject(2, nonCanEntry.id());
                                 ps.executeUpdate();
                             }
-                            boolean nonCanBetter = nonCanState[0] > canState[0] ||
-                                    (nonCanState[0] == canState[0] && nonCanState[1] > canState[1]);
+                            boolean nonCanBetter = nonCanEntry.mastery() > canEntry.mastery() ||
+                                    (nonCanEntry.mastery() == canEntry.mastery() &&
+                                     nonCanEntry.intervalDays() > canEntry.intervalDays());
                             if (nonCanBetter) {
                                 try (PreparedStatement ps = conn.prepareStatement(
-                                        "UPDATE memorization_entries SET mastery_level = ?, interval_days = ? WHERE id = ?")) {
-                                    ps.setInt(1, nonCanState[0]);
-                                    ps.setInt(2, nonCanState[1]);
-                                    ps.setObject(3, canEntryId);
+                                        "UPDATE memorization_entries SET mastery_level = ?, " +
+                                        "interval_days = ?, ease_factor = ?, next_review_at = ? " +
+                                        "WHERE id = ?")) {
+                                    ps.setInt(1, nonCanEntry.mastery());
+                                    ps.setInt(2, nonCanEntry.intervalDays());
+                                    ps.setBigDecimal(3, nonCanEntry.easeFactor());
+                                    ps.setDate(4, nonCanEntry.nextReviewAt());
+                                    ps.setObject(5, canEntry.id());
                                     ps.executeUpdate();
                                 }
                             }
                             try (PreparedStatement ps = conn.prepareStatement(
                                     "DELETE FROM memorization_entries WHERE id = ?")) {
-                                ps.setObject(1, nonCanEntryId);
+                                ps.setObject(1, nonCanEntry.id());
                                 ps.executeUpdate();
                             }
-                        } else if (nonCanEntryId != null) {
+                        } else if (nonCanEntry != null) {
                             // Only non-canonical has an entry: repoint it to the canonical passage
                             try (PreparedStatement ps = conn.prepareStatement(
                                     "UPDATE memorization_entries SET passage_id = ? WHERE id = ?")) {
                                 ps.setObject(1, canonicalId);
-                                ps.setObject(2, nonCanEntryId);
+                                ps.setObject(2, nonCanEntry.id());
                                 ps.executeUpdate();
                             }
                         }
