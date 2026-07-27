@@ -5226,6 +5226,10 @@
     }
 
     function openChapterNoteEditor(target) {
+        if (!state.currentUser) {
+            showToast('Sign in to save notes');
+            return;
+        }
         const ref = target || getCurrentChapterRef();
         if (!ref) return;
         if (!ref.type) ref.type = 'chapter';
