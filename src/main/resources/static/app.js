@@ -53,6 +53,7 @@
         tagPickerOpen: false,      // tag picker modal state
         noteEditorOpen: false,     // note editor modal state
         noteEditorAutoSaved: false, // true when editor auto-saved an unsaved verse on open
+        noteEditorCleanupPromise: null, // in-flight auto-unsave from closeNoteEditor
         tagPickerVerseId: null,    // which verse the tag picker is for
         noteEditorVerseId: null,   // which verse the note editor is for
         noteEditorVerseMeta: null, // { id, bookId, book, chapter, verse } — survives page turns
@@ -5064,6 +5065,8 @@
 
     async function openNoteEditor(verseId) {
         stopAudioOnUIEvent();
+        // Drain any in-flight auto-unsave from a previous close so savedVerses is settled.
+        if (state.noteEditorCleanupPromise) await state.noteEditorCleanupPromise;
         // Same verse already open — keep the in-memory edit buffer (don't reload).
         if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
             showNoteDock('verse');
@@ -5153,8 +5156,13 @@
         elements.noteEditorOverlay.hidden = true;
         if (!keepDock) syncNoteDockVisibility();
 
-        // Await the DELETE so a rapid reopen cannot race against the in-flight server call.
-        if (shouldUnsave) await toggleSaveVerse(autoSavedVerseId);
+        // Store and await the DELETE so a rapid reopen (which checks noteEditorCleanupPromise)
+        // cannot observe stale savedVerses state while the server call is in flight.
+        if (shouldUnsave) {
+            state.noteEditorCleanupPromise = toggleSaveVerse(autoSavedVerseId);
+            await state.noteEditorCleanupPromise;
+            state.noteEditorCleanupPromise = null;
+        }
     }
 
     function updateNoteCharCount() {
