@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes — KJV Bible Reader</title>
+    <meta name="robots" content="noindex">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/notes.css">
+</head>
+<body>
+
+    <header class="dash-nav">
+        <a href="/landing.html" class="nav-logo">
+            <span class="logo-mark">✦</span>
+            <span class="logo-text">KJV Bible Reader</span>
+        </a>
+        <nav class="nav-links" id="nav-links">
+            <!-- Populated by notes.js -->
+        </nav>
+    </header>
+
+    <main class="notes-workspace">
+        <aside class="notes-sidebar">
+            <div class="notes-sidebar-header">
+                <h1 class="notes-sidebar-title">Notes</h1>
+                <button type="button" class="btn-secondary" id="sermon-note-new-btn">+ New</button>
+            </div>
+            <div class="sermon-notes-list" id="sermon-notes-list"></div>
+            <div class="sermon-notes-empty" id="sermon-notes-empty" hidden>
+                <p>No sermon notes yet.</p>
+                <button type="button" class="btn-secondary" id="sermon-notes-empty-new-btn">Write your first note</button>
+            </div>
+        </aside>
+
+        <section class="notes-pane" id="notes-pane" aria-live="polite">
+            <div class="notes-pane-empty" id="notes-pane-empty">
+                <p>Select a note from the list, or create a new one.</p>
+            </div>
+
+            <div class="notes-pane-body" id="sermon-note-view" hidden>
+                <div class="notes-pane-header">
+                    <h2 class="sermon-note-view-title" id="sermon-note-view-title-text"></h2>
+                    <div class="note-actions" id="sermon-note-view-actions">
+                        <button type="button" id="sermon-note-delete-btn" class="danger">Delete</button>
+                        <button type="button" id="sermon-note-edit-btn" class="primary">Edit</button>
+                    </div>
+                </div>
+                <div class="note-markdown" id="sermon-note-view-body"></div>
+            </div>
+
+            <div class="notes-pane-body notes-pane-edit" id="sermon-note-edit" hidden>
+                <div class="notes-pane-header">
+                    <h2 id="sermon-note-modal-title">New Note</h2>
+                    <div class="note-actions">
+                        <button type="button" id="sermon-note-insert-passage-btn" class="note-insert-passage-btn">Insert scripture</button>
+                        <button type="button" id="sermon-note-save-btn" class="primary">Save</button>
+                        <button type="button" id="sermon-note-cancel-btn">Cancel</button>
+                    </div>
+                </div>
+                <input type="text" id="sermon-note-title-input" placeholder="Title" maxlength="200" autocomplete="off">
+                <textarea id="sermon-note-textarea" placeholder="Notes, outline, scripture links…" maxlength="20000"></textarea>
+                <div class="note-char-count"><span id="sermon-note-char-current">0</span>/<span id="sermon-note-char-max">20000</span></div>
+                <p class="chapter-note-hint"><code>**bold**</code> <code>*italic*</code> <code># heading</code> <code>- list</code> <code>[John 3:16]</code> verse link · Insert scripture stores a portable link</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Insert Scripture Picker (modal) -->
+    <div class="note-editor-overlay" id="passage-insert-overlay" hidden>
+        <div class="note-editor-modal passage-insert-modal">
+            <div class="note-editor-header">
+                <h2>Insert Scripture</h2>
+                <button type="button" id="passage-insert-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="note-editor-content">
+                <input type="search" id="passage-insert-search" class="passage-insert-search"
+                    placeholder="Search scripture, title, or reference…" autocomplete="off">
+                <div class="passage-insert-tabs" id="passage-insert-tabs" role="tablist">
+                    <button type="button" class="passage-insert-tab active" data-tab="verses" role="tab"
+                        aria-selected="true">Matching Verses</button>
+                    <button type="button" class="passage-insert-tab" data-tab="passages" role="tab"
+                        aria-selected="false">My Passages</button>
+                </div>
+                <div id="passage-insert-browse">
+                    <div class="collections-count" id="passage-insert-count">Type to search verses</div>
+                    <div class="collections-list" id="passage-insert-list"></div>
+                </div>
+                <div id="passage-insert-expand" hidden>
+                    <button type="button" id="passage-insert-expand-back" class="passage-insert-back">
+                        ← Back to results
+                    </button>
+                    <p class="passage-insert-expand-hint">Include surrounding verses, then insert a portable link.</p>
+                    <div class="collections-count" id="passage-insert-expand-count">0 verses selected</div>
+                    <div class="passage-insert-chapters" id="passage-insert-chapters"></div>
+                    <div class="passage-insert-save" id="passage-insert-save">
+                        <label class="passage-insert-save-check">
+                            <input type="checkbox" id="passage-insert-save-cb">
+                            Save as passage
+                        </label>
+                        <input type="text" id="passage-insert-title" class="passage-insert-title"
+                            placeholder="Optional title…" maxlength="100" autocomplete="off"
+                            aria-label="Optional passage title" disabled>
+                    </div>
+                    <div class="passage-insert-expand-actions">
+                        <button type="button" id="passage-insert-confirm" class="passage-insert-confirm-btn" disabled>
+                            Insert link
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/notes.js"></script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 /* ============================================================
-   KJV Bible Reader — Dashboard
+   KJV Bible Reader — Notes Workspace
    ============================================================ */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -15,7 +15,6 @@
     --color-link:         #7b5e3a;
     --color-accent:       #d4a84b;
     --color-accent-light: rgba(212, 168, 75, 0.12);
-    --max-width:          860px;
 }
 
 html { font-size: 18px; }
@@ -129,6 +128,62 @@ a:hover { text-decoration: underline; }
 }
 .btn-secondary:hover { background: var(--color-accent-light); text-decoration: none; }
 
+
+.btn-nav {
+    display: inline-block;
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    padding: 0.4rem 1.1rem;
+    border-radius: 4px;
+    background: var(--color-link);
+    color: #fff;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: background 150ms ease;
+}
+.btn-nav:hover { background: #6a5132; text-decoration: none; color: #fff; }
+
+.nav-signout {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    padding: 0;
+}
+.nav-signout:hover { color: var(--color-text); }
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn-primary {
+    display: inline-block;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    padding: 0.5rem 1.5rem;
+    border-radius: 4px;
+    background: var(--color-link);
+    color: #fff;
+    border: 1px solid var(--color-link);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 150ms ease;
+}
+.btn-primary:hover { background: #6a5132; text-decoration: none; color: #fff; }
+
+.btn-secondary {
+    display: inline-block;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    padding: 0.5rem 1.5rem;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-link);
+    border: 1px solid var(--color-link);
+    text-decoration: none;
+    transition: background 150ms ease;
+}
+.btn-secondary:hover { background: var(--color-accent-light); text-decoration: none; }
+
 /* ── Main layout ──────────────────────────────────────────── */
 .dash-main {
     max-width: var(--max-width);
@@ -136,447 +191,109 @@ a:hover { text-decoration: underline; }
     padding: 3rem 2rem 5rem;
 }
 
-.dash-heading {
-    margin-bottom: 2.5rem;
-    padding-bottom: 1.25rem;
-    border-bottom: 1px solid var(--color-border);
+.btn-primary {
+    display: inline-block;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    padding: 0.5rem 1.5rem;
+    border-radius: 4px;
+    background: var(--color-link);
+    color: #fff;
+    border: 1px solid var(--color-link);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 150ms ease;
+}
+.btn-primary:hover { background: #6a5132; text-decoration: none; color: #fff; }
+
+.btn-secondary {
+    display: inline-block;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    padding: 0.5rem 1.5rem;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-link);
+    border: 1px solid var(--color-link);
+    text-decoration: none;
+    transition: background 150ms ease;
+}
+.btn-secondary:hover { background: var(--color-accent-light); text-decoration: none; }
+
+/* ── Main layout ──────────────────────────────────────────── */
+.dash-main {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 3rem 2rem 5rem;
 }
 
-.dash-title {
-    font-size: 2rem;
-    font-weight: 500;
-    letter-spacing: -0.01em;
-    line-height: 1.2;
+.btn-secondary {
+    display: inline-block;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    padding: 0.5rem 1.5rem;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-link);
+    border: 1px solid var(--color-link);
+    text-decoration: none;
+    transition: background 150ms ease;
+}
+.btn-secondary:hover { background: var(--color-accent-light); text-decoration: none; }
+
+/* ── Main layout ──────────────────────────────────────────── */
+.dash-main {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 3rem 2rem 5rem;
 }
 
-.dash-date {
+.nav-signout {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-primary);
     font-size: 0.9rem;
     color: var(--color-text-muted);
-    margin-top: 0.25rem;
+    padding: 0;
 }
+.nav-signout:hover { color: var(--color-text); }
 
-/* ── Summary cards ────────────────────────────────────────── */
-.dash-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 3rem;
-}
-
-.dash-card {
-    background: var(--color-header-bg);
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-
-.card-label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.09em;
-    color: var(--color-text-muted);
-}
-
-.card-value {
-    font-size: 1.9rem;
-    font-weight: 500;
-    line-height: 1.15;
-    color: var(--color-text);
-}
-.card-value.due-nonzero    { color: var(--color-link); }
-.card-value.streak-nonzero { color: var(--color-link); }
-
-.card-sub {
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-    min-height: 1.25em;
-}
-
-.card-action { margin-top: 0.85rem; align-self: flex-start; }
-
-/* ── Section ──────────────────────────────────────────────── */
-.dash-section { margin-bottom: 2.5rem; }
-
-.section-header {
-    display: flex;
-    align-items: baseline;
-    gap: 0.6rem;
-    margin-bottom: 0.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--color-border);
-}
-
-.section-title { font-size: 1.1rem; font-weight: 500; }
-
-.section-badge {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-    background: var(--color-header-bg);
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
-    padding: 0.05rem 0.55rem;
-}
-
-/* ── Queue list ───────────────────────────────────────────── */
-.queue-list { display: flex; flex-direction: column; }
-
-.queue-row {
-    display: grid;
-    grid-template-columns: 1fr auto auto auto;
-    align-items: center;
-    gap: 1.25rem;
-    padding: 0.85rem 0;
-    border-bottom: 1px solid var(--color-border);
-}
-.queue-row:last-child { border-bottom: none; }
-
-.queue-ref { font-size: 1rem; }
-
-.queue-mastery {
-    font-size: 0.85rem;
-    letter-spacing: 0.12em;
-    color: var(--color-text-muted);
-    white-space: nowrap;
-}
-
-.queue-due {
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-    white-space: nowrap;
-    min-width: 7rem;
-    text-align: right;
-}
-.queue-due.is-due {
-    color: var(--color-link);
-    font-style: italic;
-}
-
-.queue-practice-btn {
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn-primary {
+    display: inline-block;
     font-family: var(--font-primary);
-    font-size: 0.85rem;
-    padding: 0.25rem 0.85rem;
-    border-radius: 4px;
-    border: 1px solid var(--color-border);
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: border-color 150ms ease, color 150ms ease;
-}
-.queue-practice-btn:hover { border-color: var(--color-link); color: var(--color-link); }
-
-.queue-empty {
-    padding: 2rem 0;
-    color: var(--color-text-muted);
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
-}
-
-.queue-empty kbd {
-    font-family: var(--font-primary);
-    font-size: 0.85em;
-    background: var(--color-header-bg);
-    border: 1px solid var(--color-border);
-    border-radius: 3px;
-    padding: 0.05em 0.35em;
-}
-
-/* ── Featured Passages ─────────────────────────────────────── */
-.section-sub {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-    font-style: italic;
-}
-
-.featured-list { display: flex; flex-direction: column; }
-
-.featured-row {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    align-items: center;
-    gap: 1.25rem;
-    padding: 0.85rem 0;
-    border-bottom: 1px solid var(--color-border);
-}
-.featured-row:last-child { border-bottom: none; }
-
-.featured-title {
     font-size: 1rem;
-    font-weight: 500;
-}
-
-.featured-ref {
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-    white-space: nowrap;
-}
-
-.featured-add-btn {
-    font-family: var(--font-primary);
-    font-size: 0.85rem;
-    padding: 0.25rem 0.85rem;
+    padding: 0.5rem 1.5rem;
     border-radius: 4px;
+    background: var(--color-link);
+    color: #fff;
     border: 1px solid var(--color-link);
-    background: transparent;
-    color: var(--color-link);
     cursor: pointer;
-    white-space: nowrap;
-    transition: background 150ms ease, color 150ms ease;
-    min-width: 5.5rem;
-    text-align: center;
-}
-.featured-add-btn:hover:not(:disabled) {
-    background: var(--color-accent-light, #f0ebe3);
-}
-.featured-add-btn.is-added,
-.featured-add-btn:disabled {
-    border-color: var(--color-border);
-    color: var(--color-text-muted);
-    cursor: default;
-    background: transparent;
-}
-
-/* ── Responsive ───────────────────────────────────────────── */
-@media (max-width: 640px) {
-    .dash-main { padding: 2rem 1.25rem 4rem; }
-    .dash-nav  { padding: 0.75rem 1.25rem; }
-    .dash-cards { grid-template-columns: 1fr; }
-
-    .queue-row {
-        grid-template-columns: 1fr auto;
-        grid-template-rows: auto auto;
-        row-gap: 0.4rem;
-    }
-    .queue-ref          { grid-column: 1; grid-row: 1; }
-    .queue-practice-btn { grid-column: 2; grid-row: 1; }
-    .queue-mastery      { grid-column: 1; grid-row: 2; }
-    .queue-due          { grid-column: 2; grid-row: 2; text-align: right; }
-
-    .featured-row {
-        grid-template-columns: 1fr auto;
-        grid-template-rows: auto auto;
-        row-gap: 0.25rem;
-    }
-    .featured-title   { grid-column: 1; grid-row: 1; }
-    .featured-add-btn { grid-column: 2; grid-row: 1; }
-    .featured-ref     { grid-column: 1; grid-row: 2; }
-}
-
-/* ── Review History Dots ──────────────────────────────────────────────────── */
-
-.queue-history {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding-bottom: 0.35rem;
-}
-
-.hist-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.hist-good  { background: #5a9e6a; }   /* muted green  — Good / Easy */
-.hist-hard  { background: #c8893a; }   /* muted orange — Hard        */
-.hist-again { background: #b85050; }   /* muted red    — Again       */
-
-/* ── Reading Plans ────────────────────────────────────────────────────────── */
-
-.plans-list {
-    display: flex;
-    flex-direction: column;
-}
-
-.plan-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.9rem 0;
-    border-bottom: 1px solid var(--color-border);
-}
-
-.plan-row:last-child {
-    border-bottom: none;
-}
-
-.plan-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    min-width: 0;
-}
-
-.plan-title {
-    font-weight: 500;
-    font-size: 1rem;
-    color: var(--color-text);
-}
-
-.plan-progress {
-    font-size: 0.875rem;
-    color: var(--color-text-muted);
-}
-
-.plan-progress.plan-unenrolled {
-    font-style: italic;
-}
-
-.plan-progress.plan-finished {
-    color: var(--color-accent);
-    font-weight: 500;
-}
-
-.plan-progress-track {
-    height: 4px;
-    background: var(--color-border);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-top: 0.3rem;
-}
-
-.plan-progress-fill {
-    height: 100%;
-    background: var(--color-accent);
-    border-radius: 2px;
-    transition: width 0.3s ease;
-}
-
-.plan-day-label {
-    font-size: 0.875rem;
-    color: var(--color-link);
     text-decoration: none;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    transition: background 150ms ease;
 }
+.btn-primary:hover { background: #6a5132; text-decoration: none; color: #fff; }
 
-.plan-day-label:hover {
-    text-decoration: underline;
+.btn-secondary {
+    display: inline-block;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    padding: 0.5rem 1.5rem;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-link);
+    border: 1px solid var(--color-link);
+    text-decoration: none;
+    transition: background 150ms ease;
 }
+.btn-secondary:hover { background: var(--color-accent-light); text-decoration: none; }
 
-.plan-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-}
-
-.plan-done-label {
-    font-size: 0.875rem;
-    color: var(--color-accent);
-    font-style: italic;
-}
-
-/* ── Plans — Mobile (≤640px) ──────────────────────────────────────────────── */
-
-@media (max-width: 640px) {
-    .plan-row {
-        grid-template-columns: 1fr;
-        row-gap: 0.6rem;
-    }
-
-    .plan-actions {
-        flex-wrap: wrap;
-    }
-}
-
-/* ── Activity Heatmap ─────────────────────────────────────────────────────── */
-
-.heatmap-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.5rem;
-}
-
-/* Month labels row */
-.heatmap-months {
-    position: relative;
-    height: 1.25rem;
-    margin-left: 2.5rem; /* align with grid (matches .heatmap-days width) */
-    margin-bottom: 0.2rem;
-}
-
-.heatmap-month-label {
-    position: absolute;
-    font-size: 0.72rem;
-    color: var(--color-text-muted);
-    white-space: nowrap;
-}
-
-/* Grid row: day labels + cell grid side by side */
-.heatmap-body {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.35rem;
-}
-
-/* Day-of-week labels (Sun–Sat) */
-.heatmap-days {
-    display: grid;
-    grid-template-rows: repeat(7, 11px);
-    gap: 2px;
-    flex-shrink: 0;
-    width: 2.2rem;
-}
-
-.heatmap-days span {
-    font-size: 0.65rem;
-    color: var(--color-text-muted);
-    line-height: 11px;
-    text-align: right;
-}
-
-/* Cell grid */
-.heatmap-grid {
-    display: grid;
-    grid-template-rows: repeat(7, 11px);
-    grid-auto-flow: column;
-    gap: 2px;
-}
-
-/* Individual cells */
-.heat-cell {
-    width: 11px;
-    height: 11px;
-    border-radius: 2px;
-}
-
-.heat-future { background: transparent; }
-.heat-0 { background: var(--color-border); }
-.heat-1 { background: color-mix(in srgb, var(--color-accent) 30%, var(--color-border)); }
-.heat-2 { background: color-mix(in srgb, var(--color-accent) 55%, var(--color-border)); }
-.heat-3 { background: color-mix(in srgb, var(--color-accent) 78%, var(--color-border)); }
-.heat-4 { background: var(--color-accent); }
-
-/* Legend */
-.heatmap-legend {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    margin-top: 0.6rem;
-    margin-left: 2.5rem;
-}
-
-.heatmap-legend span {
-    font-size: 0.72rem;
-    color: var(--color-text-muted);
-    margin: 0 0.15rem;
-}
-
-/* Mobile: allow horizontal scroll, hide day labels to save space */
-@media (max-width: 640px) {
-    .heatmap-days { display: none; }
-    .heatmap-months { margin-left: 0; }
-    .heatmap-legend { margin-left: 0; }
+/* ── Main layout ──────────────────────────────────────────── */
+.dash-main {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 3rem 2rem 5rem;
 }
 
 /* ── Sermon Notes ─────────────────────────────────────────── */
@@ -610,19 +327,6 @@ a:hover { text-decoration: underline; }
     margin-top: 0.1rem;
 }
 
-a.sermon-note-row {
-    text-decoration: none;
-    color: inherit;
-}
-a.sermon-note-row:hover { text-decoration: none; }
-
-.sermon-notes-more {
-    display: inline-block;
-    margin-top: 0.85rem;
-    font-size: 0.9rem;
-    color: var(--color-link);
-}
-
 .sermon-notes-empty {
     padding: 2rem 0;
     color: var(--color-text-muted);
@@ -631,6 +335,7 @@ a.sermon-note-row:hover { text-decoration: none; }
     gap: 1rem;
     align-items: flex-start;
 }
+
 
 /* ── Sermon Note Editor Modal ─────────────────────────────── */
 .note-editor-overlay {
@@ -1108,4 +813,174 @@ a.sermon-note-row:hover { text-decoration: none; }
 .toast.toast-hiding {
     opacity: 0;
     transform: translateX(-50%) translateY(0.5rem);
+}
+
+
+/* ── Notes workspace layout ───────────────────────────────── */
+.notes-workspace {
+    display: flex;
+    height: calc(100vh - 3.6rem);
+    max-width: none;
+    margin: 0;
+    overflow: hidden;
+}
+
+.notes-sidebar {
+    flex: 0 0 320px;
+    width: 320px;
+    border-right: 1px solid var(--color-border);
+    background: var(--color-header-bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.notes-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.notes-sidebar-title {
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+.notes-sidebar .sermon-notes-list {
+    overflow-y: auto;
+    flex: 1 1 auto;
+    padding: 0.35rem 0.5rem 1rem;
+}
+
+.notes-sidebar .sermon-notes-empty {
+    padding: 1.25rem 1.1rem;
+}
+
+.sermon-note-row {
+    width: 100%;
+    text-align: left;
+    font-family: var(--font-primary);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 0.75rem 0.7rem;
+    border-bottom: none;
+}
+
+.sermon-note-row + .sermon-note-row {
+    margin-top: 0.15rem;
+}
+
+.sermon-note-row.active,
+.sermon-note-row:hover {
+    background: rgba(123, 94, 58, 0.08);
+}
+
+.sermon-note-row.active .sermon-note-row-title {
+    color: var(--color-link);
+}
+
+.notes-pane {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--color-bg);
+}
+
+.notes-pane-empty {
+    margin: auto;
+    color: var(--color-text-muted);
+    font-style: italic;
+    padding: 2rem;
+}
+
+.notes-pane-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding: 1.25rem 1.75rem 1.5rem;
+    overflow: hidden;
+}
+
+.notes-pane-body[hidden] { display: none !important; }
+
+.notes-pane-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+}
+
+.notes-pane-header h2,
+.sermon-note-view-title {
+    font-size: 1.35rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+.notes-pane .note-markdown {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    max-height: none;
+}
+
+.notes-pane-edit #sermon-note-title-input {
+    width: 100%;
+    font-family: var(--font-primary);
+    font-size: 1.15rem;
+    font-weight: 500;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: white;
+    color: var(--color-text);
+    margin-bottom: 0.75rem;
+}
+
+.notes-pane-edit #sermon-note-textarea {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 280px;
+    font-family: var(--font-primary);
+    font-size: 0.98rem;
+    line-height: 1.55;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: white;
+    color: var(--color-text);
+    resize: none;
+}
+
+.notes-pane-edit #sermon-note-title-input:focus,
+.notes-pane-edit #sermon-note-textarea:focus {
+    outline: none;
+    border-color: var(--color-link);
+}
+
+@media (max-width: 900px) {
+    .notes-workspace {
+        flex-direction: column;
+        height: auto;
+        min-height: calc(100vh - 3.6rem);
+    }
+    .notes-sidebar {
+        flex: none;
+        width: 100%;
+        max-height: 40vh;
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .notes-pane {
+        min-height: 60vh;
+    }
 }

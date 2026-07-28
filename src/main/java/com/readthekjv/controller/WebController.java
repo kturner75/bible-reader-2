@@ -54,4 +54,10 @@ public class WebController {
     public String dashboard() {
         return "forward:/dashboard.html";
     }
+
+    /** Serve the sermon/lesson notes workspace. */
+    @GetMapping("/notes")
+    public String notes() {
+        return "forward:/notes.html";
+    }
 }
