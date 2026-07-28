@@ -49,10 +49,11 @@
         <button class="nav-signout" id="nav-signout">Sign Out</button>
     `;
     document.getElementById('nav-signout').addEventListener('click', async (e) => {
-        if (typeof isEditorDirty === 'function' && isEditorDirty() && !confirmDiscardEdits()) {
+        if (isEditorDirty() && !confirmDiscardEdits()) {
             e.preventDefault();
             return;
         }
+        allowUnload = true;
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
         window.location.href = '/landing.html';
     });
@@ -229,6 +230,8 @@
     let savedNoteText = '';
     let editorMode = null; // 'view' | 'edit' | null
     let openNoteGen = 0;
+    let savingNote = false;
+    let allowUnload = false;
 
     function syncUrl() {
         const params = new URLSearchParams();
@@ -398,15 +401,12 @@
     }
 
     function guardLeave(e) {
-        if (!isEditorDirty()) return true;
+        if (allowUnload || !isEditorDirty()) return;
         // beforeunload cannot use a custom confirm string in modern browsers,
         // but returning/setting returnValue still prompts.
-        if (e && e.type === 'beforeunload') {
-            e.preventDefault();
-            e.returnValue = '';
-            return '';
-        }
-        return confirmDiscardEdits();
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
     }
 
     window.addEventListener('beforeunload', guardLeave);
@@ -418,10 +418,13 @@
         if (!confirmDiscardEdits()) {
             e.preventDefault();
             e.stopPropagation();
+            return;
         }
+        allowUnload = true;
     });
 
     async function saveSermonNote() {
+        if (savingNote) return;
         const title = titleInput.value.trim();
         let note = textarea.value.trim();
         if (!title || !note) {
@@ -430,6 +433,9 @@
         }
         const targetId = editingNoteId;
         const saveGen = openNoteGen;
+        savingNote = true;
+        titleInput.disabled = true;
+        textarea.disabled = true;
         try {
             note = await normalizeNoteLinksOnSave(note);
             if (saveGen !== openNoteGen) return; // user switched notes mid-save
@@ -456,12 +462,17 @@
             }
             const saved = await res.json();
             if (saveGen !== openNoteGen) return;
+
+            const listRes = await fetch('/api/sermon-notes', { credentials: 'include' });
+            if (saveGen !== openNoteGen) return;
+            if (listRes.ok) sermonNotes = await listRes.json();
+
             editingNoteId = saved.id;
             savedTitle = saved.title;
             savedNoteText = saved.note;
-
-            const listRes = await fetch('/api/sermon-notes', { credentials: 'include' });
-            if (listRes.ok) sermonNotes = await listRes.json();
+            titleInput.value = saved.title;
+            textarea.value = saved.note;
+            updateCharCount();
 
             modalTitle.textContent = 'Edit Note';
             viewTitle.textContent = saved.title;
@@ -470,6 +481,10 @@
             showToast('Note saved');
         } catch (_) {
             showToast('Failed to save note');
+        } finally {
+            savingNote = false;
+            titleInput.disabled = false;
+            textarea.disabled = false;
         }
     }
 
