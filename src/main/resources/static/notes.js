@@ -364,14 +364,14 @@
             if (editorMode === 'edit') titleInput.focus();
             return;
         }
+        // Confirm discard first — do not abandon an in-flight save if the user cancels.
+        if (isEditorDirty() && !confirmDiscardEdits()) return;
+        const gen = ++openNoteGen;
         if (savingNote) {
-            openNoteGen++;
             savingNote = false;
             titleInput.disabled = false;
             textarea.disabled = false;
         }
-        if (isEditorDirty() && !confirmDiscardEdits()) return;
-        const gen = ++openNoteGen;
         try {
             const res = await fetch(`/api/sermon-notes/${id}`, { credentials: 'include' });
             if (gen !== openNoteGen) return;
@@ -392,14 +392,14 @@
     }
 
     function openNewSermonNote() {
+        // Confirm discard first — do not abandon an in-flight save if the user cancels.
+        if (isEditorDirty() && !confirmDiscardEdits()) return;
+        openNoteGen++; // invalidate any in-flight open/save
         if (savingNote) {
-            openNoteGen++;
             savingNote = false;
             titleInput.disabled = false;
             textarea.disabled = false;
         }
-        if (isEditorDirty() && !confirmDiscardEdits()) return;
-        openNoteGen++; // invalidate any in-flight open
         editingNoteId = null;
         savedTitle = '';
         savedNoteText = '';
@@ -500,9 +500,13 @@
         } catch (_) {
             showToast('Failed to save note');
         } finally {
-            savingNote = false;
-            titleInput.disabled = false;
-            textarea.disabled = false;
+            // Only unlock if this save still owns the editor; an abandoned save
+            // must not clear savingNote / re-enable inputs for a newer save.
+            if (saveGen === openNoteGen) {
+                savingNote = false;
+                titleInput.disabled = false;
+                textarea.disabled = false;
+            }
         }
     }
 
