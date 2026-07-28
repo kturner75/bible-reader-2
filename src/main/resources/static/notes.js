@@ -102,6 +102,11 @@
             e.stopImmediatePropagation();
             return;
         }
+        // Abandon any pre-write save so it cannot commit after discard.
+        if (savingNote) {
+            openNoteGen++;
+            unlockEditorInputs();
+        }
         allowUnload = true;
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
         window.location.href = '/landing.html';
@@ -490,6 +495,10 @@
         const cancelBtn = document.getElementById('sermon-note-cancel-btn');
         const insertBtnEl = document.getElementById('sermon-note-insert-passage-btn');
         if (insertBtnEl) insertBtnEl.disabled = true;
+        const insertOverlayEl = document.getElementById('passage-insert-overlay');
+        if (insertOverlayEl && !insertOverlayEl.hidden) {
+            insertOverlayEl.hidden = true;
+        }
         try {
             note = await normalizeNoteLinksOnSave(note);
             if (saveGen !== openNoteGen) return; // user switched notes mid-save
