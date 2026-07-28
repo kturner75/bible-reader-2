@@ -475,6 +475,11 @@
             e.stopPropagation();
             return;
         }
+        // Abandon any pre-write save so it cannot commit after discard.
+        if (savingNote) {
+            openNoteGen++;
+            unlockEditorInputs();
+        }
         allowUnload = true;
     });
 
