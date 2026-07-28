@@ -48,7 +48,11 @@
         <a href="/read" class="btn-nav">Open Reader</a>
         <button class="nav-signout" id="nav-signout">Sign Out</button>
     `;
-    document.getElementById('nav-signout').addEventListener('click', async () => {
+    document.getElementById('nav-signout').addEventListener('click', async (e) => {
+        if (typeof isEditorDirty === 'function' && isEditorDirty() && !confirmDiscardEdits()) {
+            e.preventDefault();
+            return;
+        }
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
         window.location.href = '/landing.html';
     });
@@ -417,14 +421,6 @@
         }
     });
 
-    document.getElementById('nav-signout').addEventListener('click', (e) => {
-        if (!isEditorDirty()) return;
-        if (!confirmDiscardEdits()) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-    }, true);
-
     async function saveSermonNote() {
         const title = titleInput.value.trim();
         let note = textarea.value.trim();
@@ -432,8 +428,11 @@
             showToast('Title and note are required');
             return;
         }
+        const targetId = editingNoteId;
+        const saveGen = openNoteGen;
         try {
             note = await normalizeNoteLinksOnSave(note);
+            if (saveGen !== openNoteGen) return; // user switched notes mid-save
             textarea.value = note;
             updateCharCount();
             const maxLen = parseInt(textarea.getAttribute('maxlength'), 10) || 20000;
@@ -442,19 +441,21 @@
                 return;
             }
             const res = await fetch(
-                editingNoteId ? `/api/sermon-notes/${editingNoteId}` : '/api/sermon-notes',
+                targetId ? `/api/sermon-notes/${targetId}` : '/api/sermon-notes',
                 {
-                    method: editingNoteId ? 'PUT' : 'POST',
+                    method: targetId ? 'PUT' : 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ title, note }),
                 }
             );
+            if (saveGen !== openNoteGen) return;
             if (!res.ok) {
                 showToast('Failed to save note');
                 return;
             }
             const saved = await res.json();
+            if (saveGen !== openNoteGen) return;
             editingNoteId = saved.id;
             savedTitle = saved.title;
             savedNoteText = saved.note;
