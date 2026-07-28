@@ -392,6 +392,12 @@
     }
 
     function openNewSermonNote() {
+        if (savingNote) {
+            openNoteGen++;
+            savingNote = false;
+            titleInput.disabled = false;
+            textarea.disabled = false;
+        }
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         openNoteGen++; // invalidate any in-flight open
         editingNoteId = null;
