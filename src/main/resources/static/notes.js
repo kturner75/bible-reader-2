@@ -224,6 +224,7 @@
     let savedTitle = '';
     let savedNoteText = '';
     let editorMode = null; // 'view' | 'edit' | null
+    let openNoteGen = 0;
 
     function syncUrl() {
         const params = new URLSearchParams();
@@ -246,6 +247,7 @@
     }
 
     function showPaneEmpty() {
+        openNoteGen++;
         editorMode = null;
         editingNoteId = null;
         savedTitle = '';
@@ -352,10 +354,13 @@
             return;
         }
         if (isEditorDirty() && !confirmDiscardEdits()) return;
+        const gen = ++openNoteGen;
         try {
             const res = await fetch(`/api/sermon-notes/${id}`, { credentials: 'include' });
+            if (gen !== openNoteGen) return;
             if (!res.ok) return;
             const note = await res.json();
+            if (gen !== openNoteGen) return;
             editingNoteId = note.id;
             savedTitle = note.title;
             savedNoteText = note.note;
@@ -371,6 +376,7 @@
 
     function openNewSermonNote() {
         if (isEditorDirty() && !confirmDiscardEdits()) return;
+        openNoteGen++; // invalidate any in-flight open
         editingNoteId = null;
         savedTitle = '';
         savedNoteText = '';
@@ -383,8 +389,41 @@
 
     function closeEditor() {
         if (isEditorDirty() && !confirmDiscardEdits()) return;
+        openNoteGen++;
         showPaneEmpty();
     }
+
+    function guardLeave(e) {
+        if (!isEditorDirty()) return true;
+        // beforeunload cannot use a custom confirm string in modern browsers,
+        // but returning/setting returnValue still prompts.
+        if (e && e.type === 'beforeunload') {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+        return confirmDiscardEdits();
+    }
+
+    window.addEventListener('beforeunload', guardLeave);
+
+    document.getElementById('nav-links').addEventListener('click', (e) => {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        if (!isEditorDirty()) return;
+        if (!confirmDiscardEdits()) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
+
+    document.getElementById('nav-signout').addEventListener('click', (e) => {
+        if (!isEditorDirty()) return;
+        if (!confirmDiscardEdits()) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, true);
 
     async function saveSermonNote() {
         const title = titleInput.value.trim();
