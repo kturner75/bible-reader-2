@@ -415,6 +415,8 @@
         const link = e.target.closest('a[href]');
         if (!link) return;
         if (!isEditorDirty()) return;
+        // Modified clicks open a new tab/window; keep the unload guard for this tab.
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
         if (!confirmDiscardEdits()) {
             e.preventDefault();
             e.stopPropagation();
