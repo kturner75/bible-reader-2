@@ -52,6 +52,19 @@
         return true;
     }
 
+    function unlockEditorInputs() {
+        savingNote = false;
+        saveWriteDispatched = false;
+        const titleEl = document.getElementById('sermon-note-title-input');
+        const bodyEl = document.getElementById('sermon-note-textarea');
+        if (titleEl) titleEl.disabled = false;
+        if (bodyEl) bodyEl.disabled = false;
+        const cancelBtn = document.getElementById('sermon-note-cancel-btn');
+        if (cancelBtn) cancelBtn.disabled = false;
+        const insertBtnEl = document.getElementById('sermon-note-insert-passage-btn');
+        if (insertBtnEl) insertBtnEl.disabled = false;
+    }
+
     // ── Auth ─────────────────────────────────────────────────────────────────
 
     let currentUser = null;
@@ -78,8 +91,15 @@
         <button class="nav-signout" id="nav-signout">Sign Out</button>
     `;
     document.getElementById('nav-signout').addEventListener('click', async (e) => {
+        if (saveWriteDispatched) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            showToast('Still saving…');
+            return;
+        }
         if (isEditorDirty() && !confirmDiscardEdits()) {
             e.preventDefault();
+            e.stopImmediatePropagation();
             return;
         }
         allowUnload = true;
@@ -377,11 +397,7 @@
         // Confirm discard first — do not abandon an in-flight save if the user cancels.
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         const gen = ++openNoteGen;
-        if (savingNote) {
-            savingNote = false;
-            titleInput.disabled = false;
-            textarea.disabled = false;
-        }
+        if (savingNote) unlockEditorInputs();
         try {
             const res = await fetch(`/api/sermon-notes/${id}`, { credentials: 'include' });
             if (gen !== openNoteGen) return;
@@ -406,11 +422,7 @@
         // Confirm discard first — do not abandon an in-flight save if the user cancels.
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         openNoteGen++; // invalidate any in-flight open/save
-        if (savingNote) {
-            savingNote = false;
-            titleInput.disabled = false;
-            textarea.disabled = false;
-        }
+        if (savingNote) unlockEditorInputs();
         editingNoteId = null;
         savedTitle = '';
         savedNoteText = '';
@@ -425,16 +437,13 @@
         if (blockIfSaveDispatched()) return;
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         openNoteGen++;
-        if (savingNote) {
-            savingNote = false;
-            titleInput.disabled = false;
-            textarea.disabled = false;
-        }
+        if (savingNote) unlockEditorInputs();
         showPaneEmpty();
     }
 
     function guardLeave(e) {
-        if (allowUnload || !isEditorDirty()) return;
+        if (allowUnload) return;
+        if (!saveWriteDispatched && !isEditorDirty()) return;
         // beforeunload cannot use a custom confirm string in modern browsers,
         // but returning/setting returnValue still prompts.
         e.preventDefault();
@@ -479,6 +488,8 @@
         titleInput.disabled = true;
         textarea.disabled = true;
         const cancelBtn = document.getElementById('sermon-note-cancel-btn');
+        const insertBtnEl = document.getElementById('sermon-note-insert-passage-btn');
+        if (insertBtnEl) insertBtnEl.disabled = true;
         try {
             note = await normalizeNoteLinksOnSave(note);
             if (saveGen !== openNoteGen) return; // user switched notes mid-save
@@ -530,13 +541,7 @@
         } finally {
             // Only unlock if this save still owns the editor; an abandoned save
             // must not clear savingNote / re-enable inputs for a newer save.
-            if (saveGen === openNoteGen) {
-                savingNote = false;
-                saveWriteDispatched = false;
-                titleInput.disabled = false;
-                textarea.disabled = false;
-                if (cancelBtn) cancelBtn.disabled = false;
-            }
+            if (saveGen === openNoteGen) unlockEditorInputs();
         }
     }
 
@@ -571,9 +576,7 @@
         if (blockIfSaveDispatched()) return;
         if (savingNote) {
             openNoteGen++; // abandon in-flight save (pre-write / normalize only)
-            savingNote = false;
-            titleInput.disabled = false;
-            textarea.disabled = false;
+            unlockEditorInputs();
         }
         if (editingNoteId) {
             titleInput.value = savedTitle;
@@ -660,6 +663,10 @@
 
     /** @returns {boolean} true if the portable link was inserted */
     function insertVTokenFromNaturalKey(naturalKey) {
+        if (savingNote) {
+            showToast('Still saving…');
+            return false;
+        }
         let token;
         try {
             token = serializeVToken(rangesFromNaturalKey(naturalKey));
@@ -1034,6 +1041,10 @@
 
     if (insertBtn) {
         insertBtn.addEventListener('click', () => {
+            if (savingNote) {
+                showToast('Still saving…');
+                return;
+            }
             insertTab = 'verses';
             insertMode = 'browse';
             insertSearch.value = '';
