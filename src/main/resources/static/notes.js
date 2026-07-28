@@ -23,6 +23,27 @@
         }, durationMs);
     }
 
+    // Editor state must exist before auth/nav handlers can run (slow initial fetches).
+    let editingNoteId = null;
+    let savedTitle = '';
+    let savedNoteText = '';
+    let editorMode = null; // 'view' | 'edit' | null
+    let openNoteGen = 0;
+    let savingNote = false;
+    let allowUnload = false;
+
+    function isEditorDirty() {
+        if (editorMode !== 'edit') return false;
+        if (!document.getElementById('sermon-note-title-input')) return false;
+        const titleInput = document.getElementById('sermon-note-title-input');
+        const textarea = document.getElementById('sermon-note-textarea');
+        return titleInput.value !== savedTitle || textarea.value !== savedNoteText;
+    }
+
+    function confirmDiscardEdits() {
+        return window.confirm('Discard unsaved note changes?');
+    }
+
     // ── Auth ─────────────────────────────────────────────────────────────────
 
     let currentUser = null;
@@ -225,14 +246,6 @@
     const textarea      = document.getElementById('sermon-note-textarea');
     const charCurrent   = document.getElementById('sermon-note-char-current');
 
-    let editingNoteId = null;   // full note id while open; null while creating
-    let savedTitle = '';
-    let savedNoteText = '';
-    let editorMode = null; // 'view' | 'edit' | null
-    let openNoteGen = 0;
-    let savingNote = false;
-    let allowUnload = false;
-
     function syncUrl() {
         const params = new URLSearchParams();
         if (editingNoteId) params.set('id', editingNoteId);
@@ -242,15 +255,6 @@
         if (`${location.pathname}${location.search}` !== next) {
             history.replaceState({}, '', next);
         }
-    }
-
-    function isEditorDirty() {
-        if (editorMode !== 'edit') return false;
-        return titleInput.value !== savedTitle || textarea.value !== savedNoteText;
-    }
-
-    function confirmDiscardEdits() {
-        return window.confirm('Discard unsaved note changes?');
     }
 
     function showPaneEmpty() {
@@ -359,6 +363,12 @@
         if (editingNoteId === id && editorMode) {
             if (editorMode === 'edit') titleInput.focus();
             return;
+        }
+        if (savingNote) {
+            openNoteGen++;
+            savingNote = false;
+            titleInput.disabled = false;
+            textarea.disabled = false;
         }
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         const gen = ++openNoteGen;
@@ -491,15 +501,18 @@
     }
 
     async function deleteSermonNote() {
-        if (!editingNoteId) return;
+        if (!editingNoteId || savingNote) return;
         if (!confirm('Delete this sermon note? This cannot be undone.')) return;
+        const targetId = editingNoteId;
+        const deleteGen = openNoteGen;
         try {
-            const res = await fetch(`/api/sermon-notes/${editingNoteId}`, {
+            const res = await fetch(`/api/sermon-notes/${targetId}`, {
                 method: 'DELETE',
                 credentials: 'include',
             });
+            if (deleteGen !== openNoteGen) return;
             if (!res.ok && res.status !== 204) return;
-            sermonNotes = sermonNotes.filter(n => n.id !== editingNoteId);
+            sermonNotes = sermonNotes.filter(n => n.id !== targetId);
             showPaneEmpty();
             showToast('Note deleted');
         } catch (_) { /* ignore */ }
@@ -507,10 +520,19 @@
 
     document.getElementById('sermon-note-new-btn').addEventListener('click', openNewSermonNote);
     document.getElementById('sermon-notes-empty-new-btn').addEventListener('click', openNewSermonNote);
-    document.getElementById('sermon-note-edit-btn').addEventListener('click', () => setMode('edit'));
+    document.getElementById('sermon-note-edit-btn').addEventListener('click', () => {
+        if (savingNote) return;
+        setMode('edit');
+    });
     document.getElementById('sermon-note-save-btn').addEventListener('click', saveSermonNote);
     document.getElementById('sermon-note-delete-btn').addEventListener('click', deleteSermonNote);
     document.getElementById('sermon-note-cancel-btn').addEventListener('click', () => {
+        if (savingNote) {
+            openNoteGen++; // abandon in-flight save
+            savingNote = false;
+            titleInput.disabled = false;
+            textarea.disabled = false;
+        }
         if (editingNoteId) {
             titleInput.value = savedTitle;
             textarea.value = savedNoteText;
