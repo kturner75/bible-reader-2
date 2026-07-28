@@ -30,6 +30,7 @@
     let editorMode = null; // 'view' | 'edit' | null
     let openNoteGen = 0;
     let savingNote = false;
+    let saveWriteDispatched = false; // true once POST/PUT has been sent
     let allowUnload = false;
 
     function isEditorDirty() {
@@ -42,6 +43,13 @@
 
     function confirmDiscardEdits() {
         return window.confirm('Discard unsaved note changes?');
+    }
+
+    /** Once the write hits the server it cannot be canceled client-side. */
+    function blockIfSaveDispatched() {
+        if (!saveWriteDispatched) return false;
+        showToast('Still saving…');
+        return true;
     }
 
     // ── Auth ─────────────────────────────────────────────────────────────────
@@ -364,6 +372,8 @@
             if (editorMode === 'edit') titleInput.focus();
             return;
         }
+        // Write already on the wire — cannot abandon; wait for it to finish.
+        if (blockIfSaveDispatched()) return;
         // Confirm discard first — do not abandon an in-flight save if the user cancels.
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         const gen = ++openNoteGen;
@@ -392,6 +402,7 @@
     }
 
     function openNewSermonNote() {
+        if (blockIfSaveDispatched()) return;
         // Confirm discard first — do not abandon an in-flight save if the user cancels.
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         openNoteGen++; // invalidate any in-flight open/save
@@ -411,8 +422,14 @@
     }
 
     function closeEditor() {
+        if (blockIfSaveDispatched()) return;
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         openNoteGen++;
+        if (savingNote) {
+            savingNote = false;
+            titleInput.disabled = false;
+            textarea.disabled = false;
+        }
         showPaneEmpty();
     }
 
@@ -430,6 +447,12 @@
     document.getElementById('nav-links').addEventListener('click', (e) => {
         const link = e.target.closest('a[href]');
         if (!link) return;
+        if (saveWriteDispatched) {
+            e.preventDefault();
+            e.stopPropagation();
+            showToast('Still saving…');
+            return;
+        }
         if (!isEditorDirty()) return;
         // Modified clicks open a new tab/window; keep the unload guard for this tab.
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
@@ -452,8 +475,10 @@
         const targetId = editingNoteId;
         const saveGen = openNoteGen;
         savingNote = true;
+        saveWriteDispatched = false;
         titleInput.disabled = true;
         textarea.disabled = true;
+        const cancelBtn = document.getElementById('sermon-note-cancel-btn');
         try {
             note = await normalizeNoteLinksOnSave(note);
             if (saveGen !== openNoteGen) return; // user switched notes mid-save
@@ -464,6 +489,9 @@
                 showToast(`Note is too long after converting scripture links (${maxLen} char limit)`);
                 return;
             }
+            // From here the server will commit — cancel/navigation must not abandon.
+            saveWriteDispatched = true;
+            if (cancelBtn) cancelBtn.disabled = true;
             const res = await fetch(
                 targetId ? `/api/sermon-notes/${targetId}` : '/api/sermon-notes',
                 {
@@ -504,8 +532,10 @@
             // must not clear savingNote / re-enable inputs for a newer save.
             if (saveGen === openNoteGen) {
                 savingNote = false;
+                saveWriteDispatched = false;
                 titleInput.disabled = false;
                 textarea.disabled = false;
+                if (cancelBtn) cancelBtn.disabled = false;
             }
         }
     }
@@ -537,8 +567,10 @@
     document.getElementById('sermon-note-save-btn').addEventListener('click', saveSermonNote);
     document.getElementById('sermon-note-delete-btn').addEventListener('click', deleteSermonNote);
     document.getElementById('sermon-note-cancel-btn').addEventListener('click', () => {
+        // After the write is dispatched the server will commit — do not pretend to cancel.
+        if (blockIfSaveDispatched()) return;
         if (savingNote) {
-            openNoteGen++; // abandon in-flight save
+            openNoteGen++; // abandon in-flight save (pre-write / normalize only)
             savingNote = false;
             titleInput.disabled = false;
             textarea.disabled = false;
