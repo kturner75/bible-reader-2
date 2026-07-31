@@ -5479,8 +5479,8 @@
             // Empty save = delete note; unsave verse when it has no tags left
             try {
                 const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
-                // Don't close a different verse the user opened while DELETE was in flight
-                if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+                // Same-verse race: only close if user hasn't started a replacement draft
+                if (shouldCloseVerseNoteAfterAsyncOp(verseId)) {
                     closeNoteEditor();
                 }
                 renderPage();
@@ -5499,7 +5499,7 @@
         try {
             state.noteEditorAutoSaved = false;
             const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
-            if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+            if (shouldCloseVerseNoteAfterAsyncOp(verseId)) {
                 closeNoteEditor();
             }
             renderPage();
@@ -5508,6 +5508,18 @@
             console.error('Failed to delete verse note:', err);
             showToast('Failed to delete note');
         }
+    }
+
+    /**
+     * After async note clear/delete: close only if still on that verse and the user
+     * has not started typing a replacement draft in edit mode.
+     */
+    function shouldCloseVerseNoteAfterAsyncOp(verseId) {
+        if (!state.noteEditorOpen || state.noteEditorVerseId !== verseId) return false;
+        if (elements.noteEdit && !elements.noteEdit.hidden) {
+            return !elements.noteTextarea.value.trim();
+        }
+        return true;
     }
 
     // ============================================
@@ -5689,8 +5701,7 @@
                     }
                     showToast('Note deleted');
                 }
-                if (state.chapterNoteEditorOpen
-                    && sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)) {
+                if (shouldCloseChapterNoteAfterAsyncOp(ref)) {
                     closeChapterNoteEditor();
                 }
             }
@@ -5712,8 +5723,7 @@
             } else {
                 await deleteChapterNoteFromApi(ref.bookId, ref.chapter);
             }
-            if (state.chapterNoteEditorOpen
-                && sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)) {
+            if (shouldCloseChapterNoteAfterAsyncOp(ref)) {
                 closeChapterNoteEditor();
             }
             renderPage();
@@ -5722,6 +5732,21 @@
             console.error('Failed to delete note:', err);
             showToast('Failed to delete note');
         }
+    }
+
+    /**
+     * After async chapter/book note delete: close only if still on that target and
+     * the user has not started a replacement draft in edit mode.
+     */
+    function shouldCloseChapterNoteAfterAsyncOp(ref) {
+        if (!state.chapterNoteEditorOpen
+            || !sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)) {
+            return false;
+        }
+        if (elements.chapterNoteEdit && !elements.chapterNoteEdit.hidden) {
+            return !elements.chapterNoteTextarea.value.trim();
+        }
+        return true;
     }
 
     // ============================================
