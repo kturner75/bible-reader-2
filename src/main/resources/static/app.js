@@ -53,10 +53,10 @@
         tagPickerOpen: false,      // tag picker modal state
         noteEditorOpen: false,     // note editor modal state
         noteEditorAutoSaved: false, // true when editor auto-saved an unsaved verse on open
-                noteEditorCleanupPromise: null, // in-flight auto-unsave from closeNoteEditor
-                verseNoteMutationBusy: false,   // true while verse note save/delete in flight
-                chapterNoteMutationBusy: false, // true while chapter/book note save/delete in flight
-                chapterNoteEditorOpen: false,  // shared note modal state (chapter + book notes)
+        noteEditorCleanupPromise: null, // in-flight auto-unsave from closeNoteEditor
+        verseNoteMutationBusy: false,   // true while verse note save/delete in flight
+        chapterNoteMutationBusy: false, // true while chapter/book note save/delete in flight
+        tagPickerVerseId: null,    // which verse the tag picker is for
         noteEditorVerseId: null,   // which verse the note editor is for
         noteEditorVerseMeta: null, // { id, bookId, book, chapter, verse } — survives page turns
         // Chapter notes (account-only — no localStorage mode)
