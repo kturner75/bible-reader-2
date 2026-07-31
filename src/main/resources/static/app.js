@@ -5374,7 +5374,7 @@
             return;
         }
         // Don't switch notes while a save/delete is in flight on the dock
-        if (state.verseNoteMutationBusy) {
+        if (state.verseNoteMutationBusy || state.chapterNoteMutationBusy) {
             showToast('Note update in progress…');
             return;
         }
@@ -5465,7 +5465,7 @@
         // Don't drop auto-save cleanup while a save/delete is mid-flight
         if (state.verseNoteMutationBusy) {
             showToast('Note update in progress…');
-            return;
+            return false;
         }
         // Capture auto-save state before clearing, so the unsave can run after the UI is hidden.
         const autoSavedVerseId = state.noteEditorAutoSaved ? state.noteEditorVerseId : null;
@@ -5486,6 +5486,7 @@
                 .finally(() => { state.noteEditorCleanupPromise = null; });
             await state.noteEditorCleanupPromise.catch(() => {});
         }
+        return true;
     }
 
     function updateNoteCharCount() {
@@ -5679,16 +5680,31 @@
             }
             return;
         }
+        // Don't switch panels while a verse note save/delete is mid-flight
+        if (state.verseNoteMutationBusy) {
+            showToast('Note update in progress…');
+            return;
+        }
         // One dock panel at a time — don't silently drop an in-progress edit
         if (state.noteEditorOpen) {
             if (isVerseNoteDirty() && !confirmDiscardNoteEdits()) return;
-            closeNoteEditor({ keepDock: true });
+            // closeNoteEditor is async; callers that need the result should await.
+            // Sync path: if still open after fire-and-forget busy reject, bail.
+            closeNoteEditor({ keepDock: true }).then(ok => {
+                if (ok === false || state.noteEditorOpen) return;
+                finishOpenChapterNoteEditor(ref);
+            });
+            return;
         }
         if (state.chapterNoteEditorOpen
             && isChapterNoteDirty()
             && !confirmDiscardNoteEdits()) {
             return;
         }
+        finishOpenChapterNoteEditor(ref);
+    }
+
+    function finishOpenChapterNoteEditor(ref) {
         state.chapterNoteEditorTarget = ref;
         state.chapterNoteEditorOpen = true;
         showNoteDock('chapter');
