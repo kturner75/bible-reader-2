@@ -53,8 +53,10 @@
         tagPickerOpen: false,      // tag picker modal state
         noteEditorOpen: false,     // note editor modal state
         noteEditorAutoSaved: false, // true when editor auto-saved an unsaved verse on open
-        noteEditorCleanupPromise: null, // in-flight auto-unsave from closeNoteEditor
-        tagPickerVerseId: null,    // which verse the tag picker is for
+                noteEditorCleanupPromise: null, // in-flight auto-unsave from closeNoteEditor
+                verseNoteMutationBusy: false,   // true while verse note save/delete in flight
+                chapterNoteMutationBusy: false, // true while chapter/book note save/delete in flight
+                chapterNoteEditorOpen: false,  // shared note modal state (chapter + book notes)
         noteEditorVerseId: null,   // which verse the note editor is for
         noteEditorVerseMeta: null, // { id, bookId, book, chapter, verse } — survives page turns
         // Chapter notes (account-only — no localStorage mode)
@@ -2849,6 +2851,11 @@
     }
 
     async function toggleSaveVerse(verseId) {
+        // Don't race bookmark shortcut against an in-flight note delete/save
+        if (state.verseNoteMutationBusy) {
+            showToast('Note update in progress…');
+            return;
+        }
         // Drain any in-flight auto-unsave from closeNoteEditor so a rapid b/tag-picker save
         // cannot POST before the DELETE completes and then get silently removed by it.
         if (state.noteEditorCleanupPromise) {
@@ -5454,48 +5461,47 @@
         const verseId = state.noteEditorVerseId;
         const VERSE_NOTE_LIMIT = 500;
         let note = elements.noteTextarea.value.trim();
+        setVerseNoteDockBusy(true);
         try {
-            const ctx = await getRenderCtxForVerse(verseId);
-            note = await normalizeNoteLinksOnSave(note, ctx);
-            elements.noteTextarea.value = note;
-            updateNoteCharCount();
-            if (note.length > VERSE_NOTE_LIMIT) {
-                showToast(`Note is too long after converting scripture links (${VERSE_NOTE_LIMIT} char limit)`);
-                return;
-            }
-        } catch (err) {
-            console.error('Failed to normalize note links:', err);
-        }
-        state.noteEditorAutoSaved = false; // committed — don't auto-unsave on close
-        if (note) {
             try {
-                setVerseNoteDockBusy(true);
-                await setVerseNote(verseId, note);
-                if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
-                    setNoteMode('view');
+                const ctx = await getRenderCtxForVerse(verseId);
+                note = await normalizeNoteLinksOnSave(note, ctx);
+                elements.noteTextarea.value = note;
+                updateNoteCharCount();
+                if (note.length > VERSE_NOTE_LIMIT) {
+                    showToast(`Note is too long after converting scripture links (${VERSE_NOTE_LIMIT} char limit)`);
+                    return;
                 }
             } catch (err) {
-                console.error('Failed to save verse note:', err);
-                showToast('Failed to save note');
-            } finally {
-                setVerseNoteDockBusy(false);
+                console.error('Failed to normalize note links:', err);
             }
-        } else {
-            // Empty save = delete note; unsave verse when it has no tags left
-            try {
-                setVerseNoteDockBusy(true);
-                const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
-                if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
-                    closeNoteEditor();
+            state.noteEditorAutoSaved = false; // committed — don't auto-unsave on close
+            if (note) {
+                try {
+                    await setVerseNote(verseId, note);
+                    if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+                        setNoteMode('view');
+                    }
+                } catch (err) {
+                    console.error('Failed to save verse note:', err);
+                    showToast('Failed to save note');
                 }
-                renderPage();
-                showToast(unsaved ? 'Note removed' : 'Note cleared');
-            } catch (err) {
-                console.error('Failed to clear verse note:', err);
-                showToast('Failed to remove note');
-            } finally {
-                setVerseNoteDockBusy(false);
+            } else {
+                // Empty save = delete note; unsave verse when it has no tags left
+                try {
+                    const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
+                    if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+                        closeNoteEditor();
+                    }
+                    renderPage();
+                    showToast(unsaved ? 'Note removed' : 'Note cleared');
+                } catch (err) {
+                    console.error('Failed to clear verse note:', err);
+                    showToast('Failed to remove note');
+                }
             }
+        } finally {
+            setVerseNoteDockBusy(false);
         }
     }
 
@@ -5503,9 +5509,9 @@
         const verseId = state.noteEditorVerseId;
         if (!verseId || !state.savedVerses[verseId]?.note) return;
         if (!confirm('Delete this verse note?')) return;
+        setVerseNoteDockBusy(true);
         try {
             state.noteEditorAutoSaved = false;
-            setVerseNoteDockBusy(true);
             const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
             if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
                 closeNoteEditor();
@@ -5522,6 +5528,7 @@
 
     /** Disable verse-note controls while a save/delete is in flight (prevents race drafts). */
     function setVerseNoteDockBusy(busy) {
+        state.verseNoteMutationBusy = !!busy;
         const controls = [
             elements.noteTextarea,
             elements.noteSaveBtn,
@@ -5538,6 +5545,7 @@
 
     /** Disable chapter/book note controls while a save/delete is in flight. */
     function setChapterNoteDockBusy(busy) {
+        state.chapterNoteMutationBusy = !!busy;
         const controls = [
             elements.chapterNoteTextarea,
             elements.chapterNoteSaveBtn,
