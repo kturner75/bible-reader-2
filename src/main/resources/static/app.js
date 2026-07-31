@@ -4509,11 +4509,36 @@
             await setVerseNote(verseId, '');
             return false;
         }
-        // Unsave removes the library row (and its note) in one step
-        if (isVerseSaved(verseId)) {
-            await toggleSaveVerse(verseId);
-        }
+        // Unsave removes the library row (and its note). Use a strict path that
+        // rolls back local state and throws if the server DELETE fails.
+        await unsaveVerseStrict(verseId);
         return true;
+    }
+
+    /**
+     * DELETE saved verse and remeasure. Restores local state and throws on API failure
+     * so note-delete callers do not toast success incorrectly.
+     */
+    async function unsaveVerseStrict(verseId) {
+        if (!state.savedVerses[verseId]) return;
+        if (state.noteEditorCleanupPromise) {
+            await state.noteEditorCleanupPromise.catch(() => {});
+        }
+        if (!state.currentUser) {
+            delete state.savedVerses[verseId];
+            saveSavedVerses();
+            await remeasureCurrentPage();
+            return;
+        }
+        const snapshot = state.savedVerses[verseId];
+        delete state.savedVerses[verseId];
+        try {
+            await libApi(`/api/library/verses/${verseId}`, { method: 'DELETE' });
+        } catch (err) {
+            state.savedVerses[verseId] = snapshot;
+            throw err;
+        }
+        await remeasureCurrentPage();
     }
 
     // ============================================
