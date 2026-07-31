@@ -5388,12 +5388,18 @@
         }
         // If switching verses while a previous verse was auto-saved with no note/tags, undo that save
         if (state.noteEditorAutoSaved && state.noteEditorVerseId !== verseId) {
-            const prevSv = state.savedVerses[state.noteEditorVerseId];
+            const prevId = state.noteEditorVerseId;
+            const prevSv = state.savedVerses[prevId];
             if (!prevSv?.note && !(prevSv?.tagIds?.length > 0)) {
-                const cleaned = await toggleSaveVerse(state.noteEditorVerseId);
-                if (!cleaned) {
-                    showToast('Note update in progress…');
+                setVerseNoteDockBusy(true);
+                try {
+                    await unsaveVerseStrict(prevId);
+                } catch (err) {
+                    console.error('Failed to clean up auto-saved verse:', err);
+                    showToast('Could not switch notes — try again');
                     return;
+                } finally {
+                    setVerseNoteDockBusy(false);
                 }
             }
         }
