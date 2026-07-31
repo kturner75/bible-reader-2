@@ -5373,6 +5373,11 @@
             }
             return;
         }
+        // Don't switch notes while a save/delete is in flight on the dock
+        if (state.verseNoteMutationBusy) {
+            showToast('Note update in progress…');
+            return;
+        }
         // One dock panel at a time — don't silently drop an in-progress edit
         if (state.chapterNoteEditorOpen) {
             if (isChapterNoteDirty() && !confirmDiscardNoteEdits()) return;
@@ -5385,7 +5390,11 @@
         if (state.noteEditorAutoSaved && state.noteEditorVerseId !== verseId) {
             const prevSv = state.savedVerses[state.noteEditorVerseId];
             if (!prevSv?.note && !(prevSv?.tagIds?.length > 0)) {
-                await toggleSaveVerse(state.noteEditorVerseId);
+                const cleaned = await toggleSaveVerse(state.noteEditorVerseId);
+                if (!cleaned) {
+                    showToast('Note update in progress…');
+                    return;
+                }
             }
         }
         state.noteEditorAutoSaved = false;
