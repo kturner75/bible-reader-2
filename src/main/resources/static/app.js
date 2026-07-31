@@ -2503,7 +2503,7 @@
     // Markdown-lite: escapes ALL html first, then applies a small set of
     // patterns, so the output can never contain user-supplied markup.
     // Supported: # ## ### headings, **bold**, *italic*, - / * / 1. lists,
-    // and verse links: [12] (verse in this chapter) or [John 3:16] (any reference).
+    // and verse links: [12] / [1-11] / [1,5,7] (scope-relative) or [John 3:16].
 
     function renderNoteInline(text, ctx) {
         let html = escapeHtml(text);
@@ -2539,17 +2539,37 @@
                 return `<a class="note-collection-link" data-collection-id="${pid[1]}" href="#">${escapeHtml(label)}</a>`;
             }
             if (ctx && ctx.type === 'book') {
+                if (isBookRelativeToken(trimmed) && ctx.bookId) {
+                    // Prefer sync resolve when chapters are cached so over-limit /
+                    // OOB tokens stay plain text (not a dead link).
+                    const cached = chaptersByBookCache[ctx.bookId];
+                    if (cached) {
+                        const ranges = resolveBookRelativeRanges(trimmed, cached);
+                        if (ranges) {
+                            const body = serializeVBody(ranges);
+                            return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${match}</a>`;
+                        }
+                        return match;
+                    }
+                    // Cold cache — provisional; hydrateBookRelativeLinks upgrades or strips
+                    return `<a class="note-verse-link note-book-rel-pending" data-book-id="${ctx.bookId}" data-book-rel="${escapeHtml(trimmed)}" href="#">${match}</a>`;
+                }
                 if (/^\d+$/.test(trimmed) || /^\d+:\d+$/.test(trimmed)) {
                     return `<a class="note-verse-link" data-ref="${ctx.bookName} ${trimmed}" href="#">${match}</a>`;
                 }
                 return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
             }
-            if (/^\d+$/.test(trimmed)) {
-                const verseNum = parseInt(trimmed);
-                if (ctx && verseNum >= 1 && verseNum <= ctx.verseCount) {
-                    const verseId = ctx.firstVerseId + verseNum - 1;
-                    return `<a class="note-verse-link" data-verse-id="${verseId}" href="#">${match}</a>`;
+            // Chapter / verse-note scope: [12], [1-11], [1,5,7], [1-11,15]
+            if (ctx && ctx.firstVerseId && ctx.verseCount && isChapterRelativeToken(trimmed)) {
+                const ranges = resolveChapterRelativeRanges(trimmed, ctx.firstVerseId, ctx.verseCount);
+                if (ranges) {
+                    const body = serializeVBody(ranges);
+                    return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${match}</a>`;
                 }
+                return match;
+            }
+            if (/^\d+$/.test(trimmed)) {
+                // No usable chapter context — leave plain text
                 return match;
             }
             return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
@@ -2577,6 +2597,43 @@
                 link.dataset.labelReady = '1';
             } catch (_) { /* leave body as label */ }
         }
+    }
+
+    /**
+     * Resolve provisional book-relative anchors (cold chapter cache at render).
+     * Valid → note-range-link with data-v; invalid / over limit → plain text.
+     */
+    async function hydrateBookRelativeLinks(root) {
+        if (!root) return;
+        const links = [...root.querySelectorAll('a.note-verse-link[data-book-rel][data-book-id]')];
+        for (const link of links) {
+            const bookId = parseInt(link.dataset.bookId, 10);
+            const token = link.dataset.bookRel;
+            if (!bookId || !token) continue;
+            try {
+                const chapters = await getChaptersForBook(bookId);
+                const ranges = resolveBookRelativeRanges(token, chapters);
+                if (ranges) {
+                    const body = serializeVBody(ranges);
+                    const a = document.createElement('a');
+                    a.className = 'note-range-link';
+                    a.dataset.v = body;
+                    a.href = '#';
+                    a.textContent = link.textContent;
+                    link.replaceWith(a);
+                } else {
+                    link.replaceWith(document.createTextNode(link.textContent));
+                }
+            } catch (_) {
+                link.replaceWith(document.createTextNode(link.textContent));
+            }
+        }
+    }
+
+    /** Hydrate portable + provisional book-relative links after note view paint. */
+    async function hydrateNoteViewLinks(root) {
+        await hydrateBookRelativeLinks(root);
+        await hydrateRangeLinkLabels(root);
     }
 
     /**
@@ -2646,8 +2703,26 @@
             .trim();
     }
 
-    /** Resolve a clicked verse link (data-verse-id or data-ref) and open focused range. */
+    /** Resolve a clicked verse link (data-verse-id, data-book-rel, or data-ref) and open focused range. */
     async function handleNoteVerseLinkClick(link) {
+        // Book-relative multi / range tokens — resolve via chapter metadata
+        if (link.dataset.bookRel && link.dataset.bookId) {
+            try {
+                const chapters = await getChaptersForBook(parseInt(link.dataset.bookId, 10));
+                const ranges = resolveBookRelativeRanges(link.dataset.bookRel, chapters);
+                if (ranges) {
+                    stageNoteReturnFromOpenEditors();
+                    closeChapterNoteEditor();
+                    closeNoteEditor();
+                    closeLibrary();
+                    await enterRangeMode(serializeVBody(ranges));
+                    return;
+                }
+            } catch (_) { /* fall through */ }
+            showToast(`Couldn't resolve "${link.dataset.bookRel}"`);
+            return;
+        }
+
         let verseId = parseInt(link.dataset.verseId);
         if (!verseId && link.dataset.ref) {
             try {
@@ -2659,7 +2734,7 @@
             } catch (_) { /* handled below */ }
         }
         if (!verseId) {
-            showToast(`Couldn't find "${link.dataset.ref}"`);
+            showToast(`Couldn't find "${link.dataset.ref || 'reference'}"`);
             return;
         }
         stageNoteReturnFromOpenEditors();
@@ -2945,6 +3020,7 @@
     /**
      * Rewrite typed scripture refs in a note body to portable [v=…] tokens.
      * Leaves [v=…], [pid=…], [passage=…] and markdown alone.
+     * Scope-relative multi-verse: chapter [1-11] / [1,5,7]; book [1-2] / [3:1-11].
      */
     async function normalizeNoteLinksOnSave(text, ctx) {
         if (!text) return text;
@@ -2964,38 +3040,39 @@
             }
 
             try {
-                // Book notes: [12] means the whole chapter, not verse 1 of ch. 12
-                if (ctx && ctx.type === 'book' && ctx.bookId && /^\d+$/.test(inner)) {
-                    const chapterNum = parseInt(inner, 10);
+                // Book notes: [12], [1-11], [3:16], [3:1-11], [1-2,3:16]
+                if (ctx && ctx.type === 'book' && ctx.bookId && isBookRelativeToken(inner)) {
                     const chapters = await getChaptersForBook(ctx.bookId);
-                    const ch = chapters.find(c => c.chapter === chapterNum);
-                    if (ch && ch.verseCount > 0) {
-                        parts.push(serializeVToken([{
-                            from: ch.firstVerseId,
-                            to: ch.firstVerseId + ch.verseCount - 1
-                        }]));
+                    const ranges = resolveBookRelativeRanges(inner, chapters);
+                    if (ranges) {
+                        parts.push(serializeVToken(ranges));
                         continue;
                     }
                 }
 
-                let verseId = null;
-                if (ctx && ctx.type !== 'book' && /^\d+$/.test(inner)
-                    && ctx.firstVerseId && ctx.verseCount) {
-                    const n = parseInt(inner, 10);
-                    if (n >= 1 && n <= ctx.verseCount) {
-                        verseId = ctx.firstVerseId + n - 1;
+                // Chapter / verse notes: [12], [1-11], [1,5,7], [1-11,15]
+                if (ctx && ctx.type !== 'book' && ctx.firstVerseId && ctx.verseCount
+                    && isChapterRelativeToken(inner)) {
+                    const ranges = resolveChapterRelativeRanges(
+                        inner, ctx.firstVerseId, ctx.verseCount);
+                    if (ranges) {
+                        parts.push(serializeVToken(ranges));
+                        continue;
                     }
                 }
-                if (verseId == null) {
-                    let ref = inner;
-                    if (ctx && ctx.type === 'book' && (/^\d+$/.test(inner) || /^\d+:\d+$/.test(inner))) {
-                        ref = `${ctx.bookName} ${inner}`;
-                    }
-                    const res = await fetch(`/api/reference?ref=${encodeURIComponent(ref)}`);
-                    if (res.ok) {
-                        const parsed = await res.json();
-                        if (parsed.valid && parsed.verseId) verseId = parsed.verseId;
-                    }
+
+                // Absolute references: [John 3:16]
+                let verseId = null;
+                let ref = inner;
+                if (ctx && ctx.type === 'book' && isBookRelativeToken(inner)) {
+                    // Already tried book-relative; don't re-prefix junk
+                    parts.push(m[0]);
+                    continue;
+                }
+                const res = await fetch(`/api/reference?ref=${encodeURIComponent(ref)}`);
+                if (res.ok) {
+                    const parsed = await res.json();
+                    if (parsed.valid && parsed.verseId) verseId = parsed.verseId;
                 }
                 if (verseId != null) {
                     parts.push(serializeVToken([{ from: verseId, to: verseId }]));
@@ -3008,6 +3085,140 @@
         }
         parts.push(text.slice(last));
         return parts.join('');
+    }
+
+    // ── Scope-relative note link grammar (mirrors ScopeRelativeLinkParser) ──
+
+    /** Match RangeController.MAX_RANGE_VERSES — focused reader cannot open larger. */
+    const MAX_NOTE_RANGE_VERSES = 500;
+
+    function countVRangeVerses(ranges) {
+        return ranges.reduce((n, r) => n + (r.to - r.from + 1), 0);
+    }
+
+    /** Pure numeric list: "12", "1-11", "1,5,7", "1-11, 15". */
+    function parseNumberList(inner) {
+        const s = String(inner || '').trim();
+        if (!s || !/^\d+(?:\s*-\s*\d+)?(?:\s*,\s*\d+(?:\s*-\s*\d+)?)*$/.test(s)) {
+            return null;
+        }
+        const spans = [];
+        for (const part of s.split(',')) {
+            const p = part.trim();
+            if (p.includes('-')) {
+                const [aRaw, bRaw] = p.split('-', 2);
+                const a = parseInt(aRaw.trim(), 10);
+                const b = parseInt(bRaw.trim(), 10);
+                if (!Number.isFinite(a) || !Number.isFinite(b) || a < 1 || b < 1) return null;
+                spans.push({ from: Math.min(a, b), to: Math.max(a, b) });
+            } else {
+                const v = parseInt(p, 10);
+                if (!Number.isFinite(v) || v < 1) return null;
+                spans.push({ from: v, to: v });
+            }
+        }
+        return spans.length ? spans : null;
+    }
+
+    function isChapterRelativeToken(inner) {
+        return parseNumberList(inner) != null;
+    }
+
+    /** Chapter-scope number list → global verse-id ranges, or null if OOB / over reader limit. */
+    function resolveChapterRelativeRanges(inner, firstVerseId, verseCount) {
+        if (!firstVerseId || !verseCount) return null;
+        const spans = parseNumberList(inner);
+        if (!spans) return null;
+        const ranges = [];
+        for (const span of spans) {
+            if (span.from < 1 || span.to > verseCount) return null;
+            ranges.push({
+                from: firstVerseId + span.from - 1,
+                to: firstVerseId + span.to - 1
+            });
+        }
+        const normalized = normalizeVRanges(ranges);
+        if (countVRangeVerses(normalized) > MAX_NOTE_RANGE_VERSES) return null;
+        return normalized;
+    }
+
+    /**
+     * Book-relative: N | N-M | N:V | N:V-W (comma-separated).
+     * Bare numbers are chapters; verse spans need chapter:verse form.
+     */
+    function parseBookRelative(inner) {
+        const s = String(inner || '').trim();
+        if (!s) return null;
+        const tokenRe =
+            /^(?:\d+(?:\s*-\s*\d+)?|\d+\s*:\s*\d+(?:\s*-\s*\d+)?)(?:\s*,\s*(?:\d+(?:\s*-\s*\d+)?|\d+\s*:\s*\d+(?:\s*-\s*\d+)?))*$/;
+        if (!tokenRe.test(s)) return null;
+        const segs = [];
+        const segRe = /^(\d+)(?:\s*-\s*(\d+)|\s*:\s*(\d+)(?:\s*-\s*(\d+))?)?$/;
+        for (const part of s.split(',')) {
+            const p = part.trim();
+            const m = p.match(segRe);
+            if (!m) return null;
+            const a = parseInt(m[1], 10);
+            if (!Number.isFinite(a) || a < 1) return null;
+            if (m[3] != null) {
+                const v1 = parseInt(m[3], 10);
+                const v2 = m[4] != null ? parseInt(m[4], 10) : v1;
+                if (!Number.isFinite(v1) || !Number.isFinite(v2) || v1 < 1 || v2 < 1) return null;
+                segs.push({
+                    chapterFrom: a,
+                    chapterTo: a,
+                    verseFrom: Math.min(v1, v2),
+                    verseTo: Math.max(v1, v2)
+                });
+            } else if (m[2] != null) {
+                const b = parseInt(m[2], 10);
+                if (!Number.isFinite(b) || b < 1) return null;
+                segs.push({
+                    chapterFrom: Math.min(a, b),
+                    chapterTo: Math.max(a, b),
+                    verseFrom: null,
+                    verseTo: null
+                });
+            } else {
+                segs.push({ chapterFrom: a, chapterTo: a, verseFrom: null, verseTo: null });
+            }
+        }
+        return segs.length ? segs : null;
+    }
+
+    function isBookRelativeToken(inner) {
+        return parseBookRelative(inner) != null;
+    }
+
+    /** Book-relative token + chapter list → global verse-id ranges (null if OOB / over reader limit). */
+    function resolveBookRelativeRanges(inner, chapters) {
+        const segs = parseBookRelative(inner);
+        if (!segs || !chapters?.length) return null;
+        const byNum = new Map(chapters.map(c => [c.chapter, c]));
+        const ranges = [];
+        for (const seg of segs) {
+            if (seg.verseFrom == null) {
+                for (let c = seg.chapterFrom; c <= seg.chapterTo; c++) {
+                    const ch = byNum.get(c);
+                    if (!ch || ch.verseCount < 1) return null;
+                    ranges.push({
+                        from: ch.firstVerseId,
+                        to: ch.firstVerseId + ch.verseCount - 1
+                    });
+                }
+            } else {
+                const ch = byNum.get(seg.chapterFrom);
+                if (!ch) return null;
+                if (seg.verseFrom < 1 || seg.verseTo > ch.verseCount) return null;
+                ranges.push({
+                    from: ch.firstVerseId + seg.verseFrom - 1,
+                    to: ch.firstVerseId + seg.verseTo - 1
+                });
+            }
+        }
+        const normalized = normalizeVRanges(ranges);
+        if (countVRangeVerses(normalized) > MAX_NOTE_RANGE_VERSES) return null;
+        return normalized;
     }
 
     /** Returns true if verseId falls within any segment of the given natural key. */
@@ -5137,7 +5348,7 @@
             elements.noteView.hidden = false;
             elements.noteViewActions.hidden = false;
             elements.noteEdit.hidden = true;
-            hydrateRangeLinkLabels(elements.noteView);
+            hydrateNoteViewLinks(elements.noteView);
         } else {
             elements.noteTextarea.value = note || '';
             updateNoteCharCount();
@@ -5298,8 +5509,8 @@
         elements.chapterNoteTextarea.maxLength = limit;
         elements.chapterNoteCharMax.textContent = limit;
         elements.chapterNoteHintLinks.innerHTML = ref.type === 'book'
-            ? '<code>[12]</code> chapter link <code>[3:16]</code> verse link'
-            : '<code>[12]</code> verse link';
+            ? '<code>[12]</code>/<code>[1-11]</code> chapters <code>[3:16]</code>/<code>[3:1-11]</code> verses'
+            : '<code>[12]</code> <code>[1-11]</code> <code>[1,5,7]</code> verse links';
 
         if (!state.currentUser) {
             elements.chapterNoteSignin.hidden = false;
@@ -5326,7 +5537,7 @@
             elements.chapterNoteView.hidden = false;
             elements.chapterNoteViewActions.hidden = false;
             elements.chapterNoteEdit.hidden = true;
-            hydrateRangeLinkLabels(elements.chapterNoteView);
+            hydrateNoteViewLinks(elements.chapterNoteView);
         } else {
             elements.chapterNoteTextarea.value = existing ? existing.note : '';
             updateChapterNoteCharCount();

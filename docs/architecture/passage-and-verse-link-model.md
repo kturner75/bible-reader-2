@@ -123,7 +123,21 @@ Normalized form is the **equality key** for “same scripture pointer.”
 | `[pid=<collectionId>]` | ⚠️ Legacy collection link only; deprecate for new inserts |
 | Human ref only in storage | OK for typing UX; prefer normalizing to `[v=…]` when inserting via picker |
 
-Human references (`[John 3:16]`, scope-relative `[12]`) remain valid **input/UX** forms. Prefer persisting picker inserts as `[v=…]` so stored notes stay unambiguous.
+Human references remain valid **input/UX** forms. Prefer persisting picker inserts as `[v=…]` so stored notes stay unambiguous.
+
+### 4.5 Scope-relative input grammar (UX → `[v=…]` on save)
+
+| Note scope | Examples | Resolves to |
+|------------|----------|-------------|
+| Chapter / verse note | `[12]`, `[1-11]`, `[1,5,7]`, `[1-11,15]` | Verses in the note’s chapter |
+| Book note | `[12]`, `[1-11]` | Whole chapter(s) |
+| Book note | `[3:16]`, `[3:1-11]`, `[1-2,3:16]` | Verse / verse range / mixed |
+| Any (absolute) | `[John 3:16]` | Single verse via reference parse |
+| Sermon / no scope | bare `[12]` / `[1-11]` | **Not** rewritten (no chapter context) |
+
+Grammar + bounds checks: `ScopeRelativeLinkParser` (Java, unit-tested) and mirrored helpers in `app.js`. Invalid or out-of-chapter tokens are left unchanged. Optional spaces in lists (`[1-11, 15]`) allowed.
+
+**Not in this grammar:** book-qualified ranges such as `[John 3:16-18]` — storage already supports multi-segment `[v=…]`; input parse is a separate backlog item.
 
 ---
 
