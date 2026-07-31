@@ -56,6 +56,7 @@
         noteEditorCleanupPromise: null, // in-flight auto-unsave from closeNoteEditor
         verseNoteMutationBusy: false,   // true while verse note save/delete in flight
         chapterNoteMutationBusy: false, // true while chapter/book note save/delete in flight
+        notePanelSwitchBusy: false,     // true while switching verse↔chapter dock panels
         tagPickerVerseId: null,    // which verse the tag picker is for
         noteEditorVerseId: null,   // which verse the note editor is for
         noteEditorVerseMeta: null, // { id, bookId, book, chapter, verse } — survives page turns
@@ -5467,10 +5468,26 @@
             showToast('Note update in progress…');
             return false;
         }
-        // Capture auto-save state before clearing, so the unsave can run after the UI is hidden.
+        // Capture auto-save state before clearing UI.
         const autoSavedVerseId = state.noteEditorAutoSaved ? state.noteEditorVerseId : null;
         const sv = autoSavedVerseId ? state.savedVerses[autoSavedVerseId] : null;
         const shouldUnsave = autoSavedVerseId && !sv?.note && !(sv?.tagIds?.length > 0);
+
+        // Unsave provisional bookmark BEFORE closing UI so failures keep the editor
+        // open and noteEditorAutoSaved intact for a later retry.
+        if (shouldUnsave) {
+            setVerseNoteDockBusy(true);
+            try {
+                await unsaveVerseStrict(autoSavedVerseId);
+            } catch (err) {
+                console.error('Failed to clean up auto-saved verse on close:', err);
+                showToast('Could not close note — try again');
+                return false;
+            } finally {
+                setVerseNoteDockBusy(false);
+            }
+            state.noteEditorAutoSaved = false;
+        }
 
         state.noteEditorOpen = false;
         state.noteEditorAutoSaved = false;
@@ -5478,14 +5495,6 @@
         state.noteEditorVerseMeta = null;
         elements.noteEditorOverlay.hidden = true;
         if (!keepDock) syncNoteDockVisibility();
-
-        // Store and await the DELETE. The finally block ensures the promise is always
-        // cleared — including on rejection — so a failed remeasure cannot poison future opens.
-        if (shouldUnsave) {
-            state.noteEditorCleanupPromise = toggleSaveVerse(autoSavedVerseId)
-                .finally(() => { state.noteEditorCleanupPromise = null; });
-            await state.noteEditorCleanupPromise.catch(() => {});
-        }
         return true;
     }
 
@@ -5681,18 +5690,26 @@
             return;
         }
         // Don't switch panels while a verse note save/delete is mid-flight
-        if (state.verseNoteMutationBusy) {
+        if (state.verseNoteMutationBusy || state.notePanelSwitchBusy) {
             showToast('Note update in progress…');
             return;
         }
         // One dock panel at a time — don't silently drop an in-progress edit
         if (state.noteEditorOpen) {
             if (isVerseNoteDirty() && !confirmDiscardNoteEdits()) return;
-            // closeNoteEditor is async; callers that need the result should await.
-            // Sync path: if still open after fire-and-forget busy reject, bail.
+            state.notePanelSwitchBusy = true;
             closeNoteEditor({ keepDock: true }).then(ok => {
+                state.notePanelSwitchBusy = false;
                 if (ok === false || state.noteEditorOpen) return;
+                // Another open may have started only if lock was dropped; re-check dirty target
+                if (state.chapterNoteEditorOpen
+                    && !sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)
+                    && isChapterNoteDirty()) {
+                    return;
+                }
                 finishOpenChapterNoteEditor(ref);
+            }).catch(() => {
+                state.notePanelSwitchBusy = false;
             });
             return;
         }
