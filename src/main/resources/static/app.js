@@ -2540,8 +2540,19 @@
             }
             if (ctx && ctx.type === 'book') {
                 if (isBookRelativeToken(trimmed) && ctx.bookId) {
-                    // Multi-segment / ranges resolve on click via chapter metadata
-                    return `<a class="note-verse-link" data-book-id="${ctx.bookId}" data-book-rel="${escapeHtml(trimmed)}" href="#">${match}</a>`;
+                    // Prefer sync resolve when chapters are cached so over-limit /
+                    // OOB tokens stay plain text (not a dead link).
+                    const cached = chaptersByBookCache[ctx.bookId];
+                    if (cached) {
+                        const ranges = resolveBookRelativeRanges(trimmed, cached);
+                        if (ranges) {
+                            const body = serializeVBody(ranges);
+                            return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${match}</a>`;
+                        }
+                        return match;
+                    }
+                    // Cold cache — provisional; hydrateBookRelativeLinks upgrades or strips
+                    return `<a class="note-verse-link note-book-rel-pending" data-book-id="${ctx.bookId}" data-book-rel="${escapeHtml(trimmed)}" href="#">${match}</a>`;
                 }
                 if (/^\d+$/.test(trimmed) || /^\d+:\d+$/.test(trimmed)) {
                     return `<a class="note-verse-link" data-ref="${ctx.bookName} ${trimmed}" href="#">${match}</a>`;
@@ -2586,6 +2597,43 @@
                 link.dataset.labelReady = '1';
             } catch (_) { /* leave body as label */ }
         }
+    }
+
+    /**
+     * Resolve provisional book-relative anchors (cold chapter cache at render).
+     * Valid → note-range-link with data-v; invalid / over limit → plain text.
+     */
+    async function hydrateBookRelativeLinks(root) {
+        if (!root) return;
+        const links = [...root.querySelectorAll('a.note-verse-link[data-book-rel][data-book-id]')];
+        for (const link of links) {
+            const bookId = parseInt(link.dataset.bookId, 10);
+            const token = link.dataset.bookRel;
+            if (!bookId || !token) continue;
+            try {
+                const chapters = await getChaptersForBook(bookId);
+                const ranges = resolveBookRelativeRanges(token, chapters);
+                if (ranges) {
+                    const body = serializeVBody(ranges);
+                    const a = document.createElement('a');
+                    a.className = 'note-range-link';
+                    a.dataset.v = body;
+                    a.href = '#';
+                    a.textContent = link.textContent;
+                    link.replaceWith(a);
+                } else {
+                    link.replaceWith(document.createTextNode(link.textContent));
+                }
+            } catch (_) {
+                link.replaceWith(document.createTextNode(link.textContent));
+            }
+        }
+    }
+
+    /** Hydrate portable + provisional book-relative links after note view paint. */
+    async function hydrateNoteViewLinks(root) {
+        await hydrateBookRelativeLinks(root);
+        await hydrateRangeLinkLabels(root);
     }
 
     /**
@@ -5300,7 +5348,7 @@
             elements.noteView.hidden = false;
             elements.noteViewActions.hidden = false;
             elements.noteEdit.hidden = true;
-            hydrateRangeLinkLabels(elements.noteView);
+            hydrateNoteViewLinks(elements.noteView);
         } else {
             elements.noteTextarea.value = note || '';
             updateNoteCharCount();
@@ -5489,7 +5537,7 @@
             elements.chapterNoteView.hidden = false;
             elements.chapterNoteViewActions.hidden = false;
             elements.chapterNoteEdit.hidden = true;
-            hydrateRangeLinkLabels(elements.chapterNoteView);
+            hydrateNoteViewLinks(elements.chapterNoteView);
         } else {
             elements.chapterNoteTextarea.value = existing ? existing.note : '';
             updateChapterNoteCharCount();
