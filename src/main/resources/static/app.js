@@ -5479,7 +5479,10 @@
             // Empty save = delete note; unsave verse when it has no tags left
             try {
                 const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
-                closeNoteEditor();
+                // Don't close a different verse the user opened while DELETE was in flight
+                if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+                    closeNoteEditor();
+                }
                 renderPage();
                 showToast(unsaved ? 'Note removed' : 'Note cleared');
             } catch (err) {
@@ -5496,7 +5499,9 @@
         try {
             state.noteEditorAutoSaved = false;
             const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
-            closeNoteEditor();
+            if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+                closeNoteEditor();
+            }
             renderPage();
             showToast(unsaved ? 'Note removed' : 'Note cleared');
         } catch (err) {
@@ -5684,7 +5689,10 @@
                     }
                     showToast('Note deleted');
                 }
-                closeChapterNoteEditor();
+                if (state.chapterNoteEditorOpen
+                    && sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)) {
+                    closeChapterNoteEditor();
+                }
             }
             renderPage(); // refresh header/title indicators
         } catch (err) {
@@ -5704,7 +5712,10 @@
             } else {
                 await deleteChapterNoteFromApi(ref.bookId, ref.chapter);
             }
-            closeChapterNoteEditor();
+            if (state.chapterNoteEditorOpen
+                && sameChapterNoteTarget(state.chapterNoteEditorTarget, ref)) {
+                closeChapterNoteEditor();
+            }
             renderPage();
             showToast('Note deleted');
         } catch (err) {
