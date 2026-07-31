@@ -1618,6 +1618,17 @@ body.note-dock-resizing {
     border-color: var(--color-text);
 }
 
+.note-actions button.danger {
+    color: #a03e3e;
+    border-color: #a03e3e;
+    margin-right: auto;
+}
+
+.note-actions button.danger:hover {
+    background: #a03e3e;
+    color: white;
+}
+
 /* .note-actions sets display:flex, which would defeat the hidden attribute */
 #note-view[hidden],
 #note-view-actions[hidden],
