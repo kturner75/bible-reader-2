@@ -29,6 +29,9 @@ import java.util.regex.Pattern;
  */
 public final class ScopeRelativeLinkParser {
 
+    /** Match {@code RangeController.MAX_RANGE_VERSES} — focused reader cannot open larger. */
+    public static final int MAX_RANGE_VERSES = 500;
+
     /** Inclusive integer span (verse numbers or chapter numbers). */
     public record Span(int from, int to) {
         public Span {
@@ -128,7 +131,7 @@ public final class ScopeRelativeLinkParser {
                     firstVerseId + span.from() - 1,
                     firstVerseId + span.to() - 1));
         }
-        return VerseRangeParser.normalizeRanges(ranges);
+        return capToReaderLimit(VerseRangeParser.normalizeRanges(ranges));
     }
 
     /**
@@ -222,7 +225,26 @@ public final class ScopeRelativeLinkParser {
                         ch.firstVerseId() + toV - 1));
             }
         }
-        return VerseRangeParser.normalizeRanges(ranges);
+        return capToReaderLimit(VerseRangeParser.normalizeRanges(ranges));
+    }
+
+    /**
+     * Reject ranges the focused reader cannot open ({@link #MAX_RANGE_VERSES}).
+     *
+     * @return {@code ranges} if within budget, else {@code null}
+     */
+    static List<VerseRangeParser.Range> capToReaderLimit(List<VerseRangeParser.Range> ranges) {
+        if (ranges == null || ranges.isEmpty()) {
+            return null;
+        }
+        int count = 0;
+        for (VerseRangeParser.Range r : ranges) {
+            count += r.length();
+            if (count > MAX_RANGE_VERSES) {
+                return null;
+            }
+        }
+        return ranges;
     }
 
     /** True if {@code inner} matches chapter-relative number-list grammar. */

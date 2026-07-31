@@ -3041,6 +3041,13 @@
 
     // ── Scope-relative note link grammar (mirrors ScopeRelativeLinkParser) ──
 
+    /** Match RangeController.MAX_RANGE_VERSES — focused reader cannot open larger. */
+    const MAX_NOTE_RANGE_VERSES = 500;
+
+    function countVRangeVerses(ranges) {
+        return ranges.reduce((n, r) => n + (r.to - r.from + 1), 0);
+    }
+
     /** Pure numeric list: "12", "1-11", "1,5,7", "1-11, 15". */
     function parseNumberList(inner) {
         const s = String(inner || '').trim();
@@ -3069,7 +3076,7 @@
         return parseNumberList(inner) != null;
     }
 
-    /** Chapter-scope number list → global verse-id ranges, or null if OOB. */
+    /** Chapter-scope number list → global verse-id ranges, or null if OOB / over reader limit. */
     function resolveChapterRelativeRanges(inner, firstVerseId, verseCount) {
         if (!firstVerseId || !verseCount) return null;
         const spans = parseNumberList(inner);
@@ -3082,7 +3089,9 @@
                 to: firstVerseId + span.to - 1
             });
         }
-        return normalizeVRanges(ranges);
+        const normalized = normalizeVRanges(ranges);
+        if (countVRangeVerses(normalized) > MAX_NOTE_RANGE_VERSES) return null;
+        return normalized;
     }
 
     /**
@@ -3133,7 +3142,7 @@
         return parseBookRelative(inner) != null;
     }
 
-    /** Book-relative token + chapter list → global verse-id ranges. */
+    /** Book-relative token + chapter list → global verse-id ranges (null if OOB / over reader limit). */
     function resolveBookRelativeRanges(inner, chapters) {
         const segs = parseBookRelative(inner);
         if (!segs || !chapters?.length) return null;
@@ -3159,7 +3168,9 @@
                 });
             }
         }
-        return normalizeVRanges(ranges);
+        const normalized = normalizeVRanges(ranges);
+        if (countVRangeVerses(normalized) > MAX_NOTE_RANGE_VERSES) return null;
+        return normalized;
     }
 
     /** Returns true if verseId falls within any segment of the given natural key. */

@@ -116,6 +116,20 @@ class ScopeRelativeLinkParserTest {
     }
 
     @Test
+    void bookRejectsOverReaderVerseLimit() {
+        // 20 chapters × 26 verses = 520 > 500
+        List<ChapterInfo> chapters = new java.util.ArrayList<>();
+        int id = 1;
+        for (int c = 1; c <= 20; c++) {
+            chapters.add(new ChapterInfo(c, id, 26));
+            id += 26;
+        }
+        assertNull(ScopeRelativeLinkParser.resolveBookRelative("1-20", chapters));
+        // under limit
+        assertNotNull(ScopeRelativeLinkParser.resolveBookRelative("1-19", chapters));
+    }
+
+    @Test
     void bookRejectsMissingChapterOrVerseOob() {
         List<ChapterInfo> chapters = List.of(new ChapterInfo(1, 100, 5));
         assertNull(ScopeRelativeLinkParser.resolveBookRelative("2", chapters));
