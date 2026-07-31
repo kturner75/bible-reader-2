@@ -2854,7 +2854,7 @@
         // Don't race bookmark shortcut against an in-flight note delete/save
         if (state.verseNoteMutationBusy) {
             showToast('Note update in progress…');
-            return;
+            return false;
         }
         // Drain any in-flight auto-unsave from closeNoteEditor so a rapid b/tag-picker save
         // cannot POST before the DELETE completes and then get silently removed by it.
@@ -2865,13 +2865,17 @@
             if (state.savedVerses[verseId]) {
                 // Delete from state immediately, then DELETE on server before remeasuring so a
                 // rapid reopen cannot POST a new save in the gap before the DELETE is issued.
+                const snapshot = state.savedVerses[verseId];
                 delete state.savedVerses[verseId];
                 try {
                     await libApi(`/api/library/verses/${verseId}`, { method: 'DELETE' });
                 } catch (err) {
+                    state.savedVerses[verseId] = snapshot;
                     console.error('Failed to unsave verse:', err);
+                    return false;
                 }
                 await remeasureCurrentPage();
+                return true;
             } else {
                 // Save via API — need the server-assigned savedAt timestamp
                 try {
@@ -2888,8 +2892,10 @@
                     };
                 } catch (err) {
                     console.error('Failed to save verse:', err);
+                    return false;
                 }
                 await remeasureCurrentPage();
+                return true;
             }
         } else {
             // Anonymous — localStorage only
@@ -2905,6 +2911,7 @@
             }
             saveSavedVerses();
             await remeasureCurrentPage();
+            return true;
         }
     }
 
@@ -4511,9 +4518,14 @@
     async function clearVerseNoteAndMaybeUnsave(verseId) {
         const sv = state.savedVerses[verseId];
         if (!sv) return false;
-        const hasTags = sv.tagIds && sv.tagIds.length > 0;
-        if (hasTags) {
+        if (sv.tagIds && sv.tagIds.length > 0) {
             await setVerseNote(verseId, '');
+            // Tags may have changed during the PATCH (e.g. last tag removed via t)
+            const after = state.savedVerses[verseId];
+            if (after && !(after.tagIds && after.tagIds.length > 0) && !after.note) {
+                await unsaveVerseStrict(verseId);
+                return true;
+            }
             return false;
         }
         // Unsave removes the library row (and its note). Use a strict path that
@@ -5120,8 +5132,16 @@
 
     async function openTagPicker(verseId) {
         stopAudioOnUIEvent();
+        if (state.verseNoteMutationBusy) {
+            showToast('Note update in progress…');
+            return;
+        }
         if (!state.savedVerses[verseId]) {
-            await toggleSaveVerse(verseId);
+            const ok = await toggleSaveVerse(verseId);
+            if (!ok || !state.savedVerses[verseId]) {
+                showToast('Could not save verse for tags');
+                return;
+            }
         }
         state.tagPickerVerseId = verseId;
         state.tagPickerOpen = true;
@@ -5370,8 +5390,13 @@
         }
         state.noteEditorAutoSaved = false;
         if (!state.savedVerses[verseId]) {
-            await toggleSaveVerse(verseId);
-            state.noteEditorAutoSaved = !!state.savedVerses[verseId]; // only if save actually landed
+            const ok = await toggleSaveVerse(verseId);
+            if (!ok || !state.savedVerses[verseId]) {
+                // Busy lock or API failure — do not open a note that can't be saved
+                showToast('Could not open note — try again in a moment');
+                return;
+            }
+            state.noteEditorAutoSaved = true;
         }
         const verse = await resolveVerseForNote(verseId);
         state.noteEditorVerseId = verseId;
