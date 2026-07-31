@@ -5462,6 +5462,11 @@
     }
 
     async function closeNoteEditor({ keepDock = false } = {}) {
+        // Don't drop auto-save cleanup while a save/delete is mid-flight
+        if (state.verseNoteMutationBusy) {
+            showToast('Note update in progress…');
+            return;
+        }
         // Capture auto-save state before clearing, so the unsave can run after the UI is hidden.
         const autoSavedVerseId = state.noteEditorAutoSaved ? state.noteEditorVerseId : null;
         const sv = autoSavedVerseId ? state.savedVerses[autoSavedVerseId] : null;
@@ -5515,10 +5520,11 @@
             } catch (err) {
                 console.error('Failed to normalize note links:', err);
             }
-            state.noteEditorAutoSaved = false; // committed — don't auto-unsave on close
             if (note) {
                 try {
                     await setVerseNote(verseId, note);
+                    // Only after successful save — keep auto-save flag if PATCH fails
+                    state.noteEditorAutoSaved = false;
                     if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
                         setNoteMode('view');
                     }
@@ -5530,7 +5536,10 @@
                 // Empty save = delete note; unsave verse when it has no tags left
                 try {
                     const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
+                    state.noteEditorAutoSaved = false;
                     if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+                        // Force close after intentional empty-save (mutation is finishing)
+                        state.verseNoteMutationBusy = false;
                         closeNoteEditor();
                     }
                     renderPage();
@@ -5551,9 +5560,10 @@
         if (!confirm('Delete this verse note?')) return;
         setVerseNoteDockBusy(true);
         try {
-            state.noteEditorAutoSaved = false;
             const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
+            state.noteEditorAutoSaved = false;
             if (state.noteEditorOpen && state.noteEditorVerseId === verseId) {
+                state.verseNoteMutationBusy = false;
                 closeNoteEditor();
             }
             renderPage();
@@ -5576,6 +5586,7 @@
             elements.noteEditBtn,
             elements.noteDeleteBtn,
             elements.noteDoneBtn,
+            elements.noteEditorClose,
             elements.noteInsertPassageBtn
         ];
         for (const el of controls) {
