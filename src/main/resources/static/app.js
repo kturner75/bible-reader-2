@@ -4473,17 +4473,24 @@
         renderPage();
     }
 
-    function setVerseNote(verseId, note) {
+    async function setVerseNote(verseId, note) {
         const verse = state.savedVerses[verseId];
         if (!verse) return;
         // Normalize empty / whitespace-only to '' so UI and API stay consistent
+        const prev = verse.note || '';
         verse.note = (note || '').trim().substring(0, 500);
         if (state.currentUser) {
-            libApi(`/api/library/verses/${verseId}/note`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ note: verse.note || null })
-            }).catch(err => console.error('Failed to update note:', err));
+            try {
+                await libApi(`/api/library/verses/${verseId}/note`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note: verse.note || null })
+                });
+            } catch (err) {
+                // Roll back optimistic update so UI matches server
+                verse.note = prev;
+                throw err;
+            }
         } else {
             saveSavedVerses();
         }
@@ -4499,7 +4506,7 @@
         if (!sv) return false;
         const hasTags = sv.tagIds && sv.tagIds.length > 0;
         if (hasTags) {
-            setVerseNote(verseId, '');
+            await setVerseNote(verseId, '');
             return false;
         }
         // Unsave removes the library row (and its note) in one step
@@ -5436,8 +5443,13 @@
         }
         state.noteEditorAutoSaved = false; // committed — don't auto-unsave on close
         if (note) {
-            setVerseNote(verseId, note);
-            setNoteMode('view');
+            try {
+                await setVerseNote(verseId, note);
+                setNoteMode('view');
+            } catch (err) {
+                console.error('Failed to save verse note:', err);
+                showToast('Failed to save note');
+            }
         } else {
             // Empty save = delete note; unsave verse when it has no tags left
             try {
