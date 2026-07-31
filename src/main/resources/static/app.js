@@ -165,6 +165,7 @@
         noteCharCurrent: document.getElementById('note-char-current'),
         noteSaveBtn: document.getElementById('note-save-btn'),
         noteCancelBtn: document.getElementById('note-cancel-btn'),
+        noteDeleteBtn: document.getElementById('note-delete-btn'),
         // Note editor (shared by chapter + book notes)
         chapterNoteOverlay: document.getElementById('chapter-note-overlay'),
         chapterNoteTitle: document.getElementById('chapter-note-title'),
@@ -177,6 +178,7 @@
         chapterNoteViewActions: document.getElementById('chapter-note-view-actions'),
         chapterNoteEditBtn: document.getElementById('chapter-note-edit-btn'),
         chapterNoteDoneBtn: document.getElementById('chapter-note-done-btn'),
+        chapterNoteDeleteBtn: document.getElementById('chapter-note-delete-btn'),
         chapterNoteEdit: document.getElementById('chapter-note-edit'),
         chapterNoteTextarea: document.getElementById('chapter-note-textarea'),
         chapterNoteCharCurrent: document.getElementById('chapter-note-char-current'),
@@ -4474,16 +4476,37 @@
     function setVerseNote(verseId, note) {
         const verse = state.savedVerses[verseId];
         if (!verse) return;
-        verse.note = note.substring(0, 500);
+        // Normalize empty / whitespace-only to '' so UI and API stay consistent
+        verse.note = (note || '').trim().substring(0, 500);
         if (state.currentUser) {
             libApi(`/api/library/verses/${verseId}/note`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ note: verse.note })
+                body: JSON.stringify({ note: verse.note || null })
             }).catch(err => console.error('Failed to update note:', err));
         } else {
             saveSavedVerses();
         }
+    }
+
+    /**
+     * Remove verse note text. If the verse has no tags, unsave it entirely
+     * (notes piggyback on saved verses — empty note + no tags shouldn't leave a bookmark).
+     * @returns {Promise<boolean>} true if the verse was unsaved
+     */
+    async function clearVerseNoteAndMaybeUnsave(verseId) {
+        const sv = state.savedVerses[verseId];
+        if (!sv) return false;
+        const hasTags = sv.tagIds && sv.tagIds.length > 0;
+        if (hasTags) {
+            setVerseNote(verseId, '');
+            return false;
+        }
+        // Unsave removes the library row (and its note) in one step
+        if (isVerseSaved(verseId)) {
+            await toggleSaveVerse(verseId);
+        }
+        return true;
     }
 
     // ============================================
@@ -5412,11 +5435,36 @@
             console.error('Failed to normalize note links:', err);
         }
         state.noteEditorAutoSaved = false; // committed — don't auto-unsave on close
-        setVerseNote(verseId, note);
         if (note) {
+            setVerseNote(verseId, note);
             setNoteMode('view');
         } else {
+            // Empty save = delete note; unsave verse when it has no tags left
+            try {
+                const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
+                closeNoteEditor();
+                renderPage();
+                showToast(unsaved ? 'Note removed' : 'Note cleared');
+            } catch (err) {
+                console.error('Failed to clear verse note:', err);
+                showToast('Failed to remove note');
+            }
+        }
+    }
+
+    async function deleteVerseNote() {
+        const verseId = state.noteEditorVerseId;
+        if (!verseId || !state.savedVerses[verseId]?.note) return;
+        if (!confirm('Delete this verse note?')) return;
+        try {
+            state.noteEditorAutoSaved = false;
+            const unsaved = await clearVerseNoteAndMaybeUnsave(verseId);
             closeNoteEditor();
+            renderPage();
+            showToast(unsaved ? 'Note removed' : 'Note cleared');
+        } catch (err) {
+            console.error('Failed to delete verse note:', err);
+            showToast('Failed to delete note');
         }
     }
 
@@ -5597,6 +5645,7 @@
                     } else {
                         await deleteChapterNoteFromApi(ref.bookId, ref.chapter);
                     }
+                    showToast('Note deleted');
                 }
                 closeChapterNoteEditor();
             }
@@ -5604,6 +5653,26 @@
         } catch (err) {
             console.error('Failed to save note:', err);
             showToast('Failed to save note');
+        }
+    }
+
+    async function deleteChapterOrBookNote() {
+        const ref = state.chapterNoteEditorTarget;
+        if (!ref || !getNoteForTarget(ref)) return;
+        const kind = ref.type === 'book' ? 'book note' : 'chapter note';
+        if (!confirm(`Delete this ${kind}?`)) return;
+        try {
+            if (ref.type === 'book') {
+                await deleteBookNoteFromApi(ref.bookId);
+            } else {
+                await deleteChapterNoteFromApi(ref.bookId, ref.chapter);
+            }
+            closeChapterNoteEditor();
+            renderPage();
+            showToast('Note deleted');
+        } catch (err) {
+            console.error('Failed to delete note:', err);
+            showToast('Failed to delete note');
         }
     }
 
@@ -6372,6 +6441,9 @@
         elements.noteEditBtn.addEventListener('click', () => setNoteMode('edit'));
         elements.noteCancelBtn.addEventListener('click', cancelNoteEdit);
         elements.noteSaveBtn.addEventListener('click', saveNote);
+        if (elements.noteDeleteBtn) {
+            elements.noteDeleteBtn.addEventListener('click', deleteVerseNote);
+        }
         elements.noteTextarea.addEventListener('input', updateNoteCharCount);
         if (elements.noteInsertPassageBtn) {
             elements.noteInsertPassageBtn.addEventListener('click', () =>
@@ -6412,6 +6484,9 @@
         elements.chapterNoteEditBtn.addEventListener('click', () => setChapterNoteMode('edit'));
         elements.chapterNoteCancelBtn.addEventListener('click', cancelChapterNoteEdit);
         elements.chapterNoteSaveBtn.addEventListener('click', saveChapterNote);
+        if (elements.chapterNoteDeleteBtn) {
+            elements.chapterNoteDeleteBtn.addEventListener('click', deleteChapterOrBookNote);
+        }
         elements.chapterNoteTextarea.addEventListener('input', updateChapterNoteCharCount);
         if (elements.chapterNoteInsertPassageBtn) {
             elements.chapterNoteInsertPassageBtn.addEventListener('click', () =>
