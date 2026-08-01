@@ -1,6 +1,6 @@
 # Portable `[v=…]` verse links
 
-**Status:** Implemented (core) — see checklist below  
+**Status:** Implemented (core + scope multi-verse + absolute multi-verse) — see checklist below  
 **Architecture (invariants):** [passage-and-verse-link-model.md](./passage-and-verse-link-model.md)  
 **Prior slice (done):** [first-class-passages.md](./first-class-passages.md)  
 **Index:** [README.md](./README.md)
@@ -32,7 +32,7 @@ flowchart TB
 | Render label | Derived Bible reference; prefer matching Passage **title** when present |
 | Click | Focused reader on those verse ids — **no Passage row required** |
 | Picker insert | Always `[v=…]` from passage/range `naturalKey` |
-| Typed `[John 3:16]` / scope `[12]` / `[1-11]` / `[1,5,7]` | Normalize to `[v=…]` **on save** |
+| Typed `[John 3:16]` / `[John 3:16-18]` / scope `[12]` / `[1-11]` / `[1,5,7]` | Normalize to `[v=…]` **on save** |
 | Legacy `[pid=N]` | Still opens collection; no new inserts |
 | Legacy `[passage=uuid]` | Resolve to ranges for compat; no new inserts |
 | `/read/passage/{uuid}` | Keep as session handle → same range reader |
@@ -73,16 +73,16 @@ v1 non-goal: discovery panels (“In collections…”).
 2. `[passage=uuid]` → resolve to ranges/label (compat)  
 3. `[pid=N]` → collection (legacy)  
 4. Ad-hoc human/scope forms still work until save rewrites them:
-   - Absolute: `[John 3:16]`
+   - Absolute: `[John 3:16]`, `[John 3:16-18]`, `[John 3:1-11,15]`
    - Chapter/verse-note scope: `[12]`, `[1-11]`, `[1,5,7]`, `[1-11,15]` (pre-save → `note-range-link`)
    - Book-note scope: `[12]` / `[1-11]` chapters; `[3:16]` / `[3:1-11]` verses; mixed segments  
 
 **On save** (verse / chapter / book / sermon):
 
 - Scope-relative multi-verse → `[v=…]` via `ScopeRelativeLinkParser` grammar (mirrored in `app.js`); chapter uses `firstVerseId`/`verseCount`, book uses chapter metadata  
-- Absolute single refs → `[v=…]` via `/api/reference`  
+- Absolute single + same-chapter multi-verse refs → `[v=…]` via `/api/reference` (`ReferenceParser.parseAbsoluteLink`)  
 - Leave markdown and existing `[v=…]` alone; do not rewrite `[pid=…]` in this slice  
-- **Not yet:** absolute ranges like `[John 3:16-18]` (see BACKLOG)  
+- **Not yet:** cross-chapter absolute refs like `[John 3:16-4:2]`
 
 Hints: links display as references; Insert persists portable form.
 
@@ -113,7 +113,7 @@ Hints: links display as references; Insert persists portable form.
 4. ~~Passage find-or-create uses normalized ranges~~  
 5. ~~Acceptance tests / checklist~~  
 6. ~~Scope-relative multi-verse input (`[1-11]`, lists, book `[3:1-11]`) + `ScopeRelativeLinkParser`~~  
-7. Absolute multi-verse typed refs (`[John 3:16-18]`) — backlog  
+7. ~~Absolute multi-verse typed refs (`[John 3:16-18]`)~~  
 
 ### Manual smoke checklist
 
@@ -121,6 +121,7 @@ Hints: links display as references; Insert persists portable form.
 - [ ] View note → label shows `John 3:16` (or Passage title)  
 - [ ] Click link → `/read/range?v=…` focused reader works signed out  
 - [ ] Typed `[John 3:16]` normalizes to `[v=…]` on save  
+- [ ] Typed `[John 3:16-18]` / `[John 3:1-11,15]` normalize to multi-segment `[v=…]` on save; pre-save click opens range reader  
 - [ ] Chapter note: typed `[1-11]` / `[1,5,7]` clickable before save; normalize to multi-segment `[v=…]` on save  
 - [ ] Book note: typed `[1-2]` (chapters) and `[3:1-11]` normalize correctly  
 - [ ] Legacy `[pid=N]` still opens collection  

@@ -68,6 +68,13 @@ class ScopeRelativeLinkParserTest {
     }
 
     @Test
+    void numberListRejectsOversizedIntegers() {
+        assertNull(ScopeRelativeLinkParser.parseNumberList("999999999999"));
+        assertNull(ScopeRelativeLinkParser.parseNumberList("1-999999999999"));
+        assertNull(ScopeRelativeLinkParser.resolveChapterRelative("999999999999", 1000, 27));
+    }
+
+    @Test
     void bookWholeChapters() {
         List<ChapterInfo> chapters = List.of(
                 new ChapterInfo(1, 100, 5),
