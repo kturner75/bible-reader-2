@@ -235,6 +235,14 @@ class ReferenceParserTest {
     }
 
     @Test
+    void absoluteLinkRejectsOversizedVerseNumbers() {
+        // Must not throw — /api/reference should return valid:false, not 500
+        assertNull(ReferenceParser.parseAbsoluteLink("John 3:999999999999"));
+        assertNull(ReferenceParser.parseAbsoluteLink("John 3:999999999999-1"));
+        assertFalse(ReferenceParser.looksLikeAbsoluteMultiVerse("John 3:999999999999-1"));
+    }
+
+    @Test
     void parseStillHandlesSingleVerse() {
         // Existing single-ref path must remain unchanged
         var result = ReferenceParser.parse("john 3:16");

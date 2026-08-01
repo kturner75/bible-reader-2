@@ -87,23 +87,28 @@ public final class ScopeRelativeLinkParser {
             return null;
         }
         List<Span> spans = new ArrayList<>();
-        for (String part : s.split(",")) {
-            String p = part.trim();
-            if (p.contains("-")) {
-                String[] bounds = p.split("-", 2);
-                int a = Integer.parseInt(bounds[0].trim());
-                int b = Integer.parseInt(bounds[1].trim());
-                if (a < 1 || b < 1) {
-                    return null;
+        try {
+            for (String part : s.split(",")) {
+                String p = part.trim();
+                if (p.contains("-")) {
+                    String[] bounds = p.split("-", 2);
+                    int a = Integer.parseInt(bounds[0].trim());
+                    int b = Integer.parseInt(bounds[1].trim());
+                    if (a < 1 || b < 1) {
+                        return null;
+                    }
+                    spans.add(new Span(a, b));
+                } else {
+                    int v = Integer.parseInt(p);
+                    if (v < 1) {
+                        return null;
+                    }
+                    spans.add(new Span(v, v));
                 }
-                spans.add(new Span(a, b));
-            } else {
-                int v = Integer.parseInt(p);
-                if (v < 1) {
-                    return null;
-                }
-                spans.add(new Span(v, v));
             }
+        } catch (NumberFormatException e) {
+            // Digit strings larger than Integer.MAX_VALUE (e.g. 999999999999)
+            return null;
         }
         return spans.isEmpty() ? null : spans;
     }
