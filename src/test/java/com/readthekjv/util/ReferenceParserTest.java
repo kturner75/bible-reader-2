@@ -1,6 +1,9 @@
 package com.readthekjv.util;
 
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class ReferenceParserTest {
@@ -153,5 +156,91 @@ class ReferenceParserTest {
     void testUnknownMultiWordBookRejected() {
         assertNull(ReferenceParser.parse("hello world 5"),
             "unknown multi-word book should not parse");
+    }
+
+    @Test
+    void absoluteLinkSingleVerse() {
+        var link = ReferenceParser.parseAbsoluteLink("John 3:16");
+        assertNotNull(link);
+        assertEquals("John", link.book());
+        assertEquals(3, link.chapter());
+        assertEquals(List.of(new ScopeRelativeLinkParser.Span(16, 16)), link.verseSpans());
+        assertFalse(link.isMultiVerse());
+    }
+
+    @Test
+    void absoluteLinkInclusiveRange() {
+        var link = ReferenceParser.parseAbsoluteLink("John 3:16-18");
+        assertNotNull(link);
+        assertEquals("John", link.book());
+        assertEquals(3, link.chapter());
+        assertEquals(List.of(new ScopeRelativeLinkParser.Span(16, 18)), link.verseSpans());
+        assertTrue(link.isMultiVerse());
+        assertTrue(ReferenceParser.looksLikeAbsoluteMultiVerse("John 3:16-18"));
+    }
+
+    @Test
+    void absoluteLinkReversedSpan() {
+        var link = ReferenceParser.parseAbsoluteLink("jer 13:11-1");
+        assertNotNull(link);
+        assertEquals("Jeremiah", link.book());
+        assertEquals(List.of(new ScopeRelativeLinkParser.Span(1, 11)), link.verseSpans());
+    }
+
+    @Test
+    void absoluteLinkCommaListAndMixed() {
+        assertEquals(
+                List.of(
+                        new ScopeRelativeLinkParser.Span(16, 16),
+                        new ScopeRelativeLinkParser.Span(18, 18)),
+                ReferenceParser.parseAbsoluteLink("John 3:16,18").verseSpans());
+        assertEquals(
+                List.of(
+                        new ScopeRelativeLinkParser.Span(1, 11),
+                        new ScopeRelativeLinkParser.Span(15, 15)),
+                ReferenceParser.parseAbsoluteLink("John 3:1-11,15").verseSpans());
+        assertEquals(
+                List.of(
+                        new ScopeRelativeLinkParser.Span(1, 11),
+                        new ScopeRelativeLinkParser.Span(15, 15)),
+                ReferenceParser.parseAbsoluteLink("John 3:1-11, 15").verseSpans());
+    }
+
+    @Test
+    void absoluteLinkAttachedForm() {
+        var link = ReferenceParser.parseAbsoluteLink("jn3:16-18");
+        assertNotNull(link);
+        assertEquals("John", link.book());
+        assertEquals(3, link.chapter());
+        assertEquals(List.of(new ScopeRelativeLinkParser.Span(16, 18)), link.verseSpans());
+    }
+
+    @Test
+    void absoluteLinkMultiWordBook() {
+        var link = ReferenceParser.parseAbsoluteLink("Song of Solomon 2:1-3");
+        assertNotNull(link);
+        assertEquals("Song of Solomon", link.book());
+        assertEquals(2, link.chapter());
+        assertEquals(List.of(new ScopeRelativeLinkParser.Span(1, 3)), link.verseSpans());
+    }
+
+    @Test
+    void absoluteLinkRejectsCrossChapterAndJunk() {
+        assertNull(ReferenceParser.parseAbsoluteLink("John 3:16-4:2"));
+        assertNull(ReferenceParser.parseAbsoluteLink("John 3-4"));
+        assertNull(ReferenceParser.parseAbsoluteLink("nonsense 3:1-2"));
+        assertNull(ReferenceParser.parseAbsoluteLink("John 3"));
+        assertFalse(ReferenceParser.looksLikeAbsoluteMultiVerse("John 3:16"));
+        assertFalse(ReferenceParser.looksLikeAbsoluteMultiVerse("1-11"));
+    }
+
+    @Test
+    void parseStillHandlesSingleVerse() {
+        // Existing single-ref path must remain unchanged
+        var result = ReferenceParser.parse("john 3:16");
+        assertNotNull(result);
+        assertEquals("John", result.book());
+        assertEquals(3, result.chapter());
+        assertEquals(16, result.verse());
     }
 }

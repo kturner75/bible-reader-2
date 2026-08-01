@@ -326,9 +326,21 @@
                 const res = await fetch(`/api/reference?ref=${encodeURIComponent(inner)}`);
                 if (res.ok) {
                     const parsed = await res.json();
-                    if (parsed.valid && parsed.verseId) {
-                        parts.push(serializeVToken([{ from: parsed.verseId, to: parsed.verseId }]));
-                        continue;
+                    if (parsed.valid) {
+                        if (Array.isArray(parsed.ranges) && parsed.ranges.length) {
+                            parts.push(serializeVToken(parsed.ranges.map(r => ({
+                                from: r.from, to: r.to
+                            }))));
+                            continue;
+                        }
+                        if (parsed.v) {
+                            parts.push(`[v=${parsed.v}]`);
+                            continue;
+                        }
+                        if (parsed.verseId) {
+                            parts.push(serializeVToken([{ from: parsed.verseId, to: parsed.verseId }]));
+                            continue;
+                        }
                     }
                 }
             } catch (_) { /* keep original */ }
@@ -1133,7 +1145,18 @@
                 const res = await fetch(`/api/reference?ref=${encodeURIComponent(verseLink.dataset.ref)}`);
                 if (res.ok) {
                     const parsed = await res.json();
-                    if (parsed.valid) window.location.href = `/read?vid=${parsed.verseId}`;
+                    if (parsed.valid) {
+                        if (parsed.v) {
+                            window.location.href = `/read/range?v=${encodeURIComponent(parsed.v)}`;
+                        } else if (Array.isArray(parsed.ranges) && parsed.ranges.length) {
+                            const body = parsed.ranges.map(r =>
+                                r.from === r.to ? String(r.from) : `${r.from}-${r.to}`
+                            ).join(',');
+                            window.location.href = `/read/range?v=${encodeURIComponent(body)}`;
+                        } else if (parsed.verseId) {
+                            window.location.href = `/read?vid=${parsed.verseId}`;
+                        }
+                    }
                 }
             } catch (_) { /* ignore */ }
         }

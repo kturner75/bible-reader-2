@@ -1,11 +1,13 @@
 package com.readthekjv.util;
 
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Utility class for parsing Bible references like "John 3:16", "ps 23", "gen1:1".
+ * Also parses same-chapter absolute multi-verse links: "John 3:16-18", "John 3:1-11,15".
  */
 public class ReferenceParser {
 
@@ -29,6 +31,30 @@ public class ReferenceParser {
         "(\\d?\\s*[a-zA-Z]+?)" +     // Book name (non-greedy to allow chapter to attach)
         "(\\d+)" +                    // Chapter number attached directly
         "(?:\\s*[:.v]\\s*(\\d+))?" +  // Optional verse number with separator
+        "\\s*$",
+        Pattern.CASE_INSENSITIVE
+    );
+
+    // Book + chapter + same-chapter verse list/range (space before chapter)
+    // e.g. "John 3:16-18", "jer 13:1-11,15", "Song of Solomon 2:1-3"
+    private static final Pattern ABSOLUTE_LINK_PATTERN = Pattern.compile(
+        "^\\s*" +
+        "(\\d?\\s*[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)" +
+        "\\s+" +
+        "(\\d+)" +
+        "\\s*[:.v]\\s*" +
+        "(.+?)" +
+        "\\s*$",
+        Pattern.CASE_INSENSITIVE
+    );
+
+    // Attached book+chapter + verse list: "jn3:16-18", "gen1:1-3"
+    private static final Pattern ABSOLUTE_LINK_ATTACHED_PATTERN = Pattern.compile(
+        "^\\s*" +
+        "(\\d?\\s*[a-zA-Z]+?)" +
+        "(\\d+)" +
+        "\\s*[:.v]\\s*" +
+        "(.+?)" +
         "\\s*$",
         Pattern.CASE_INSENSITIVE
     );
@@ -348,6 +374,28 @@ public class ReferenceParser {
     ) {}
 
     /**
+     * Same-chapter book-qualified link with one or more verse spans.
+     * Input UX only — persist as {@code [v=…]} after resolve.
+     */
+    public record ParsedAbsoluteLink(
+        String book,
+        int chapter,
+        List<ScopeRelativeLinkParser.Span> verseSpans
+    ) {
+        /** True when more than one verse is addressed. */
+        public boolean isMultiVerse() {
+            if (verseSpans == null || verseSpans.isEmpty()) {
+                return false;
+            }
+            if (verseSpans.size() > 1) {
+                return true;
+            }
+            ScopeRelativeLinkParser.Span s = verseSpans.get(0);
+            return s.from() != s.to();
+        }
+    }
+
+    /**
      * Attempts to parse a string as a Bible reference.
      * Supports various formats:
      * - "1p" or "genesis" (book only) → defaults to chapter 1, verse 1
@@ -429,12 +477,85 @@ public class ReferenceParser {
     }
 
     /**
+     * Parses a same-chapter absolute link: {@code John 3:16}, {@code John 3:16-18},
+     * {@code John 3:1-11,15}, {@code jn3:16-18}.
+     * <p>
+     * Cross-chapter forms like {@code John 3:16-4:2} are rejected (verse part
+     * must be a pure number list).
+     *
+     * @return parsed link, or {@code null} if not a valid absolute verse link
+     */
+    public static ParsedAbsoluteLink parseAbsoluteLink(String input) {
+        if (input == null || input.isBlank()) {
+            return null;
+        }
+
+        Matcher matcher = ABSOLUTE_LINK_PATTERN.matcher(input);
+        if (matcher.matches()) {
+            ParsedAbsoluteLink link = buildAbsoluteLink(
+                    matcher.group(1), matcher.group(2), matcher.group(3));
+            if (link != null) {
+                return link;
+            }
+        }
+
+        Matcher attached = ABSOLUTE_LINK_ATTACHED_PATTERN.matcher(input);
+        if (attached.matches()) {
+            return buildAbsoluteLink(
+                    attached.group(1), attached.group(2), attached.group(3));
+        }
+
+        return null;
+    }
+
+    /**
+     * True when {@code input} is a book-qualified same-chapter multi-verse
+     * (range and/or comma list), e.g. {@code John 3:16-18}.
+     */
+    public static boolean looksLikeAbsoluteMultiVerse(String input) {
+        ParsedAbsoluteLink link = parseAbsoluteLink(input);
+        return link != null && link.isMultiVerse();
+    }
+
+    private static ParsedAbsoluteLink buildAbsoluteLink(
+            String bookRaw, String chapterRaw, String verseListRaw) {
+        if (bookRaw == null || chapterRaw == null || verseListRaw == null) {
+            return null;
+        }
+        String bookPart = bookRaw.toLowerCase().trim().replaceAll("\\s+", " ");
+        String canonicalBook = resolveBookAlias(bookPart);
+        if (canonicalBook == null) {
+            return null;
+        }
+        int chapter;
+        try {
+            chapter = Integer.parseInt(chapterRaw.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        if (chapter < 1) {
+            return null;
+        }
+        // Reject cross-chapter residue (e.g. "16-4:2" left after first colon split)
+        String verseList = verseListRaw.trim();
+        if (verseList.contains(":")) {
+            return null;
+        }
+        List<ScopeRelativeLinkParser.Span> spans =
+                ScopeRelativeLinkParser.parseNumberList(verseList);
+        if (spans == null) {
+            return null;
+        }
+        return new ParsedAbsoluteLink(canonicalBook, chapter, List.copyOf(spans));
+    }
+
+    /**
      * Resolves a book name/alias to its canonical name.
      *
      * @param bookPart The book name or alias (lowercase)
      * @return The canonical book name, or null if not found
      */
-    private static String resolveBookAlias(String bookPart) {
+    static String resolveBookAlias(String bookPart) {
         String canonicalBook = BOOK_ALIASES.get(bookPart);
         if (canonicalBook == null) {
             // Try removing spaces for numbered books

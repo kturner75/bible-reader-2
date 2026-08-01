@@ -4,9 +4,11 @@ import com.readthekjv.model.*;
 import com.readthekjv.service.BibleService;
 import com.readthekjv.service.LuceneIndexService;
 import com.readthekjv.util.ReferenceParser;
+import com.readthekjv.util.VerseRangeParser;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,9 +151,10 @@ public class BibleController {
     /**
      * Parse a Bible reference and return the verse ID.
      * Supports formats: "John 3:16", "ps 23", "gen1:1", etc.
-     * 
+     * Same-chapter multi-verse: "John 3:16-18", "John 3:1-11,15" → ranges + {@code v} body.
+     *
      * @param ref Reference string
-     * @return Verse ID or 404 if invalid/not found
+     * @return Verse ID (and ranges for multi-verse) or valid:false if not found
      */
     @GetMapping("/reference")
     public ResponseEntity<Map<String, Object>> parseReference(@RequestParam String ref) {
@@ -159,7 +162,37 @@ public class BibleController {
             return ResponseEntity.badRequest().build();
         }
 
-        ReferenceParser.ParsedReference parsed = ReferenceParser.parse(ref.trim());
+        String trimmed = ref.trim();
+
+        // Same-chapter absolute multi-verse (range and/or comma list)
+        if (ReferenceParser.looksLikeAbsoluteMultiVerse(trimmed)) {
+            ReferenceParser.ParsedAbsoluteLink link = ReferenceParser.parseAbsoluteLink(trimmed);
+            Optional<List<VerseRangeParser.Range>> resolved = bibleService.resolveAbsoluteLink(link);
+            if (resolved.isEmpty()) {
+                return ResponseEntity.ok(Map.of(
+                    "valid", false,
+                    "input", ref
+                ));
+            }
+            List<VerseRangeParser.Range> ranges = resolved.get();
+            String vBody = VerseRangeParser.serializeRangeBody(ranges);
+            int firstId = ranges.get(0).from();
+            List<Map<String, Integer>> rangeMaps = new ArrayList<>();
+            for (VerseRangeParser.Range r : ranges) {
+                rangeMaps.add(Map.of("from", r.from(), "to", r.to()));
+            }
+            Map<String, Object> body = new HashMap<>();
+            body.put("valid", true);
+            body.put("input", ref);
+            body.put("verseId", firstId);
+            body.put("verseSpecified", true);
+            body.put("v", vBody);
+            body.put("ranges", rangeMaps);
+            bibleService.getVerse(firstId).ifPresent(v -> body.put("verse", v));
+            return ResponseEntity.ok(body);
+        }
+
+        ReferenceParser.ParsedReference parsed = ReferenceParser.parse(trimmed);
         if (parsed == null) {
             return ResponseEntity.ok(Map.of(
                 "valid", false,
@@ -168,7 +201,7 @@ public class BibleController {
         }
 
         Optional<Integer> verseId = bibleService.resolveReference(parsed);
-        
+
         if (verseId.isEmpty()) {
             return ResponseEntity.ok(Map.of(
                 "valid", false,

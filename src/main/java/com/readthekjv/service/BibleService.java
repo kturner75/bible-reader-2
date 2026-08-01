@@ -4,6 +4,8 @@ import com.readthekjv.model.Book;
 import com.readthekjv.model.ChapterInfo;
 import com.readthekjv.model.Verse;
 import com.readthekjv.util.ReferenceParser;
+import com.readthekjv.util.ScopeRelativeLinkParser;
+import com.readthekjv.util.VerseRangeParser;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -217,6 +219,45 @@ public class BibleService {
         int verseNum = ref.verse() != null ? ref.verse() : 1;
         String refKey = makeRefKey(ref.book(), ref.chapter(), verseNum);
         return Optional.ofNullable(referenceToId.get(refKey));
+    }
+
+    /**
+     * Resolves a same-chapter absolute link to normalized global verse-id ranges.
+     *
+     * @return ranges, or empty if the chapter/verses are invalid or exceed the reader limit
+     */
+    public Optional<List<VerseRangeParser.Range>> resolveAbsoluteLink(
+            ReferenceParser.ParsedAbsoluteLink link) {
+        if (link == null || link.verseSpans() == null || link.verseSpans().isEmpty()) {
+            return Optional.empty();
+        }
+        ChapterInfo chapter = findChapter(link.book(), link.chapter());
+        if (chapter == null) {
+            return Optional.empty();
+        }
+        StringBuilder verseList = new StringBuilder();
+        for (ScopeRelativeLinkParser.Span span : link.verseSpans()) {
+            if (verseList.length() > 0) {
+                verseList.append(',');
+            }
+            if (span.from() == span.to()) {
+                verseList.append(span.from());
+            } else {
+                verseList.append(span.from()).append('-').append(span.to());
+            }
+        }
+        List<VerseRangeParser.Range> ranges = ScopeRelativeLinkParser.resolveChapterRelative(
+                verseList.toString(), chapter.firstVerseId(), chapter.verseCount());
+        return ranges != null ? Optional.of(ranges) : Optional.empty();
+    }
+
+    private ChapterInfo findChapter(String bookName, int chapter) {
+        for (ChapterInfo ci : getChaptersByBookName(bookName)) {
+            if (ci.chapter() == chapter) {
+                return ci;
+            }
+        }
+        return null;
     }
 
     /**

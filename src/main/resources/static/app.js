@@ -2508,7 +2508,7 @@
     // Markdown-lite: escapes ALL html first, then applies a small set of
     // patterns, so the output can never contain user-supplied markup.
     // Supported: # ## ### headings, **bold**, *italic*, - / * / 1. lists,
-    // and verse links: [12] / [1-11] / [1,5,7] (scope-relative) or [John 3:16].
+    // and verse links: [12] / [1-11] / [1,5,7] (scope-relative) or [John 3:16] / [John 3:16-18].
 
     function renderNoteInline(text, ctx) {
         let html = escapeHtml(text);
@@ -2729,16 +2729,27 @@
         }
 
         let verseId = parseInt(link.dataset.verseId);
+        let rangeBody = null;
         if (!verseId && link.dataset.ref) {
             try {
                 const res = await fetch(`/api/reference?ref=${encodeURIComponent(link.dataset.ref)}`);
                 if (res.ok) {
                     const parsed = await res.json();
-                    if (parsed.valid) verseId = parsed.verseId;
+                    if (parsed.valid) {
+                        if (parsed.v) {
+                            rangeBody = parsed.v;
+                        } else if (Array.isArray(parsed.ranges) && parsed.ranges.length) {
+                            rangeBody = serializeVBody(parsed.ranges.map(r => ({
+                                from: r.from, to: r.to
+                            })));
+                        } else if (parsed.verseId) {
+                            verseId = parsed.verseId;
+                        }
+                    }
                 }
             } catch (_) { /* handled below */ }
         }
-        if (!verseId) {
+        if (!rangeBody && !verseId) {
             showToast(`Couldn't find "${link.dataset.ref || 'reference'}"`);
             return;
         }
@@ -2746,8 +2757,8 @@
         closeChapterNoteEditor();
         closeNoteEditor();
         closeLibrary();
-        // Single-verse focused session so ← Back can restore the note/context
-        await enterRangeMode(String(verseId));
+        // Focused session so ← Back can restore the note/context
+        await enterRangeMode(rangeBody || String(verseId));
     }
 
     /**
@@ -3038,6 +3049,7 @@
      * Rewrite typed scripture refs in a note body to portable [v=…] tokens.
      * Leaves [v=…], [pid=…], [passage=…] and markdown alone.
      * Scope-relative multi-verse: chapter [1-11] / [1,5,7]; book [1-2] / [3:1-11].
+     * Absolute multi-verse: [John 3:16-18] / [John 3:1-11,15].
      */
     async function normalizeNoteLinksOnSave(text, ctx) {
         if (!text) return text;
@@ -3078,24 +3090,33 @@
                     }
                 }
 
-                // Absolute references: [John 3:16]
-                let verseId = null;
-                let ref = inner;
+                // Absolute references: [John 3:16], [John 3:16-18], [John 3:1-11,15]
                 if (ctx && ctx.type === 'book' && isBookRelativeToken(inner)) {
                     // Already tried book-relative; don't re-prefix junk
                     parts.push(m[0]);
                     continue;
                 }
-                const res = await fetch(`/api/reference?ref=${encodeURIComponent(ref)}`);
+                const res = await fetch(`/api/reference?ref=${encodeURIComponent(inner)}`);
                 if (res.ok) {
                     const parsed = await res.json();
-                    if (parsed.valid && parsed.verseId) verseId = parsed.verseId;
+                    if (parsed.valid) {
+                        if (Array.isArray(parsed.ranges) && parsed.ranges.length) {
+                            parts.push(serializeVToken(parsed.ranges.map(r => ({
+                                from: r.from, to: r.to
+                            }))));
+                            continue;
+                        }
+                        if (parsed.v) {
+                            parts.push(`[v=${parsed.v}]`);
+                            continue;
+                        }
+                        if (parsed.verseId) {
+                            parts.push(serializeVToken([{ from: parsed.verseId, to: parsed.verseId }]));
+                            continue;
+                        }
+                    }
                 }
-                if (verseId != null) {
-                    parts.push(serializeVToken([{ from: verseId, to: verseId }]));
-                } else {
-                    parts.push(m[0]);
-                }
+                parts.push(m[0]);
             } catch {
                 parts.push(m[0]);
             }
@@ -5733,8 +5754,8 @@
         elements.chapterNoteTextarea.maxLength = limit;
         elements.chapterNoteCharMax.textContent = limit;
         elements.chapterNoteHintLinks.innerHTML = ref.type === 'book'
-            ? '<code>[12]</code>/<code>[1-11]</code> chapters <code>[3:16]</code>/<code>[3:1-11]</code> verses'
-            : '<code>[12]</code> <code>[1-11]</code> <code>[1,5,7]</code> verse links';
+            ? '<code>[12]</code>/<code>[1-11]</code> chapters <code>[3:16]</code>/<code>[3:1-11]</code> verses <code>[John 3:16-18]</code>'
+            : '<code>[12]</code> <code>[1-11]</code> <code>[1,5,7]</code> <code>[John 3:16-18]</code> verse links';
 
         if (!state.currentUser) {
             elements.chapterNoteSignin.hidden = false;
