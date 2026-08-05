@@ -83,7 +83,8 @@ html, body {
 }
 
 .train-test-toggle,
-.train-recite-toggle {
+.train-recite-toggle,
+.train-peek-toggle {
     font-family: var(--font-primary);
     font-size: 0.78rem;
     color: var(--color-text-muted);
@@ -96,13 +97,64 @@ html, body {
     transition: color 120ms, border-color 120ms, background 120ms;
 }
 .train-test-toggle:hover,
-.train-recite-toggle:hover { color: var(--color-text); border-color: var(--color-text-muted); }
+.train-recite-toggle:hover,
+.train-peek-toggle:hover { color: var(--color-text); border-color: var(--color-text-muted); }
 .train-test-toggle.active,
-.train-recite-toggle.active { background: var(--color-link); color: white; border-color: var(--color-link); }
+.train-recite-toggle.active,
+.train-peek-toggle.active { background: var(--color-link); color: white; border-color: var(--color-link); }
+
+/* Read-through shown before each exercise and available again via Peek. */
+.passage-preview { display: none; }
+.train-card.pretraining .passage-preview,
+.train-card.peeking .passage-preview { display: block; }
+.train-card.pretraining .train-toggle-group { display: none; }
+
+.passage-preview-intro {
+    color: var(--color-text-muted);
+    font-size: .9rem;
+    font-style: italic;
+    margin-bottom: 1rem;
+}
+
+.passage-preview-text {
+    font-size: 1.18rem;
+    line-height: 1.9;
+    margin-bottom: 1.75rem;
+}
+
+.train-btn-begin {
+    font-family: var(--font-primary);
+    font-size: .95rem;
+    padding: .55rem 1.6rem;
+    background: var(--color-link);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.train-btn-begin:hover { background: var(--color-text); }
+
+.train-card.peeking .passage-preview-intro,
+.train-card.peeking .train-btn-begin { display: none; }
+
+.train-card.pretraining #train-verse,
+.train-card.pretraining #recite-panel,
+.train-card.pretraining #transcript-panel,
+.train-card.pretraining .train-actions,
+.train-card.pretraining .train-ratings,
+.train-card.peeking #train-verse,
+.train-card.peeking #recite-panel,
+.train-card.peeking #transcript-panel,
+.train-card.peeking .train-actions,
+.train-card.peeking .train-ratings { display: none; }
 
 /* Test mode: hide reference and verse numbers */
 .train-card.test-mode .train-ref { visibility: hidden; }
 .train-card.test-mode .train-verse-num { visibility: hidden; }
+.train-card.pretraining .train-ref,
+.train-card.peeking .train-ref,
+.train-card.pretraining .train-verse-num,
+.train-card.peeking .train-verse-num { visibility: visible; }
 
 /* Blanked verse */
 .train-verse {
