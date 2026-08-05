@@ -18,14 +18,21 @@
         <div class="train-progress" id="train-progress" hidden>
             <span id="train-progress-current"></span> of <span id="train-progress-total"></span>
         </div>
-        <div class="train-card" id="train-card">
+        <div class="train-card pretraining" id="train-card">
             <div class="train-ref-row">
                 <h1 class="train-ref" id="train-ref"></h1>
                 <div class="train-toggle-group">
+                    <button class="train-peek-toggle" id="train-peek-toggle" hidden
+                            aria-expanded="false" aria-controls="passage-preview">Peek</button>
                     <button class="train-test-toggle" id="train-test-toggle">Test mode</button>
                     <button class="train-recite-toggle" id="train-recite-toggle">Recite</button>
                 </div>
             </div>
+            <section class="passage-preview" id="passage-preview" aria-label="Passage preview">
+                <p class="passage-preview-intro">Read through the passage before you begin.</p>
+                <div class="passage-preview-text" id="passage-preview-text"></div>
+                <button class="train-btn-begin" id="train-begin-btn">Begin training</button>
+            </section>
             <div class="train-verse" id="train-verse"></div>
             <div id="recite-panel" hidden>
                 <p class="recite-instruction">Speak the verse from memory</p>

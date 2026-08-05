@@ -127,6 +127,9 @@
         const transcriptHeard = document.getElementById('transcript-heard');
         const transcriptDiff  = document.getElementById('transcript-diff');
         const accuracyDisplay = document.getElementById('accuracy-display');
+        const previewText     = document.getElementById('passage-preview-text');
+        const beginBtn        = document.getElementById('train-begin-btn');
+        const peekToggle      = document.getElementById('train-peek-toggle');
 
         // --- Test mode ---
         const TEST_MODE_KEY = 'kjv_test_mode';
@@ -201,6 +204,16 @@
             ? verses[0].reference
             : `${entry.fromVerseRef} – ${entry.toVerseRef}`;
 
+        // Always begin with an unmasked read-through of the complete passage.
+        // This is a separate element so peeking later does not discard answers.
+        if (isSingle) {
+            previewText.textContent = verses[0].text;
+        } else {
+            previewText.innerHTML = verses.map(v =>
+                `<p class="train-verse-line"><sup class="train-verse-num">${v.verseNum}</sup>${escapeHtml(v.text)}</p>`
+            ).join('');
+        }
+
         // Render verses — single verse inline, multi-verse as paragraphs with sup numbers
         if (isSingle) {
             const segs = computeBlankedSegments(verses[0].text, entry.masteryLevel);
@@ -212,11 +225,29 @@
             }).join('');
         }
 
-        // Only focus blank inputs in fill-in-blank mode
-        if (!reciteMode) {
-            const first = verseEl.querySelector('.blank-input');
+        function focusFirstBlank() {
+            if (reciteMode) return;
+            const first = verseEl.querySelector('.blank-input:not(:disabled)');
             if (first) first.focus();
         }
+
+        function setPeeking(peeking) {
+            card.classList.toggle('peeking', peeking);
+            peekToggle.classList.toggle('active', peeking);
+            peekToggle.textContent = peeking ? 'Hide passage' : 'Peek';
+            peekToggle.setAttribute('aria-expanded', String(peeking));
+            if (!peeking) focusFirstBlank();
+        }
+
+        beginBtn.addEventListener('click', () => {
+            card.classList.remove('pretraining');
+            peekToggle.hidden = false;
+            focusFirstBlank();
+        });
+
+        peekToggle.addEventListener('click', () => {
+            setPeeking(!card.classList.contains('peeking'));
+        });
 
         // Normalize for comparison: collapse smart apostrophes/quotes, strip
         // leading/trailing punctuation, lowercase.
