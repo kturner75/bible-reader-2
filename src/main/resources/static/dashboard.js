@@ -9,6 +9,16 @@
         return d.innerHTML;
     }
 
+    /**
+     * escapeHtml() serialises a text node, so it encodes & < > but leaves quotes
+     * alone — safe between tags, unsafe inside an attribute, where a name like
+     * `" onfocus="…` closes the attribute and injects a new one. Use this for any
+     * value interpolated into a quoted attribute.
+     */
+    function escapeAttr(str) {
+        return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
 
     const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -141,7 +151,7 @@
             fetch('/api/memorization/streak',          { credentials: 'include' }),
             fetch('/api/memorization/global-passages', { credentials: 'include' }),
             fetch('/api/plans',                        { credentials: 'include' }),
-            fetch('/api/activity/heatmap',             { credentials: 'include' }),
+            rhythmFetch('/api/activity/heatmap'),   // bucketed in the browser's zone
             fetch('/api/sermon-notes',                 { credentials: 'include' }),
             rhythmFetch('/api/rhythms'),
             fetch('/api/books'),
@@ -571,7 +581,7 @@
             actions  = `${setPosition}
                         <a class="btn-secondary rhythm-open-btn" href="${href}">Open →</a>
                         <button class="btn-primary rhythm-mark-btn"
-                                title="Mark ${escapeHtml(n.bookName)} ${n.chapter} as read">
+                                title="Mark ${escapeAttr(n.bookName)} ${n.chapter} as read">
                             Mark chapter read
                         </button>`;
         } else {
@@ -835,7 +845,7 @@
         card.innerHTML = `
             <div class="rb-lane-head">
                 <input type="text" class="rb-lane-name" maxlength="60"
-                       value="${escapeHtml(lane.name)}" placeholder="Lane name">
+                       placeholder="Lane name">
                 <select class="rb-lane-day" title="Which day should lead with this lane?">
                     ${dayOptions}
                 </select>
@@ -851,7 +861,11 @@
             </details>
         `;
 
-        card.querySelector('.rb-lane-name').addEventListener('input', e => {
+        // Assigned as a property, never interpolated into the markup above: a lane
+        // name is free text, and a quote in an attribute would inject markup.
+        const nameInput = card.querySelector('.rb-lane-name');
+        nameInput.value = lane.name;
+        nameInput.addEventListener('input', e => {
             lane.name = e.target.value;
         });
         card.querySelector('.rb-lane-day').addEventListener('change', e => {
