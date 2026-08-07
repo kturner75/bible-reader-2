@@ -2502,11 +2502,17 @@
     const DAY_NAMES_SHORT = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday',
                              'Friday', 'Saturday', 'Sunday'];
 
+    /** Keeps the server's "marked today" boundary aligned with this browser's day. */
+    function rhythmTzHeader() {
+        return { 'X-Time-Zone': Intl.DateTimeFormat().resolvedOptions().timeZone || '' };
+    }
+
     async function initRhythmLane() {
         if (!state.rhythmLaneId) return;
         try {
             const res = await fetch(`/api/rhythms/lanes/${state.rhythmLaneId}`, {
-                credentials: 'include'
+                credentials: 'include',
+                headers: rhythmTzHeader()
             });
             if (!res.ok) {                       // signed out, or not this user's lane
                 state.rhythmLaneId = null;
@@ -2558,9 +2564,10 @@
         }
     }
 
+    /** @returns {Promise<boolean>} whether the chapter was actually recorded. */
     async function markRhythmStoppedHere() {
         const target = currentRhythmChapter();
-        if (!target || !state.rhythmLaneId) return;
+        if (!target || !state.rhythmLaneId) return false;
 
         const button = elements.rhythmChipMark;
         button.disabled = true;
@@ -2569,7 +2576,7 @@
             const res = await fetch(`/api/rhythms/lanes/${state.rhythmLaneId}/progress`, {
                 method: 'POST',
                 credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...rhythmTzHeader() },
                 body: JSON.stringify({ bookId: target.bookId, throughChapter: target.chapter })
             });
             if (!res.ok) throw new Error('mark failed');
@@ -2577,9 +2584,11 @@
             button.textContent = 'Saved ✓';
             // Leave the confirmation up briefly, then return to the live label.
             setTimeout(updateRhythmChip, 1800);
+            return true;
         } catch (_) {
             button.disabled = false;
             button.textContent = 'Try again';
+            return false;
         }
     }
 
@@ -6694,10 +6703,13 @@
             elements.mobileMenuOverlay.addEventListener('click', (e) => {
                 if (e.target === elements.mobileMenuOverlay) closeMobileMenu();
             });
-            document.getElementById('mobile-menu-rhythm').addEventListener('click', () => {
+            document.getElementById('mobile-menu-rhythm').addEventListener('click', async () => {
                 closeMobileMenu();
-                markRhythmStoppedHere();
-                showToast('Progress saved');
+                // Await the result: the footer chip that would otherwise show the
+                // failure is hidden at this width, so an optimistic toast could send
+                // the reader away believing an unsaved chapter was recorded.
+                const saved = await markRhythmStoppedHere();
+                showToast(saved ? 'Progress saved' : 'Could not save — try again');
             });
             document.getElementById('mobile-menu-search').addEventListener('click', () => {
                 closeMobileMenu();

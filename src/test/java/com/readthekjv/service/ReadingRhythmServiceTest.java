@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +46,7 @@ class ReadingRhythmServiceTest {
 
     private static final Long USER_ID  = 42L;
     private static final Long OTHER_ID = 99L;
+    private static final ZoneId ZONE = ZoneId.systemDefault();
 
     private ReadingRhythmRepository         rhythmRepo;
     private ReadingRhythmLaneRepository     laneRepo;
@@ -224,7 +226,7 @@ class ReadingRhythmServiceTest {
         when(progressRepo.findLaneIdsMarkedSince(eq(USER_ID), any(OffsetDateTime.class)))
                 .thenReturn(Set.of(1L));
 
-        RhythmLaneResponse resp = service.restartLane(USER_ID, 1L);
+        RhythmLaneResponse resp = service.restartLane(USER_ID, 1L, ZONE);
 
         assertNull(resp.cursorBookId());
         assertTrue(resp.markedToday());
@@ -327,7 +329,7 @@ class ReadingRhythmServiceTest {
         ReadingRhythmLane lane = sundayLane();
         when(laneRepo.findByIdAndUserId(1L, USER_ID)).thenReturn(Optional.of(lane));
 
-        RhythmLaneResponse resp = service.restartLane(USER_ID, 1L);
+        RhythmLaneResponse resp = service.restartLane(USER_ID, 1L, ZONE);
 
         assertNull(resp.cursorBookId());
         assertEquals(0, resp.chaptersRead());
@@ -340,7 +342,7 @@ class ReadingRhythmServiceTest {
     void createBuildsLanesInOrderWithTheirWeekdays() {
         RhythmResponse resp = service.create(USER_ID, "Weekly Rhythm", List.of(
                 new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), null, null),
-                new RhythmLaneSpec(null, "Gospels", null, List.of(bookId("Mark")), null, null)));
+                new RhythmLaneSpec(null, "Gospels", null, List.of(bookId("Mark")), null, null)), ZONE);
 
         assertEquals(2, resp.lanes().size());
         assertEquals("Sunday", resp.lanes().get(0).name());
@@ -356,7 +358,7 @@ class ReadingRhythmServiceTest {
         service.create(USER_ID, "Weekly Rhythm", List.of(
                 new RhythmLaneSpec(null, "Sunday",  (short) 7, sundayBookIds(), null, null),
                 new RhythmLaneSpec(null, "Monday",  (short) 1, sundayBookIds(), null, null),
-                new RhythmLaneSpec(null, "Tuesday", (short) 2, sundayBookIds(), null, null)));
+                new RhythmLaneSpec(null, "Tuesday", (short) 2, sundayBookIds(), null, null)), ZONE);
 
         verify(rhythmRepo).saveAndFlush(saved.capture());
         List<ReadingRhythmLane> lanes = saved.getValue().getLanes();
@@ -370,7 +372,7 @@ class ReadingRhythmServiceTest {
 
         service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
                 new RhythmLaneSpec(null, "Monday", (short) 1, sundayBookIds(), null, null),
-                new RhythmLaneSpec(1L,   "Sunday", (short) 7, sundayBookIds(), null, null)));
+                new RhythmLaneSpec(1L,   "Sunday", (short) 7, sundayBookIds(), null, null)), ZONE);
 
         assertEquals(List.of(0, 1),
                 rhythm.getLanes().stream().map(ReadingRhythmLane::getPosition).toList());
@@ -380,7 +382,7 @@ class ReadingRhythmServiceTest {
     @Test
     void createHonoursAnExplicitStartingPosition() {
         RhythmResponse resp = service.create(USER_ID, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), bookId("Luke"), 7)));
+                new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), bookId("Luke"), 7)), ZONE);
 
         assertEquals(51, resp.lanes().get(0).chaptersRead());
         assertEquals(8, resp.lanes().get(0).nextReading().chapter());
@@ -395,7 +397,7 @@ class ReadingRhythmServiceTest {
         List<Integer> reordered = List.of(bookId("Matthew"), bookId("Mark"), bookId("John"),
                                           bookId("Luke"), bookId("Acts"), bookId("Romans"));
         RhythmResponse resp = service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(1L, "Sunday", (short) 7, reordered, null, null)));
+                new RhythmLaneSpec(1L, "Sunday", (short) 7, reordered, null, null)), ZONE);
 
         RhythmLaneResponse lane = resp.lanes().get(0);
         assertEquals(bookId("Luke"), lane.cursorBookId(), "cursor survives the reorder");
@@ -413,7 +415,7 @@ class ReadingRhythmServiceTest {
         List<Integer> withoutLuke = List.of(bookId("Matthew"), bookId("Mark"),
                                             bookId("John"), bookId("Acts"), bookId("Romans"));
         RhythmResponse resp = service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(1L, "Sunday", (short) 7, withoutLuke, null, null)));
+                new RhythmLaneSpec(1L, "Sunday", (short) 7, withoutLuke, null, null)), ZONE);
 
         RhythmLaneResponse lane = resp.lanes().get(0);
         assertNull(lane.cursorBookId());
@@ -427,18 +429,56 @@ class ReadingRhythmServiceTest {
 
         assertThrows(org.springframework.web.server.ResponseStatusException.class,
                 () -> service.update(OTHER_ID, 7L, "Weekly Rhythm", List.of(
-                        new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), null, null))));
+                        new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), null, null)), ZONE));
+    }
+
+    @Test
+    void createRejectsALaneWithADuplicateBook() {
+        // The cursor is keyed on book id, so a repeat is indistinguishable from the
+        // first occurrence: nextReading would advance into it while chaptersRead
+        // resolved back, stranding the reader mid-lane.
+        BadRequestException e = assertThrows(BadRequestException.class,
+                () -> service.create(USER_ID, "Weekly Rhythm", List.of(
+                        new RhythmLaneSpec(null, "Sunday", (short) 7,
+                                List.of(bookId("Matthew"), bookId("Mark"), bookId("Matthew")),
+                                null, null)), ZONE));
+        assertTrue(e.getMessage().contains("Matthew"), e.getMessage());
+    }
+
+    @Test
+    void markedTodayUsesTheCallersZoneNotTheServers() {
+        ReadingRhythmLane lane = sundayLane();
+        when(laneRepo.findByIdAndUserId(1L, USER_ID)).thenReturn(Optional.of(lane));
+
+        ArgumentCaptor<OffsetDateTime> since = ArgumentCaptor.forClass(OffsetDateTime.class);
+        when(progressRepo.findLaneIdsMarkedSince(eq(USER_ID), since.capture()))
+                .thenReturn(Set.of());
+
+        ZoneId tokyo = ZoneId.of("Asia/Tokyo");
+        service.restartLane(USER_ID, 1L, tokyo);
+
+        assertEquals(LocalDate.now(tokyo).atStartOfDay(tokyo).toOffsetDateTime(),
+                     since.getValue(),
+                     "day boundary must follow the caller's zone, not the server's");
+    }
+
+    @Test
+    void resolveZoneFallsBackToTheServerZoneRatherThanFailing() {
+        assertEquals(ZoneId.of("Asia/Tokyo"), ReadingRhythmService.resolveZone("Asia/Tokyo"));
+        assertEquals(ZoneId.systemDefault(), ReadingRhythmService.resolveZone(null));
+        assertEquals(ZoneId.systemDefault(), ReadingRhythmService.resolveZone(""));
+        assertEquals(ZoneId.systemDefault(), ReadingRhythmService.resolveZone("Not/AZone"));
     }
 
     @Test
     void createRejectsALaneWithNoBooks() {
         assertThrows(BadRequestException.class, () -> service.create(USER_ID, "Weekly Rhythm",
-                List.of(new RhythmLaneSpec(null, "Sunday", (short) 7, List.of(), null, null))));
+                List.of(new RhythmLaneSpec(null, "Sunday", (short) 7, List.of(), null, null)), ZONE));
     }
 
     @Test
     void createRejectsAnOutOfRangeWeekday() {
         assertThrows(BadRequestException.class, () -> service.create(USER_ID, "Weekly Rhythm",
-                List.of(new RhythmLaneSpec(null, "Sunday", (short) 8, sundayBookIds(), null, null))));
+                List.of(new RhythmLaneSpec(null, "Sunday", (short) 8, sundayBookIds(), null, null)), ZONE));
     }
 }

@@ -124,6 +124,16 @@
     let sermonNotes    = [];
     let rhythmsData    = [];
     let booksData      = [];
+
+    // The server derives "marked today" from a day boundary that has to agree with
+    // the browser's weekday, or a lane marked just after local midnight resurfaces
+    // as outstanding when the server rolls over.
+    const TZ_HEADER = { 'X-Time-Zone': Intl.DateTimeFormat().resolvedOptions().timeZone || '' };
+    const rhythmFetch = (url, opts = {}) => fetch(url, {
+        ...opts,
+        credentials: 'include',
+        headers: { ...TZ_HEADER, ...(opts.headers || {}) },
+    });
     try {
         const [queueRes, streakRes, globalRes, plansRes, heatmapRes, sermonNotesRes,
                rhythmsRes, booksRes] = await Promise.all([
@@ -133,7 +143,7 @@
             fetch('/api/plans',                        { credentials: 'include' }),
             fetch('/api/activity/heatmap',             { credentials: 'include' }),
             fetch('/api/sermon-notes',                 { credentials: 'include' }),
-            fetch('/api/rhythms',                      { credentials: 'include' }),
+            rhythmFetch('/api/rhythms'),
             fetch('/api/books'),
         ]);
         if (queueRes.ok)        allEntries     = await queueRes.json();
@@ -589,11 +599,19 @@
         return el;
     }
 
-    function replaceLaneEl(el, updatedLane, rhythm, isToday) {
-        // Keep the in-memory rhythm in sync so a later re-render is not stale.
+    /**
+     * A lane scheduled for today is rendered twice — once as today's lead card and
+     * again inside the All lanes disclosure. Replacing only the clicked element
+     * would leave the other copy showing stale progress and holding a handler
+     * closed over the old nextReading, so clicking it would re-record the same
+     * chapter and log a second activity event. Re-render the whole section instead.
+     */
+    function refreshLane(updatedLane, rhythm) {
         const idx = rhythm.lanes.findIndex(l => l.id === updatedLane.id);
         if (idx >= 0) rhythm.lanes[idx] = updatedLane;
-        el.replaceWith(buildLaneEl(updatedLane, rhythm, isToday));
+        const wasOpen = rhythmAllDetails.open;
+        renderRhythms();
+        rhythmAllDetails.open = wasOpen;   // renderRhythms re-derives this; keep the user's choice
         // A mark may have satisfied today's lane — let the card settle.
         renderTodayReadingCard();
     }
@@ -605,9 +623,8 @@
                 markBtn.disabled = true;
                 markBtn.textContent = 'Marking…';
                 try {
-                    const res = await fetch(`/api/rhythms/lanes/${lane.id}/progress`, {
+                    const res = await rhythmFetch(`/api/rhythms/lanes/${lane.id}/progress`, {
                         method: 'POST',
-                        credentials: 'include',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             bookId: lane.nextReading.bookId,
@@ -615,7 +632,7 @@
                         }),
                     });
                     if (!res.ok) throw new Error('mark failed');
-                    replaceLaneEl(el, await res.json(), rhythm, isToday);
+                    refreshLane(await res.json(), rhythm);
                 } catch (_) {
                     markBtn.disabled = false;
                     markBtn.textContent = 'Try again';
@@ -628,11 +645,11 @@
             restartBtn.addEventListener('click', async () => {
                 restartBtn.disabled = true;
                 try {
-                    const res = await fetch(`/api/rhythms/lanes/${lane.id}/restart`, {
-                        method: 'POST', credentials: 'include',
+                    const res = await rhythmFetch(`/api/rhythms/lanes/${lane.id}/restart`, {
+                        method: 'POST',
                     });
                     if (!res.ok) throw new Error('restart failed');
-                    replaceLaneEl(el, await res.json(), rhythm, isToday);
+                    refreshLane(await res.json(), rhythm);
                 } catch (_) {
                     restartBtn.disabled = false;
                 }
@@ -1019,9 +1036,8 @@
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving…';
         try {
-            const res = await fetch(draft.id ? `/api/rhythms/${draft.id}` : '/api/rhythms', {
+            const res = await rhythmFetch(draft.id ? `/api/rhythms/${draft.id}` : '/api/rhythms', {
                 method: draft.id ? 'PUT' : 'POST',
-                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });

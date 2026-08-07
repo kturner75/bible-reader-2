@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -32,6 +33,15 @@ public class ReadingRhythmController {
         this.userRepository = userRepository;
     }
 
+    /**
+     * The dashboard picks today's lanes with the browser's weekday, so the server's
+     * day boundary must agree. Clients send their IANA zone in X-Time-Zone; an absent
+     * or unparseable value falls back to the server's zone rather than failing.
+     */
+    private ZoneId resolveZone(String header) {
+        return ReadingRhythmService.resolveZone(header);
+    }
+
     private User resolveUser(UserDetails ud) {
         return userRepository.findByEmail(ud.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
@@ -39,8 +49,9 @@ public class ReadingRhythmController {
 
     /** All of the user's rhythms, lanes included, with derived reading positions. */
     @GetMapping
-    public List<RhythmResponse> list(@AuthenticationPrincipal UserDetails ud) {
-        return rhythmService.list(resolveUser(ud).getId());
+    public List<RhythmResponse> list(@AuthenticationPrincipal UserDetails ud,
+                                     @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
+        return rhythmService.list(resolveUser(ud).getId(), resolveZone(tz));
     }
 
     /**
@@ -49,29 +60,33 @@ public class ReadingRhythmController {
      * readable and advanceable via the endpoints below.
      */
     @GetMapping("/today")
-    public List<RhythmLaneResponse> today(@AuthenticationPrincipal UserDetails ud) {
-        return rhythmService.todayLanes(resolveUser(ud).getId());
+    public List<RhythmLaneResponse> today(@AuthenticationPrincipal UserDetails ud,
+                                          @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
+        return rhythmService.todayLanes(resolveUser(ud).getId(), resolveZone(tz));
     }
 
     @GetMapping("/{id}")
     public RhythmResponse get(@AuthenticationPrincipal UserDetails ud,
-                              @PathVariable Long id) {
-        return rhythmService.get(resolveUser(ud).getId(), id);
+                              @PathVariable Long id,
+                              @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
+        return rhythmService.get(resolveUser(ud).getId(), id, resolveZone(tz));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public RhythmResponse create(@AuthenticationPrincipal UserDetails ud,
-                                 @RequestBody UpsertRhythmRequest req) {
-        return rhythmService.create(resolveUser(ud).getId(), req.title(), req.lanes());
+                                 @RequestBody UpsertRhythmRequest req,
+                                 @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
+        return rhythmService.create(resolveUser(ud).getId(), req.title(), req.lanes(), resolveZone(tz));
     }
 
     /** Replaces title + lanes. Lane cursors survive when the spec carries the lane id. */
     @PutMapping("/{id}")
     public RhythmResponse update(@AuthenticationPrincipal UserDetails ud,
                                  @PathVariable Long id,
-                                 @RequestBody UpsertRhythmRequest req) {
-        return rhythmService.update(resolveUser(ud).getId(), id, req.title(), req.lanes());
+                                 @RequestBody UpsertRhythmRequest req,
+                                 @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
+        return rhythmService.update(resolveUser(ud).getId(), id, req.title(), req.lanes(), resolveZone(tz));
     }
 
     @DeleteMapping("/{id}")
@@ -84,8 +99,9 @@ public class ReadingRhythmController {
     /** A single lane — what the reader's lane chip needs after a ?lane= deep link. */
     @GetMapping("/lanes/{laneId}")
     public RhythmLaneResponse lane(@AuthenticationPrincipal UserDetails ud,
-                                   @PathVariable Long laneId) {
-        return rhythmService.getLane(resolveUser(ud).getId(), laneId);
+                                   @PathVariable Long laneId,
+                                   @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
+        return rhythmService.getLane(resolveUser(ud).getId(), laneId, resolveZone(tz));
     }
 
     /**
@@ -102,7 +118,8 @@ public class ReadingRhythmController {
     /** Clear a lane's cursor and start its book list over. */
     @PostMapping("/lanes/{laneId}/restart")
     public RhythmLaneResponse restart(@AuthenticationPrincipal UserDetails ud,
-                                      @PathVariable Long laneId) {
-        return rhythmService.restartLane(resolveUser(ud).getId(), laneId);
+                                      @PathVariable Long laneId,
+                                      @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
+        return rhythmService.restartLane(resolveUser(ud).getId(), laneId, resolveZone(tz));
     }
 }

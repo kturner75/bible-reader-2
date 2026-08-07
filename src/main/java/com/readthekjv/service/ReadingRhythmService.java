@@ -21,11 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DayOfWeek;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,21 +72,39 @@ public class ReadingRhythmService {
     // ── Queries ───────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public List<RhythmResponse> list(Long userId) {
-        Set<Long> markedToday = markedTodayLaneIds(userId);
+    public List<RhythmResponse> list(Long userId, ZoneId zone) {
+        Set<Long> markedToday = markedTodayLaneIds(userId, zone);
         return rhythmRepo.findByUserIdOrderByCreatedAtAsc(userId).stream()
-                .map(r -> toResponse(r, markedToday))
+                .map(r -> toResponse(r, markedToday, zone))
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public RhythmResponse get(Long userId, Long id) {
-        return toResponse(findOwned(userId, id), markedTodayLaneIds(userId));
+    public RhythmResponse get(Long userId, Long id, ZoneId zone) {
+        return toResponse(findOwned(userId, id), markedTodayLaneIds(userId, zone), zone);
     }
 
     @Transactional(readOnly = true)
-    public RhythmLaneResponse getLane(Long userId, Long laneId) {
-        return toLaneResponse(findOwnedLane(userId, laneId), markedTodayLaneIds(userId));
+    public RhythmLaneResponse getLane(Long userId, Long laneId, ZoneId zone) {
+        return toLaneResponse(findOwnedLane(userId, laneId), markedTodayLaneIds(userId, zone));
+    }
+
+    /**
+     * Resolves the caller's time zone, falling back to the server's.
+     *
+     * <p>The dashboard picks today's lanes with the *browser's* weekday, so the
+     * day boundary used for {@code markedToday} and {@code todayLaneIds} has to
+     * agree with it. Without this, a reader ahead of the server sees a lane they
+     * marked shortly after local midnight resurface as outstanding once the server
+     * rolls over.
+     */
+    public static ZoneId resolveZone(String timeZone) {
+        if (timeZone == null || timeZone.isBlank()) return ZoneId.systemDefault();
+        try {
+            return ZoneId.of(timeZone.trim());
+        } catch (DateTimeException e) {
+            return ZoneId.systemDefault();   // never fail a read over a bad header
+        }
     }
 
     /**
@@ -94,9 +114,8 @@ public class ReadingRhythmService {
      * have read. It is never a constraint: an already-marked lane stays fully readable
      * and re-markable, on today or any other day.
      */
-    private Set<Long> markedTodayLaneIds(Long userId) {
-        OffsetDateTime startOfToday = LocalDate.now().atStartOfDay(ZoneId.systemDefault())
-                                               .toOffsetDateTime();
+    private Set<Long> markedTodayLaneIds(Long userId, ZoneId zone) {
+        OffsetDateTime startOfToday = LocalDate.now(zone).atStartOfDay(zone).toOffsetDateTime();
         return progressRepo.findLaneIdsMarkedSince(userId, startOfToday);
     }
 
@@ -109,9 +128,9 @@ public class ReadingRhythmService {
      * through {@link #list}.
      */
     @Transactional(readOnly = true)
-    public List<RhythmLaneResponse> todayLanes(Long userId) {
-        short today = (short) LocalDate.now().getDayOfWeek().getValue();
-        Set<Long> markedToday = markedTodayLaneIds(userId);
+    public List<RhythmLaneResponse> todayLanes(Long userId, ZoneId zone) {
+        short today = (short) LocalDate.now(zone).getDayOfWeek().getValue();
+        Set<Long> markedToday = markedTodayLaneIds(userId, zone);
         List<RhythmLaneResponse> out = new ArrayList<>();
         for (ReadingRhythm rhythm : rhythmRepo.findByUserIdOrderByCreatedAtAsc(userId)) {
             for (ReadingRhythmLane lane : rhythm.getLanes()) {
@@ -125,12 +144,12 @@ public class ReadingRhythmService {
 
     // ── Mutations ─────────────────────────────────────────────────────────────
 
-    public RhythmResponse create(Long userId, String title, List<RhythmLaneSpec> lanes) {
+    public RhythmResponse create(Long userId, String title, List<RhythmLaneSpec> lanes, ZoneId zone) {
         ReadingRhythm rhythm = new ReadingRhythm();
         rhythm.setUser(userRepo.getReferenceById(userId));
         rhythm.setTitle(validateTitle(title));
         applyLanes(rhythm, lanes);
-        return toResponse(saveHandlingDuplicateTitle(rhythm), markedTodayLaneIds(userId));
+        return toResponse(saveHandlingDuplicateTitle(rhythm), markedTodayLaneIds(userId, zone), zone);
     }
 
     /**
@@ -140,12 +159,12 @@ public class ReadingRhythmService {
      * updated in place, so its cursor survives a reorder or a book-list edit. Specs
      * without an id create fresh lanes; omitted lanes are deleted via orphanRemoval.
      */
-    public RhythmResponse update(Long userId, Long id, String title, List<RhythmLaneSpec> lanes) {
+    public RhythmResponse update(Long userId, Long id, String title, List<RhythmLaneSpec> lanes, ZoneId zone) {
         ReadingRhythm rhythm = findOwned(userId, id);
         rhythm.setTitle(validateTitle(title));
         applyLanes(rhythm, lanes);
         rhythm.touch();
-        return toResponse(saveHandlingDuplicateTitle(rhythm), markedTodayLaneIds(userId));
+        return toResponse(saveHandlingDuplicateTitle(rhythm), markedTodayLaneIds(userId, zone), zone);
     }
 
     public void delete(Long userId, Long id) {
@@ -193,12 +212,12 @@ public class ReadingRhythmService {
     }
 
     /** Clears a lane's cursor so it starts over from its first book. */
-    public RhythmLaneResponse restartLane(Long userId, Long laneId) {
+    public RhythmLaneResponse restartLane(Long userId, Long laneId, ZoneId zone) {
         ReadingRhythmLane lane = findOwnedLane(userId, laneId);
         lane.resetCursor();
         lane.getRhythm().touch();
         // Restarting clears the cursor, not the history — today's marks still stand.
-        return toLaneResponse(lane, markedTodayLaneIds(userId));
+        return toLaneResponse(lane, markedTodayLaneIds(userId, zone));
     }
 
     // ── Lane assembly ─────────────────────────────────────────────────────────
@@ -333,8 +352,8 @@ public class ReadingRhythmService {
 
     // ── Response mapping ──────────────────────────────────────────────────────
 
-    private RhythmResponse toResponse(ReadingRhythm rhythm, Set<Long> markedToday) {
-        short today = (short) LocalDate.now().getDayOfWeek().getValue();
+    private RhythmResponse toResponse(ReadingRhythm rhythm, Set<Long> markedToday, ZoneId zone) {
+        short today = (short) LocalDate.now(zone).getDayOfWeek().getValue();
         List<RhythmLaneResponse> lanes = rhythm.getLanes().stream()
                 .map(l -> toLaneResponse(l, markedToday))
                 .toList();
@@ -432,9 +451,19 @@ public class ReadingRhythmService {
         if (bookIds.size() > MAX_BOOKS_PER_LANE) {
             throw new BadRequestException("A lane may hold at most " + MAX_BOOKS_PER_LANE + " books");
         }
+        Set<Integer> seen = new HashSet<>();
         for (Integer bookId : bookIds) {
             if (bookId == null || bibleService.getBook(bookId).isEmpty()) {
                 throw new BadRequestException("Unknown book: " + bookId);
+            }
+            // The cursor is keyed on book id, so a second occurrence is
+            // indistinguishable from the first: nextReading would advance into it
+            // while chaptersRead resolved back to the earlier one, stranding the
+            // reader. Reject rather than make the cursor occurrence-aware — a lane
+            // listing the same book twice has no meaning for this feature.
+            if (!seen.add(bookId)) {
+                String name = bibleService.getBook(bookId).map(Book::name).orElse("Book " + bookId);
+                throw new BadRequestException(name + " is already in this lane");
             }
         }
         return bookIds;

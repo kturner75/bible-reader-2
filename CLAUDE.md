@@ -158,6 +158,18 @@ day does *not* settle this way; completing it advances `currentDay`, so the plan
 immediately becomes today's reading. That is pre-existing plan behaviour and deliberately
 supports catching up by completing several days in a sitting.
 
+**Two gotchas worth not re-learning:**
+- `uq_reading_rhythm_lane_position` is **DEFERRABLE INITIALLY DEFERRED** (V20). Reordering lanes
+  swaps positions, and Hibernate's per-entity UPDATEs transiently duplicate one; an immediate
+  constraint fails the first statement.
+- A book appears **at most once per lane**. The cursor is keyed on book id, so a repeat is
+  ambiguous — `nextReading` would advance into the second occurrence while `chaptersRead`
+  resolved back to the first. Rejected in `validateBookIds`.
+
+**Time zone:** clients send `X-Time-Zone` (IANA); the server uses it for the `markedToday` /
+`todayLaneIds` day boundary so it agrees with the browser's weekday. Absent or unparseable falls
+back to the server zone rather than failing the read.
+
 **Reader integration:** `/read?vid=…&lane=N` shows a chip in the reading footer with a
 **Stopped here** button that marks the currently displayed chapter. It lives in `.reading-footer`
 — never in `.reading-area` — so it costs no reading height and does not affect pagination
