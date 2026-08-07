@@ -19,6 +19,20 @@
         return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    /**
+     * Calendar date of a Date in the *browser's* zone.
+     *
+     * toISOString() converts to UTC first, so east of UTC a local midnight lands on
+     * the previous day — the heatmap would read an August 7 count into the August 8
+     * cell. The activity API now keys its buckets by the caller's zone, so the cell
+     * keys have to be built the same way.
+     */
+    function localIsoDate(date) {
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${date.getFullYear()}-${m}-${d}`;
+    }
+
 
     const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -1094,11 +1108,58 @@
         renderDraftLanes();
     });
 
-    document.getElementById('rhythm-template-btn').addEventListener('click', () => {
+    /**
+     * Applies the weekly template to the draft.
+     *
+     * Template entries carry no lane id, so applying them verbatim to an existing
+     * rhythm would make every lane look new: applyLanes would orphan-remove the old
+     * rows and the FK cascade would take their progress log with them — cursors and
+     * activity history gone, with no warning. So reuse the id of whichever existing
+     * lane the template entry corresponds to (same weekday, else same name) and carry
+     * its cursor across. Anything genuinely left out is named in a confirm.
+     */
+    function applyWeeklyTemplate() {
+        const byDay  = new Map();
+        const byName = new Map();
+        draft.lanes.forEach(l => {
+            if (l.id == null) return;
+            if (l.dayOfWeek != null && !byDay.has(l.dayOfWeek)) byDay.set(l.dayOfWeek, l);
+            const key = l.name.trim().toLowerCase();
+            if (!byName.has(key)) byName.set(key, l);
+        });
+
+        const reused = new Set();
+        const lanes = WEEKLY_TEMPLATE.map(t => {
+            const prior = byDay.get(t.dayOfWeek) || byName.get(t.name.toLowerCase()) || null;
+            if (prior) reused.add(prior.id);
+            return newLaneDraft({
+                id: prior ? prior.id : null,
+                name: t.name,
+                dayOfWeek: t.dayOfWeek,
+                bookIds: t.bookIds,
+                // Carry progress across. If the cursor's book is not in the template's
+                // list the server resets that lane, which is the honest outcome.
+                cursorBookId: prior ? prior.cursorBookId : null,
+                cursorChapter: prior ? prior.cursorChapter : 0,
+            });
+        });
+
+        const dropped = draft.lanes.filter(l => l.id != null && !reused.has(l.id));
+        if (dropped.length) {
+            const names = dropped.map(l => l.name).join(', ');
+            const ok = confirm(
+                `The weekly template has no place for ${dropped.length} of your lanes ` +
+                `(${names}).\n\nApplying it will delete them and their reading progress. ` +
+                `Lanes that match a template day keep theirs.\n\nContinue?`);
+            if (!ok) return;
+        }
+
         if (!rbTitle.value.trim()) rbTitle.value = 'Weekly Rhythm';
-        draft.lanes = WEEKLY_TEMPLATE.map(newLaneDraft);
+        draft.lanes = lanes;
         renderDraftLanes();
-    });
+    }
+
+    document.getElementById('rhythm-template-btn').addEventListener('click', applyWeeklyTemplate);
 
     rbDeleteBtn.addEventListener('click', async () => {
         if (!draft?.id) return;
@@ -1244,7 +1305,7 @@
                 if (date > today) {
                     cell.classList.add('heat-future');
                 } else {
-                    const iso   = date.toISOString().slice(0, 10);
+                    const iso   = localIsoDate(date);
                     const count = data[iso] || 0;
                     const level = count === 0 ? 0 : count === 1 ? 1 : count <= 3 ? 2 : count <= 6 ? 3 : 4;
                     cell.classList.add(`heat-${level}`);
