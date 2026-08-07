@@ -640,10 +640,23 @@
         renderTodayReadingCard();
     }
 
+    /**
+     * Lanes with a mutation in flight.
+     *
+     * A lane scheduled for today is rendered twice — today's card and the All lanes
+     * row — each with its own buttons. Disabling the clicked one leaves the other
+     * live until the response lands and refreshLane() re-renders, so during a slow
+     * request the second copy can submit the same chapter again. The progress log is
+     * append-only, so that double-counts activity. Guard the lane, not the button.
+     */
+    const laneMutationsInFlight = new Set();
+
     function attachLaneListeners(el, lane, rhythm, isToday) {
         const markBtn = el.querySelector('.rhythm-mark-btn');
         if (markBtn) {
             markBtn.addEventListener('click', async () => {
+                if (laneMutationsInFlight.has(lane.id)) return;
+                laneMutationsInFlight.add(lane.id);
                 markBtn.disabled = true;
                 markBtn.textContent = 'Marking…';
                 try {
@@ -660,6 +673,8 @@
                 } catch (_) {
                     markBtn.disabled = false;
                     markBtn.textContent = 'Try again';
+                } finally {
+                    laneMutationsInFlight.delete(lane.id);
                 }
             });
         }
@@ -667,6 +682,8 @@
         const restartBtn = el.querySelector('.rhythm-restart-btn');
         if (restartBtn) {
             restartBtn.addEventListener('click', async () => {
+                if (laneMutationsInFlight.has(lane.id)) return;
+                laneMutationsInFlight.add(lane.id);
                 restartBtn.disabled = true;
                 try {
                     const res = await rhythmFetch(`/api/rhythms/lanes/${lane.id}/restart`, {
@@ -676,6 +693,8 @@
                     refreshLane(await res.json(), rhythm);
                 } catch (_) {
                     restartBtn.disabled = false;
+                } finally {
+                    laneMutationsInFlight.delete(lane.id);
                 }
             });
         }
@@ -1128,9 +1147,17 @@
             if (!byName.has(key)) byName.set(key, l);
         });
 
+        // One existing lane can satisfy at most one template entry. A lane named
+        // "Sunday" but scheduled for Monday matches Monday by weekday and Sunday by
+        // name; without this check both entries would carry the same lane id, and
+        // applyLanes would mutate that one entity twice — the second entry winning
+        // and a template lane vanishing.
         const reused = new Set();
+        const claim = (candidate) =>
+            candidate && !reused.has(candidate.id) ? candidate : null;
+
         const lanes = WEEKLY_TEMPLATE.map(t => {
-            const prior = byDay.get(t.dayOfWeek) || byName.get(t.name.toLowerCase()) || null;
+            const prior = claim(byDay.get(t.dayOfWeek)) || claim(byName.get(t.name.toLowerCase()));
             if (prior) reused.add(prior.id);
             return newLaneDraft({
                 id: prior ? prior.id : null,

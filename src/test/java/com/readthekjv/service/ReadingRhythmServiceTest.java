@@ -461,6 +461,18 @@ class ReadingRhythmServiceTest {
     }
 
     @Test
+    void updateRejectsTheSameLaneSubmittedTwice() {
+        // Two specs naming one lane would mutate a single entity twice and drop a
+        // lane. Reject rather than half-apply.
+        ReadingRhythm rhythm = sundayLane().getRhythm();
+        when(rhythmRepo.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(rhythm));
+
+        assertThrows(BadRequestException.class, () -> service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
+                new RhythmLaneSpec(1L, "Sunday", (short) 7, sundayBookIds(), null, null, null),
+                new RhythmLaneSpec(1L, "Monday", (short) 1, sundayBookIds(), null, null, null)), ZONE));
+    }
+
+    @Test
     void createRejectsALaneWithADuplicateBook() {
         // The cursor is keyed on book id, so a repeat is indistinguishable from the
         // first occurrence: nextReading would advance into it while chaptersRead

@@ -235,6 +235,16 @@ public class ReadingRhythmService {
             if (lane.getId() != null) existing.put(lane.getId(), lane);
         }
 
+        // Two specs naming the same lane would resolve to one entity, get mutated
+        // twice, and land in the list twice — the later spec silently winning and a
+        // lane disappearing. Reject rather than half-apply.
+        Set<Long> claimed = new HashSet<>();
+        for (RhythmLaneSpec spec : specs) {
+            if (spec.id() != null && !claimed.add(spec.id())) {
+                throw new BadRequestException("The same lane was submitted twice");
+            }
+        }
+
         List<ReadingRhythmLane> rebuilt = new ArrayList<>();
         for (RhythmLaneSpec spec : specs) {
             ReadingRhythmLane lane = spec.id() != null ? existing.get(spec.id()) : null;
