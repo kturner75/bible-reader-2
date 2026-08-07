@@ -1020,6 +1020,10 @@
                 // Only send a cursor when one is set; null leaves the server's alone.
                 cursorBookId: lane.cursorBookId,
                 cursorChapter: lane.cursorBookId ? lane.cursorChapter : null,
+                // The draft always carries the lane's full intended position, so no
+                // cursor here means "not started" — say so explicitly, or the server
+                // reads it as "untouched" and restores the old progress.
+                clearCursor: lane.cursorBookId === null,
             })),
         };
     }

@@ -14,6 +14,11 @@ import java.util.List;
  * @param cursorBookId optional explicit cursor book (used by "set position");
  *                     null leaves the existing cursor untouched
  * @param cursorChapter chapters finished in cursorBookId; ignored when cursorBookId is null
+ * @param clearCursor  explicitly send the lane back to not-started. Needed because a
+ *                     null {@code cursorBookId} means "leave it alone", so choosing
+ *                     "Not started" in the builder would otherwise be indistinguishable
+ *                     from never touching the control and the save would silently
+ *                     restore the old progress. Takes precedence over cursorBookId.
  */
 public record RhythmLaneSpec(
         Long id,
@@ -21,5 +26,6 @@ public record RhythmLaneSpec(
         Short dayOfWeek,
         List<Integer> bookIds,
         Integer cursorBookId,
-        Integer cursorChapter
+        Integer cursorChapter,
+        Boolean clearCursor
 ) {}

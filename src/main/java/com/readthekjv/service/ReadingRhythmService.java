@@ -264,7 +264,11 @@ public class ReadingRhythmService {
      * leaving progress pointing into nothing.
      */
     private void applyCursor(ReadingRhythmLane lane, RhythmLaneSpec spec) {
-        if (spec.cursorBookId() != null) {
+        // An explicit "Not started" has to be distinguishable from an untouched
+        // control, since both leave cursorBookId null.
+        if (Boolean.TRUE.equals(spec.clearCursor())) {
+            lane.resetCursor();
+        } else if (spec.cursorBookId() != null) {
             int chapter = spec.cursorChapter() == null ? 0 : spec.cursorChapter();
             Book book = bibleService.getBook(spec.cursorBookId())
                     .orElseThrow(() -> new BadRequestException("Unknown book: " + spec.cursorBookId()));

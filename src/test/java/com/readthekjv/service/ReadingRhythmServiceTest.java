@@ -341,8 +341,8 @@ class ReadingRhythmServiceTest {
     @Test
     void createBuildsLanesInOrderWithTheirWeekdays() {
         RhythmResponse resp = service.create(USER_ID, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), null, null),
-                new RhythmLaneSpec(null, "Gospels", null, List.of(bookId("Mark")), null, null)), ZONE);
+                new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), null, null, null),
+                new RhythmLaneSpec(null, "Gospels", null, List.of(bookId("Mark")), null, null, null)), ZONE);
 
         assertEquals(2, resp.lanes().size());
         assertEquals("Sunday", resp.lanes().get(0).name());
@@ -356,9 +356,9 @@ class ReadingRhythmServiceTest {
         // unset value fails the INSERT — which mocked repositories cannot reveal.
         ArgumentCaptor<ReadingRhythm> saved = ArgumentCaptor.forClass(ReadingRhythm.class);
         service.create(USER_ID, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(null, "Sunday",  (short) 7, sundayBookIds(), null, null),
-                new RhythmLaneSpec(null, "Monday",  (short) 1, sundayBookIds(), null, null),
-                new RhythmLaneSpec(null, "Tuesday", (short) 2, sundayBookIds(), null, null)), ZONE);
+                new RhythmLaneSpec(null, "Sunday",  (short) 7, sundayBookIds(), null, null, null),
+                new RhythmLaneSpec(null, "Monday",  (short) 1, sundayBookIds(), null, null, null),
+                new RhythmLaneSpec(null, "Tuesday", (short) 2, sundayBookIds(), null, null, null)), ZONE);
 
         verify(rhythmRepo).saveAndFlush(saved.capture());
         List<ReadingRhythmLane> lanes = saved.getValue().getLanes();
@@ -371,8 +371,8 @@ class ReadingRhythmServiceTest {
         when(rhythmRepo.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(rhythm));
 
         service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(null, "Monday", (short) 1, sundayBookIds(), null, null),
-                new RhythmLaneSpec(1L,   "Sunday", (short) 7, sundayBookIds(), null, null)), ZONE);
+                new RhythmLaneSpec(null, "Monday", (short) 1, sundayBookIds(), null, null, null),
+                new RhythmLaneSpec(1L,   "Sunday", (short) 7, sundayBookIds(), null, null, null)), ZONE);
 
         assertEquals(List.of(0, 1),
                 rhythm.getLanes().stream().map(ReadingRhythmLane::getPosition).toList());
@@ -382,7 +382,7 @@ class ReadingRhythmServiceTest {
     @Test
     void createHonoursAnExplicitStartingPosition() {
         RhythmResponse resp = service.create(USER_ID, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), bookId("Luke"), 7)), ZONE);
+                new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), bookId("Luke"), 7, null)), ZONE);
 
         assertEquals(51, resp.lanes().get(0).chaptersRead());
         assertEquals(8, resp.lanes().get(0).nextReading().chapter());
@@ -397,7 +397,7 @@ class ReadingRhythmServiceTest {
         List<Integer> reordered = List.of(bookId("Matthew"), bookId("Mark"), bookId("John"),
                                           bookId("Luke"), bookId("Acts"), bookId("Romans"));
         RhythmResponse resp = service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(1L, "Sunday", (short) 7, reordered, null, null)), ZONE);
+                new RhythmLaneSpec(1L, "Sunday", (short) 7, reordered, null, null, null)), ZONE);
 
         RhythmLaneResponse lane = resp.lanes().get(0);
         assertEquals(bookId("Luke"), lane.cursorBookId(), "cursor survives the reorder");
@@ -415,7 +415,7 @@ class ReadingRhythmServiceTest {
         List<Integer> withoutLuke = List.of(bookId("Matthew"), bookId("Mark"),
                                             bookId("John"), bookId("Acts"), bookId("Romans"));
         RhythmResponse resp = service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
-                new RhythmLaneSpec(1L, "Sunday", (short) 7, withoutLuke, null, null)), ZONE);
+                new RhythmLaneSpec(1L, "Sunday", (short) 7, withoutLuke, null, null, null)), ZONE);
 
         RhythmLaneResponse lane = resp.lanes().get(0);
         assertNull(lane.cursorBookId());
@@ -429,7 +429,35 @@ class ReadingRhythmServiceTest {
 
         assertThrows(org.springframework.web.server.ResponseStatusException.class,
                 () -> service.update(OTHER_ID, 7L, "Weekly Rhythm", List.of(
-                        new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), null, null)), ZONE));
+                        new RhythmLaneSpec(null, "Sunday", (short) 7, sundayBookIds(), null, null, null)), ZONE));
+    }
+
+    @Test
+    void updateAppliesAnExplicitNotStartedReset() {
+        ReadingRhythm rhythm = sundayLane().getRhythm();
+        when(rhythmRepo.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(rhythm));
+
+        RhythmResponse resp = service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
+                new RhythmLaneSpec(1L, "Sunday", (short) 7, sundayBookIds(), null, null, true)), ZONE);
+
+        RhythmLaneResponse lane = resp.lanes().get(0);
+        assertNull(lane.cursorBookId(), "\"Not started\" must actually clear the cursor");
+        assertEquals(0, lane.chaptersRead());
+        assertEquals("Matthew", lane.nextReading().bookName());
+    }
+
+    @Test
+    void updateWithoutAResetSignalLeavesTheCursorAlone() {
+        // A null cursor with clearCursor unset still means "untouched" — this is what
+        // keeps progress through an ordinary rename or book-list edit.
+        ReadingRhythm rhythm = sundayLane().getRhythm();
+        when(rhythmRepo.findByIdAndUserId(7L, USER_ID)).thenReturn(Optional.of(rhythm));
+
+        RhythmResponse resp = service.update(USER_ID, 7L, "Weekly Rhythm", List.of(
+                new RhythmLaneSpec(1L, "Sunday Renamed", (short) 7, sundayBookIds(), null, null, null)), ZONE);
+
+        assertEquals(bookId("Luke"), resp.lanes().get(0).cursorBookId());
+        assertEquals(51, resp.lanes().get(0).chaptersRead());
     }
 
     @Test
@@ -441,7 +469,7 @@ class ReadingRhythmServiceTest {
                 () -> service.create(USER_ID, "Weekly Rhythm", List.of(
                         new RhythmLaneSpec(null, "Sunday", (short) 7,
                                 List.of(bookId("Matthew"), bookId("Mark"), bookId("Matthew")),
-                                null, null)), ZONE));
+                                null, null, null)), ZONE));
         assertTrue(e.getMessage().contains("Matthew"), e.getMessage());
     }
 
@@ -473,12 +501,12 @@ class ReadingRhythmServiceTest {
     @Test
     void createRejectsALaneWithNoBooks() {
         assertThrows(BadRequestException.class, () -> service.create(USER_ID, "Weekly Rhythm",
-                List.of(new RhythmLaneSpec(null, "Sunday", (short) 7, List.of(), null, null)), ZONE));
+                List.of(new RhythmLaneSpec(null, "Sunday", (short) 7, List.of(), null, null, null)), ZONE));
     }
 
     @Test
     void createRejectsAnOutOfRangeWeekday() {
         assertThrows(BadRequestException.class, () -> service.create(USER_ID, "Weekly Rhythm",
-                List.of(new RhythmLaneSpec(null, "Sunday", (short) 8, sundayBookIds(), null, null)), ZONE));
+                List.of(new RhythmLaneSpec(null, "Sunday", (short) 8, sundayBookIds(), null, null, null)), ZONE));
     }
 }
