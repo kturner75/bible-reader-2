@@ -61,6 +61,8 @@ Static files in `src/main/resources/static/`:
 | `GET /api/search?q=&limit=` | Full-text Lucene search |
 | `GET /api/reference?ref=` | Parse Bible reference string |
 | `GET /api/navigate/{currentId}` | Navigation helpers |
+| `GET /api/plans` | Pre-built reading plans (finite, day-numbered) |
+| `GET /api/rhythms` | User-defined reading rhythms (recurring lanes) |
 
 ## Non-Negotiables
 
@@ -114,6 +116,72 @@ Users can save verses with optional tags and notes. All data persists in localSt
 - Gospels, Acts, Pauline Epistles, General Epistles, Revelation
 
 **Z-Index Hierarchy:** header=100, search=200, library=250, help=300, tag picker/note editor=350, loading=400
+
+## Reading Plans vs. Reading Rhythms
+
+Two distinct concepts — keep the language straight:
+
+| | **Reading Plan** | **Reading Rhythm** |
+|---|---|---|
+| Shape | finite, goal-oriented | recurring, self-paced |
+| Content | numbered days of fixed verse ranges | lanes, each an ordered book list |
+| Progress | `currentDay` of `totalDays` | per-lane chapter cursor |
+| Origin | seeded, shared across users | user-defined, per account |
+| Schema | V10/V11 `reading_plans` | V19 `reading_rhythms` |
+| API | `/api/plans` | `/api/rhythms` |
+| Leaving | `DELETE /{id}/enroll` · `POST /{id}/restart` | `DELETE /api/rhythms/{id}` |
+
+**Leaving a plan never deletes history.** `unenroll` removes only the enrollment row;
+`reading_plan_completions` survives, because those rows record days actually read and feed the
+activity heatmap and streak. Re-enrolling therefore starts at day 1. `restart` is the same idea
+for a finished plan — resets `current_day` without dropping the enrollment. Caveat: `completeDay`
+is guarded by a unique key on `(user, plan, day)`, so a second pass through a plan re-treads
+recorded days and those repeats add nothing to the heatmap.
+
+**Rhythm cursor:** a lane's position is `(cursorBookId, cursorChapter)` — the last chapter
+finished. Books earlier in the lane are complete, later ones untouched, so per-book "chapters
+read" is derived and never stored. `cursorBookId` is a *book id*, not a list index, so reordering
+the lane preserves progress; removing the cursor book resets the lane to not-started.
+
+**`dayOfWeek` is a surfacing hint, never a gate.** ISO 1–7, nullable. It only decides which lane
+the dashboard leads with today. `ReadingRhythmService` never consults the current date when
+validating a mutation — any lane can be read and marked on any day, and the "All lanes" list
+carries the same actions as today's card. Do not add weekday checks to progress endpoints.
+
+**"Today's Reading" card** spans both concepts. It lists every outstanding item — enrolled,
+unfinished plan days plus today's unmarked rhythm lanes — ordered plans-first (a plan has a
+deadline; a rhythm never does). One item names the passage and opens it; two or more show a count
+with the first two named and a "See all →" jump, mirroring how "Due for Review" handles a queue.
+A rhythm lane leaves the card once `markedToday` is true (any `reading_rhythm_progress` row dated
+today) — it stays fully readable, it simply stops being outstanding. Note the asymmetry: a plan
+day does *not* settle this way; completing it advances `currentDay`, so the plan's next day
+immediately becomes today's reading. That is pre-existing plan behaviour and deliberately
+supports catching up by completing several days in a sitting.
+
+**Reader integration:** `/read?vid=…&lane=N` shows a chip in the reading footer with a
+**Stopped here** button that marks the currently displayed chapter. It lives in `.reading-footer`
+— never in `.reading-area` — so it costs no reading height and does not affect pagination
+measurement. The footer is hidden at ≤600px, so `#mobile-menu-rhythm` carries the same action in
+the mobile bottom sheet.
+
+## Dashboard Layout
+
+Section order is by **volatility** — what changes daily sits high, retrospective content sits low:
+Memorization Queue → Reading Rhythms → Reading Plans → Sermon Notes → Activity.
+
+Three `<details>` disclosures keep secondary content one click away rather than letting it become
+the page's bulk. Nothing is hidden behind navigation; the page is ~2000px instead of ~4000px.
+
+- **All lanes** (`#rhythm-all-disclosure`) — collapsed by default; opens automatically only when
+  no lane is scheduled today, so the Rhythms section is never empty-looking.
+- **Add a featured passage** (`#featured-disclosure`) — lives *inside* the Memorization Queue,
+  because it is a catalogue serving that intent, not a status of its own. Opens by default only
+  when the queue is empty, and removes itself once every passage has been queued.
+- **Activity** (`#activity-details`) — the heatmap computes cell positions arithmetically, not
+  from measured widths, so it renders correctly while collapsed.
+
+If adding a section, ask whether it reports *state* (belongs here) or offers a *catalogue*
+(belongs inside the section whose intent it serves).
 
 ## Data
 

@@ -52,12 +52,22 @@ public class ReadingPlanController {
         return planService.enroll(resolveUser(ud).getId(), planId);
     }
 
-    /** Unenroll from a plan (idempotent — no-op if not enrolled). */
+    /**
+     * Unenroll from a plan (idempotent — no-op if not enrolled).
+     * Keeps the user's completion history; only the enrollment is removed.
+     */
     @DeleteMapping("/{planId}/enroll")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unenroll(@AuthenticationPrincipal UserDetails ud,
                          @PathVariable UUID planId) {
         planService.unenroll(resolveUser(ud).getId(), planId);
+    }
+
+    /** Send an existing enrollment back to day 1, keeping completion history. */
+    @PostMapping("/{planId}/restart")
+    public ReadingPlanResponse restart(@AuthenticationPrincipal UserDetails ud,
+                                       @PathVariable UUID planId) {
+        return planService.restart(resolveUser(ud).getId(), planId);
     }
 
     /** Mark the current day complete and advance to the next day. */

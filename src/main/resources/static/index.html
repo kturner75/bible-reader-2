@@ -69,6 +69,13 @@
 
     <!-- Reading Footer: secondary controls -->
     <footer class="reading-footer">
+        <!-- Rhythm lane chip — present only when arriving via ?lane= -->
+        <div class="rhythm-chip" id="rhythm-chip" hidden>
+            <span class="rhythm-chip-lane" id="rhythm-chip-lane"></span>
+            <button id="rhythm-chip-mark" title="Record that you read through this chapter">
+                Stopped here
+            </button>
+        </div>
         <div class="audio-controls" id="audio-controls" hidden>
             <button id="audio-toggle" aria-label="Toggle audio" title="Play audio (p)">
                 <span class="audio-icon">&#128266;</span>
@@ -464,6 +471,12 @@
         <div class="mobile-menu-sheet">
             <div class="mobile-menu-handle"></div>
             <nav class="mobile-menu-items">
+                <!-- Only shown when the reader was opened from a rhythm lane;
+                     the footer chip that normally carries this is hidden ≤600px. -->
+                <button class="mobile-menu-item" id="mobile-menu-rhythm" hidden>
+                    <span class="mobile-menu-icon">&#9203;</span>
+                    <span class="mobile-menu-label" id="mobile-menu-rhythm-label">Stopped here</span>
+                </button>
                 <button class="mobile-menu-item" id="mobile-menu-search">
                     <span class="mobile-menu-icon">&#128269;</span>
                     <span class="mobile-menu-label">Search</span>

@@ -164,6 +164,46 @@ body {
     gap: 0.25rem;
 }
 
+/* Reading rhythm lane chip — sits inside the existing footer, so it costs the
+   reading area no height and never touches pagination measurement. */
+.rhythm-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.rhythm-chip[hidden] { display: none; }
+
+.rhythm-chip-lane {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 22ch;
+}
+
+#rhythm-chip-mark {
+    font-family: var(--font-primary);
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: white;
+    color: var(--color-text);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+#rhythm-chip-mark:hover:not(:disabled) {
+    background: var(--color-header-bg);
+    border-color: var(--color-text-muted);
+}
+
+#rhythm-chip-mark:disabled { opacity: 0.7; cursor: default; }
+
 /* Audio Controls */
 .audio-controls {
     display: flex;
