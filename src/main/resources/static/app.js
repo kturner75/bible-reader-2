@@ -76,6 +76,7 @@
         // offers to record where the session ended. Null when reading normally.
         rhythmLaneId: null,
         rhythmLane: null,                  // RhythmLaneResponse once fetched
+        rhythmMarkInFlight: null,          // in-flight mark promise; blocks duplicate submits
         // Memorization
         memorizationOpen: false,           // memorization queue modal state
         memorizedPassages: {},             // { naturalKey: entryId } e.g. { "26930": "uuid" }
@@ -2564,32 +2565,53 @@
         }
     }
 
-    /** @returns {Promise<boolean>} whether the chapter was actually recorded. */
-    async function markRhythmStoppedHere() {
+    /**
+     * Records the displayed chapter against the lane.
+     *
+     * Guarded on the operation, not the button: disabling the footer control only
+     * protects the desktop path, and that control is hidden at ≤600px. On mobile the
+     * sheet closes immediately, so a reader could reopen it and tap again while the
+     * first POST was still in flight — and the progress log is append-only, so the
+     * duplicate would inflate the activity heatmap. A concurrent caller now awaits
+     * the in-flight request instead of starting a second one, so its toast still
+     * reports the real outcome.
+     *
+     * @returns {Promise<boolean>} whether the chapter was actually recorded.
+     */
+    function markRhythmStoppedHere() {
+        if (state.rhythmMarkInFlight) return state.rhythmMarkInFlight;
+
         const target = currentRhythmChapter();
-        if (!target || !state.rhythmLaneId) return false;
+        if (!target || !state.rhythmLaneId) return Promise.resolve(false);
 
         const button = elements.rhythmChipMark;
         button.disabled = true;
         button.textContent = 'Saving…';
-        try {
-            const res = await fetch(`/api/rhythms/lanes/${state.rhythmLaneId}/progress`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json', ...rhythmTzHeader() },
-                body: JSON.stringify({ bookId: target.bookId, throughChapter: target.chapter })
-            });
-            if (!res.ok) throw new Error('mark failed');
-            state.rhythmLane = await res.json();
-            button.textContent = 'Saved ✓';
-            // Leave the confirmation up briefly, then return to the live label.
-            setTimeout(updateRhythmChip, 1800);
-            return true;
-        } catch (_) {
-            button.disabled = false;
-            button.textContent = 'Try again';
-            return false;
-        }
+
+        state.rhythmMarkInFlight = (async () => {
+            try {
+                const res = await fetch(`/api/rhythms/lanes/${state.rhythmLaneId}/progress`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json', ...rhythmTzHeader() },
+                    body: JSON.stringify({ bookId: target.bookId, throughChapter: target.chapter })
+                });
+                if (!res.ok) throw new Error('mark failed');
+                state.rhythmLane = await res.json();
+                button.textContent = 'Saved ✓';
+                // Leave the confirmation up briefly, then return to the live label.
+                setTimeout(updateRhythmChip, 1800);
+                return true;
+            } catch (_) {
+                button.disabled = false;
+                button.textContent = 'Try again';
+                return false;
+            } finally {
+                state.rhythmMarkInFlight = null;
+            }
+        })();
+
+        return state.rhythmMarkInFlight;
     }
 
     async function loadBookNotesFromApi() {
