@@ -470,12 +470,6 @@ a:hover { text-decoration: underline; }
     flex-shrink: 0;
 }
 
-.plan-done-label {
-    font-size: 0.875rem;
-    color: var(--color-accent);
-    font-style: italic;
-}
-
 /* ── Plans — Mobile (≤640px) ──────────────────────────────────────────────── */
 
 @media (max-width: 640px) {
@@ -487,6 +481,446 @@ a:hover { text-decoration: underline; }
     .plan-actions {
         flex-wrap: wrap;
     }
+}
+
+/* ── Reading Rhythms ──────────────────────────────────────────────────────── */
+
+#rhythms-section .section-header { gap: 0.75rem; }
+#rhythm-new-btn { margin-left: auto; }
+
+/* ── Section disclosures ──────────────────────────────────────────────────── */
+/* Shared by "All lanes", "Add a featured passage", and the Activity heatmap:
+   secondary content stays one click away instead of becoming the page's bulk. */
+
+.rhythm-all-disclosure > summary,
+.featured-disclosure > summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    padding: 0.6rem 0;
+    list-style-position: outside;
+}
+.rhythm-all-disclosure > summary:hover,
+.featured-disclosure > summary:hover { color: var(--color-text); }
+
+.featured-disclosure { margin-top: 0.75rem; }
+.featured-disclosure[hidden] { display: none; }
+.rhythm-all-disclosure[hidden] { display: none; }
+
+/* The heatmap's summary carries the section heading itself. */
+.section-summary {
+    cursor: pointer;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 1rem;
+}
+.section-summary:hover .section-title { color: var(--color-link); }
+#activity-details[open] .section-summary { margin-bottom: 1rem; }
+
+.rhythm-group-label {
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin: 1rem 0 0.4rem;
+}
+.rhythm-group-label:first-child { margin-top: 0; }
+
+.rhythm-none-today {
+    text-transform: none;
+    letter-spacing: 0;
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
+/* Per-rhythm title bar — the visible home for Edit and Delete. */
+.rhythm-group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.5rem 0 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+    margin-top: 0.5rem;
+}
+
+.rhythm-group-title { font-weight: 500; font-size: 0.98rem; }
+.rhythm-group-count { font-size: 0.8rem; color: var(--color-text-muted); }
+.rhythm-group-head .rhythm-edit-btn { margin-left: auto; }
+.rhythm-group-head .btn-secondary { padding: 0.2rem 0.6rem; font-size: 0.82rem; }
+
+.rhythm-group-lanes { margin-bottom: 0.5rem; }
+
+/* Quiet inline action — "Set position", "Delete", "Leave". Shared by plans and
+   rhythms so a low-stakes or destructive action reads the same in both sections. */
+.link-btn,
+.rhythm-link-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-primary);
+    font-size: 0.82rem;
+    color: var(--color-link);
+    padding: 0.2rem 0;
+}
+.link-btn:hover:not(:disabled),
+.rhythm-link-btn:hover:not(:disabled) { text-decoration: underline; }
+.link-btn:disabled,
+.rhythm-link-btn:disabled { opacity: 0.5; cursor: default; }
+
+.rhythm-delete-btn,
+.plan-leave-btn { color: #a33; }
+
+/* Today's lane — the lead card */
+.rhythm-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.6rem;
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-accent);
+    border-radius: 6px;
+    background: var(--color-header-bg);
+}
+
+/* Any other lane — same actions, quieter presentation */
+.rhythm-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.rhythm-row:last-child { border-bottom: none; }
+
+.rhythm-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.rhythm-lane-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+.rhythm-lane-name { font-weight: 500; font-size: 1rem; }
+.rhythm-lane-day,
+.rhythm-lane-of {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+/* Separator sits on the rhythm title so it reads correctly whether or not the
+   day chip is present (it is omitted when the lane is named after its day). */
+.rhythm-lane-of::before { content: '· '; }
+
+.rhythm-next {
+    font-size: 0.95rem;
+    color: var(--color-link);
+}
+.rhythm-next-empty {
+    font-size: 0.9rem;
+    font-style: italic;
+    color: var(--color-text-muted);
+}
+.rhythm-complete {
+    font-size: 0.95rem;
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+.rhythm-progress {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.rhythm-track {
+    height: 4px;
+    background: var(--color-border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 0.3rem;
+}
+.rhythm-fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.rhythm-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.rhythm-empty {
+    padding: 1.25rem 0;
+    color: var(--color-text-muted);
+}
+.rhythm-empty-sub {
+    font-size: 0.9rem;
+    max-width: 46ch;
+    margin: 0.4rem 0 0.9rem;
+}
+
+/* ── Rhythm Builder ───────────────────────────────────────────────────────── */
+
+.rhythm-builder-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(44, 36, 22, 0.45);
+    z-index: 350;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.rhythm-builder-overlay[hidden] { display: none; }
+
+.rhythm-builder-modal {
+    background: var(--color-bg);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 680px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.rhythm-builder-header,
+.rhythm-builder-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+}
+.rhythm-builder-header { justify-content: space-between; border-bottom: 1px solid var(--color-border); }
+.rhythm-builder-footer { border-top: 1px solid var(--color-border); }
+.rhythm-builder-header h2 { font-size: 1.1rem; font-weight: 500; }
+.rb-spacer { flex: 1; }
+
+#rhythm-builder-close {
+    font-size: 1.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: 0.25rem;
+    line-height: 1;
+}
+#rhythm-builder-close:hover { color: var(--color-text); }
+
+#rhythm-delete-btn { color: #a33; border-color: #d9b5b5; }
+
+.rhythm-builder-body {
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+}
+
+.rb-field { display: block; margin-bottom: 1rem; }
+.rb-label {
+    display: block;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    margin-bottom: 0.3rem;
+}
+#rhythm-title-input {
+    width: 100%;
+    font-family: var(--font-primary);
+    font-size: 1.05rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--color-text);
+}
+#rhythm-title-input:focus { outline: none; border-color: var(--color-link); }
+
+.rb-toolbar { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.rb-hint {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-style: italic;
+    margin: 0.7rem 0 1rem;
+    max-width: 58ch;
+}
+
+.rb-error {
+    margin-top: 0.9rem;
+    font-size: 0.9rem;
+    color: #a33;
+}
+
+.rb-lane {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 0.8rem 0.9rem;
+    margin-bottom: 0.8rem;
+    background: var(--color-header-bg);
+}
+
+/* The lane arrived at via "Set position" — marked so it is obvious which one to edit. */
+.rb-lane-focused {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+}
+.rb-lane-focused .rb-lane-position {
+    color: var(--color-text);
+    font-weight: 500;
+}
+
+.rb-lane-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
+}
+.rb-lane-name,
+.rb-lane-day,
+.rb-position-book,
+.rb-position-chapter {
+    font-family: var(--font-primary);
+    font-size: 0.9rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--color-text);
+}
+.rb-lane-name { flex: 1; min-width: 0; }
+.rb-position-chapter { width: 5rem; }
+
+.rb-icon {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0.35rem 0.45rem;
+}
+.rb-icon:hover:not(:disabled) { color: var(--color-text); background: #fff; }
+.rb-icon:disabled { opacity: 0.35; cursor: default; }
+
+.rb-lane-books {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.6rem;
+}
+.rb-empty { font-size: 0.85rem; font-style: italic; color: var(--color-text-muted); }
+
+.rb-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 0.15rem 0.3rem 0.15rem 0.6rem;
+    font-size: 0.82rem;
+}
+.rb-chip-name { margin-right: 0.15rem; }
+.rb-chip-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    line-height: 1;
+    padding: 0.1rem 0.2rem;
+}
+.rb-chip-btn:hover:not(:disabled) { color: var(--color-text); }
+.rb-chip-btn:disabled { opacity: 0.3; cursor: default; }
+
+.rb-lane-position {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.rb-picker > summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--color-link);
+}
+.rb-picker-body {
+    margin-top: 0.6rem;
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 0.4rem;
+}
+
+.rb-category { margin-bottom: 0.7rem; }
+.rb-category-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-bottom: 0.2rem;
+}
+.rb-category-name {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+}
+.rb-category-all {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-primary);
+    font-size: 0.78rem;
+    color: var(--color-link);
+    padding: 0;
+}
+.rb-category-all:hover { text-decoration: underline; }
+
+.rb-category-books {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.1rem 0.6rem;
+}
+.rb-book {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+/* ── Rhythms — Mobile (≤640px) ────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .rhythm-card,
+    .rhythm-row {
+        grid-template-columns: 1fr;
+        row-gap: 0.6rem;
+    }
+    .rhythm-actions { flex-wrap: wrap; }
+    .rb-lane-head { flex-wrap: wrap; }
+    .rb-lane-name { flex-basis: 100%; }
+    .rb-category-books { grid-template-columns: 1fr 1fr; }
 }
 
 /* ── Activity Heatmap ─────────────────────────────────────────────────────── */

@@ -72,6 +72,11 @@
         audioPendingChapter: null, // { book, chapter } if chapter announcement pending
         audioWasPlayingBeforeModal: false,  // Track if audio was playing when modal opened
         mobileMenuOpen: false,             // Mobile quick-actions sheet
+        // Reading rhythm lane (?lane=N) — the reader was opened from a lane, so it
+        // offers to record where the session ended. Null when reading normally.
+        rhythmLaneId: null,
+        rhythmLane: null,                  // RhythmLaneResponse once fetched
+        rhythmMarkInFlight: null,          // in-flight mark promise; blocks duplicate submits
         // Memorization
         memorizationOpen: false,           // memorization queue modal state
         memorizedPassages: {},             // { naturalKey: entryId } e.g. { "26930": "uuid" }
@@ -247,6 +252,12 @@
         passageInsertConfirm: document.getElementById('passage-insert-confirm'),
         noteInsertPassageBtn: document.getElementById('note-insert-passage-btn'),
         chapterNoteInsertPassageBtn: document.getElementById('chapter-note-insert-passage-btn'),
+        // Reading rhythm lane chip (footer) + its mobile-menu equivalent
+        rhythmChip: document.getElementById('rhythm-chip'),
+        rhythmChipLane: document.getElementById('rhythm-chip-lane'),
+        rhythmChipMark: document.getElementById('rhythm-chip-mark'),
+        mobileMenuRhythm: document.getElementById('mobile-menu-rhythm'),
+        mobileMenuRhythmLabel: document.getElementById('mobile-menu-rhythm-label'),
         // Collection builder modal
         cbOverlay: document.getElementById('collection-builder-overlay'),
         cbTitle: document.getElementById('cb-title'),
@@ -1360,6 +1371,7 @@
         if (verse) {
             elements.currentReference.textContent = `${verse.book} ${verse.chapter}:${verse.verse}`;
         }
+        updateRhythmChip();
     }
 
     /**
@@ -2342,6 +2354,11 @@
         if (vidParam) {
             state.currentVerseId = parseInt(vidParam) || state.currentVerseId;
         }
+
+        const laneParam = parseInt(urlParams.get('lane'), 10);
+        if (Number.isFinite(laneParam)) {
+            state.rhythmLaneId = laneParam;
+        }
     }
 
     // ============================================
@@ -2473,6 +2490,128 @@
         const verse = state.pageVerses.find(v => v.id === state.currentVerseId);
         if (!verse) return null;
         return { type: 'book', bookId: verse.bookId, bookName: verse.book, label: verse.book };
+    }
+
+    // ============================================
+    // Reading Rhythm Lane Chip
+    // ============================================
+    //
+    // Shown only when the reader was opened from a lane (/read?vid=…&lane=N).
+    // It records where the session ended — the reader never advances a lane on
+    // its own, and the lane's weekday has no bearing on whether this works.
+
+    const DAY_NAMES_SHORT = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                             'Friday', 'Saturday', 'Sunday'];
+
+    /** Keeps the server's "marked today" boundary aligned with this browser's day. */
+    function rhythmTzHeader() {
+        return { 'X-Time-Zone': Intl.DateTimeFormat().resolvedOptions().timeZone || '' };
+    }
+
+    async function initRhythmLane() {
+        if (!state.rhythmLaneId) return;
+        try {
+            const res = await fetch(`/api/rhythms/lanes/${state.rhythmLaneId}`, {
+                credentials: 'include',
+                headers: rhythmTzHeader()
+            });
+            if (!res.ok) {                       // signed out, or not this user's lane
+                state.rhythmLaneId = null;
+                return;
+            }
+            state.rhythmLane = await res.json();
+            updateRhythmChip();
+        } catch (_) {
+            state.rhythmLaneId = null;
+        }
+    }
+
+    /** The chapter the reader is currently looking at, if the lane contains its book. */
+    function currentRhythmChapter() {
+        const verse = state.pageVerses.find(v => v.id === state.currentVerseId);
+        if (!verse || !state.rhythmLane) return null;
+        const inLane = state.rhythmLane.books.some(b => b.bookId === verse.bookId);
+        if (!inLane) return null;
+        return { bookId: verse.bookId, bookName: verse.book, chapter: verse.chapter };
+    }
+
+    function updateRhythmChip() {
+        if (!elements.rhythmChip) return;
+
+        const target = currentRhythmChapter();
+        if (!state.rhythmLane || !target) {
+            elements.rhythmChip.hidden = true;
+            if (elements.mobileMenuRhythm) elements.mobileMenuRhythm.hidden = true;
+            return;
+        }
+
+        // Omit the day when the lane is simply named after it — "Sunday · Sunday" is noise.
+        const dayName = state.rhythmLane.dayOfWeek
+            ? DAY_NAMES_SHORT[state.rhythmLane.dayOfWeek] : '';
+        const day = dayName && dayName.toLowerCase() !== state.rhythmLane.name.trim().toLowerCase()
+            ? `${dayName} · ` : '';
+        const label = `${target.bookName} ${target.chapter}`;
+
+        elements.rhythmChip.hidden = false;
+        elements.rhythmChipLane.textContent =
+            `${day}${state.rhythmLane.name} · ${label}`;
+        elements.rhythmChipMark.textContent = 'Stopped here';
+        elements.rhythmChipMark.disabled = false;
+        elements.rhythmChipMark.title = `Record ${label} as read in ${state.rhythmLane.name}`;
+
+        if (elements.mobileMenuRhythm) {
+            elements.mobileMenuRhythm.hidden = false;
+            elements.mobileMenuRhythmLabel.textContent = `Stopped at ${label}`;
+        }
+    }
+
+    /**
+     * Records the displayed chapter against the lane.
+     *
+     * Guarded on the operation, not the button: disabling the footer control only
+     * protects the desktop path, and that control is hidden at ≤600px. On mobile the
+     * sheet closes immediately, so a reader could reopen it and tap again while the
+     * first POST was still in flight — and the progress log is append-only, so the
+     * duplicate would inflate the activity heatmap. A concurrent caller now awaits
+     * the in-flight request instead of starting a second one, so its toast still
+     * reports the real outcome.
+     *
+     * @returns {Promise<boolean>} whether the chapter was actually recorded.
+     */
+    function markRhythmStoppedHere() {
+        if (state.rhythmMarkInFlight) return state.rhythmMarkInFlight;
+
+        const target = currentRhythmChapter();
+        if (!target || !state.rhythmLaneId) return Promise.resolve(false);
+
+        const button = elements.rhythmChipMark;
+        button.disabled = true;
+        button.textContent = 'Saving…';
+
+        state.rhythmMarkInFlight = (async () => {
+            try {
+                const res = await fetch(`/api/rhythms/lanes/${state.rhythmLaneId}/progress`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json', ...rhythmTzHeader() },
+                    body: JSON.stringify({ bookId: target.bookId, throughChapter: target.chapter })
+                });
+                if (!res.ok) throw new Error('mark failed');
+                state.rhythmLane = await res.json();
+                button.textContent = 'Saved ✓';
+                // Leave the confirmation up briefly, then return to the live label.
+                setTimeout(updateRhythmChip, 1800);
+                return true;
+            } catch (_) {
+                button.disabled = false;
+                button.textContent = 'Try again';
+                return false;
+            } finally {
+                state.rhythmMarkInFlight = null;
+            }
+        })();
+
+        return state.rhythmMarkInFlight;
     }
 
     async function loadBookNotesFromApi() {
@@ -6507,6 +6646,10 @@
         });
         elements.collectionsNew.addEventListener('click', () => openCollectionBuilder());
 
+        if (elements.rhythmChipMark) {
+            elements.rhythmChipMark.addEventListener('click', markRhythmStoppedHere);
+        }
+
         // Collection builder
         elements.cbClose.addEventListener('click', closeCollectionBuilder);
         elements.cbCancel.addEventListener('click', closeCollectionBuilder);
@@ -6581,6 +6724,14 @@
             // Backdrop tap closes the sheet
             elements.mobileMenuOverlay.addEventListener('click', (e) => {
                 if (e.target === elements.mobileMenuOverlay) closeMobileMenu();
+            });
+            document.getElementById('mobile-menu-rhythm').addEventListener('click', async () => {
+                closeMobileMenu();
+                // Await the result: the footer chip that would otherwise show the
+                // failure is hidden at this width, so an optimistic toast could send
+                // the reader away believing an unsaved chapter was recorded.
+                const saved = await markRhythmStoppedHere();
+                showToast(saved ? 'Progress saved' : 'Could not save — try again');
             });
             document.getElementById('mobile-menu-search').addEventListener('click', () => {
                 closeMobileMenu();
@@ -7086,6 +7237,9 @@
 
             // Check auth state (fire-and-forget — doesn't block page load)
             checkAuthState();
+
+            // Rhythm lane chip, when opened from a lane (fire-and-forget)
+            initRhythmLane();
 
             // Check TTS status
             await checkTtsStatus();

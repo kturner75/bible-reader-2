@@ -74,46 +74,36 @@
                 <p>No passages in your queue yet.</p>
                 <a href="/read" class="btn-secondary">Open the reader and press <kbd>m</kbd> on any verse to add a passage.</a>
             </div>
+
+            <!-- Featured passages: a catalogue, not a status. Lives inside the queue
+                 because that is where the intent is, opens by default only when the
+                 queue is empty, and disappears once every passage has been added. -->
+            <details class="featured-disclosure" id="featured-disclosure" hidden>
+                <summary id="featured-summary">Add a featured passage</summary>
+                <div class="featured-list" id="featured-list"></div>
+            </details>
         </section>
 
-        <!-- Featured Passages -->
-        <section class="dash-section" id="featured-section" hidden>
+        <!-- Reading Rhythms — recurring, self-paced lanes -->
+        <section class="dash-section" id="rhythms-section">
             <div class="section-header">
-                <h2 class="section-title">Featured Passages</h2>
-                <span class="section-sub">One-click add to your memorization queue</span>
+                <h2 class="section-title">Reading Rhythms</h2>
+                <span class="section-sub" id="rhythms-sub">Recurring — read any lane, any day</span>
+                <button class="btn-secondary" id="rhythm-new-btn">New Rhythm</button>
             </div>
-            <div class="featured-list" id="featured-list"></div>
-        </section>
-
-        <!-- Activity Heatmap -->
-        <section class="dash-section" id="activity-section">
-            <div class="section-header">
-                <h2 class="section-title">Activity</h2>
-                <span class="section-sub">Reviews &amp; reading plan completions</span>
-            </div>
-            <div class="heatmap-wrap">
-                <div class="heatmap-months" id="heatmap-months" aria-hidden="true"></div>
-                <div class="heatmap-body">
-                    <div class="heatmap-days" aria-hidden="true">
-                        <span></span>
-                        <span>Mon</span>
-                        <span></span>
-                        <span>Wed</span>
-                        <span></span>
-                        <span>Fri</span>
-                        <span></span>
-                    </div>
-                    <div class="heatmap-grid" id="heatmap-grid" role="img" aria-label="Activity heatmap for the past year"></div>
-                </div>
-                <div class="heatmap-legend" aria-hidden="true">
-                    <span>Less</span>
-                    <div class="heat-cell heat-0"></div>
-                    <div class="heat-cell heat-1"></div>
-                    <div class="heat-cell heat-2"></div>
-                    <div class="heat-cell heat-3"></div>
-                    <div class="heat-cell heat-4"></div>
-                    <span>More</span>
-                </div>
+            <div class="rhythm-today" id="rhythm-today"></div>
+            <!-- Every lane stays one click away. Opens by default only when nothing
+                 is scheduled today, so the list is never the page's bulk. -->
+            <details class="rhythm-all-disclosure" id="rhythm-all-disclosure" hidden>
+                <summary id="rhythm-all-summary">All lanes</summary>
+                <div class="rhythm-all" id="rhythm-all"></div>
+            </details>
+            <div class="rhythm-empty" id="rhythm-empty" hidden>
+                <p>No reading rhythms yet.</p>
+                <p class="rhythm-empty-sub">A rhythm is a set of lanes — each an ordered list of
+                   books you work through at your own pace. Give a lane a day of the week and it
+                   leads your dashboard on that day.</p>
+                <button class="btn-secondary" id="rhythm-empty-btn">Create your first rhythm</button>
             </div>
         </section>
 
@@ -139,7 +129,83 @@
             </div>
         </section>
 
+        <!-- Activity Heatmap — retrospective, so it sits last and starts collapsed. -->
+        <section class="dash-section" id="activity-section">
+            <details id="activity-details">
+                <summary class="section-summary">
+                    <h2 class="section-title">Activity</h2>
+                    <span class="section-sub">Reviews, plan completions &amp; rhythm progress</span>
+                </summary>
+                <div class="heatmap-wrap">
+                    <div class="heatmap-months" id="heatmap-months" aria-hidden="true"></div>
+                    <div class="heatmap-body">
+                        <div class="heatmap-days" aria-hidden="true">
+                            <span></span>
+                            <span>Mon</span>
+                            <span></span>
+                            <span>Wed</span>
+                            <span></span>
+                            <span>Fri</span>
+                            <span></span>
+                        </div>
+                        <div class="heatmap-grid" id="heatmap-grid" role="img" aria-label="Activity heatmap for the past year"></div>
+                    </div>
+                    <div class="heatmap-legend" aria-hidden="true">
+                        <span>Less</span>
+                        <div class="heat-cell heat-0"></div>
+                        <div class="heat-cell heat-1"></div>
+                        <div class="heat-cell heat-2"></div>
+                        <div class="heat-cell heat-3"></div>
+                        <div class="heat-cell heat-4"></div>
+                        <span>More</span>
+                    </div>
+                </div>
+            </details>
+        </section>
+
     </main>
+
+    <!-- ── Rhythm Builder ──────────────────────────────────────────────────── -->
+    <div class="rhythm-builder-overlay" id="rhythm-builder-overlay" hidden>
+        <div class="rhythm-builder-modal" role="dialog" aria-modal="true"
+             aria-labelledby="rhythm-builder-heading">
+            <div class="rhythm-builder-header">
+                <h2 id="rhythm-builder-heading">New Rhythm</h2>
+                <button id="rhythm-builder-close" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="rhythm-builder-body">
+                <label class="rb-field">
+                    <span class="rb-label">Title</span>
+                    <input type="text" id="rhythm-title-input" maxlength="100"
+                           placeholder="Weekly Rhythm">
+                </label>
+
+                <div class="rb-toolbar">
+                    <button class="btn-secondary" id="rhythm-template-btn"
+                            title="Fill in seven weekday lanes you can then edit">
+                        Start from weekly template
+                    </button>
+                    <button class="btn-secondary" id="rhythm-add-lane-btn">+ Add lane</button>
+                </div>
+
+                <p class="rb-hint">
+                    A lane's day is a suggestion — the dashboard leads with it on that day, but you
+                    can read and mark any lane whenever you like.
+                </p>
+
+                <div class="rb-lanes" id="rhythm-lanes"></div>
+                <p class="rb-error" id="rhythm-builder-error" hidden></p>
+            </div>
+
+            <div class="rhythm-builder-footer">
+                <button class="btn-secondary" id="rhythm-delete-btn" hidden>Delete</button>
+                <span class="rb-spacer"></span>
+                <button class="btn-secondary" id="rhythm-cancel-btn">Cancel</button>
+                <button class="btn-primary" id="rhythm-save-btn">Save</button>
+            </div>
+        </div>
+    </div>
 
     <script src="dashboard.js"></script>
 </body>

@@ -183,10 +183,35 @@ public class ReadingPlanService {
 
     /**
      * Idempotent — no-op if the user is not enrolled.
+     *
+     * <p>Deletes only the enrollment. {@code reading_plan_completions} rows are left
+     * intact: they record days the user genuinely read, and they feed the activity
+     * heatmap and streak. Leaving a plan resets your position, it does not rewrite
+     * your history. Re-enrolling therefore starts again at day 1.
      */
     public void unenroll(Long userId, UUID planId) {
         enrollmentRepo.findByUserIdAndPlanId(userId, planId)
                 .ifPresent(enrollmentRepo::delete);
+    }
+
+    /**
+     * Sends an enrollment back to day 1 without dropping it — the way out of the
+     * terminal "All done" state for someone who wants to read a plan again.
+     *
+     * <p>Completions are kept, for the same reason unenroll keeps them. Note the
+     * consequence: {@code completeDay} is guarded by a unique key on
+     * (user, plan, day), so a second pass re-treads days that are already recorded
+     * and those repeats add nothing to the heatmap or streak.
+     */
+    public ReadingPlanResponse restart(Long userId, UUID planId) {
+        ReadingPlan plan = planRepo.findById(planId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found"));
+
+        UserPlanEnrollment enrollment = enrollmentRepo.findByUserIdAndPlanId(userId, planId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enrolled in this plan"));
+
+        enrollment.setCurrentDay(1);
+        return toResponse(plan, enrollment, userId);
     }
 
     /**
