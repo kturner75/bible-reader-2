@@ -284,7 +284,12 @@
             try {
                 const res = await fetch('/api/memorization/queue/' + entry.id + '/review', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    // The server schedules nextReviewAt from this zone, so it matches
+                    // the boundary the dashboard and reader use to decide "due today".
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Time-Zone': Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+                    },
                     credentials: 'include',
                     body: JSON.stringify({ quality })
                 });

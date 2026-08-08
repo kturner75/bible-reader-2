@@ -15,6 +15,7 @@ import com.readthekjv.model.entity.User;
 import com.readthekjv.repository.UserRepository;
 import com.readthekjv.service.BibleService;
 import com.readthekjv.service.MemorizationService;
+import com.readthekjv.util.RequestZone;
 import com.readthekjv.service.WhisperService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -112,8 +113,10 @@ public class MemorizationController {
     @PostMapping("/queue/{entryId}/review")
     public MemorizationEntryResponse submitReview(@AuthenticationPrincipal UserDetails ud,
                                                   @PathVariable UUID entryId,
-                                                  @Valid @RequestBody ReviewRequest req) {
-        return memorizationService.submitReview(resolveUser(ud).getId(), entryId, req.quality());
+                                                  @Valid @RequestBody ReviewRequest req,
+                                                  @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
+        return memorizationService.submitReview(resolveUser(ud).getId(), entryId, req.quality(),
+                                                RequestZone.resolve(tz));
     }
 
     /**

@@ -3,7 +3,7 @@ package com.readthekjv.controller;
 import com.readthekjv.model.entity.User;
 import com.readthekjv.repository.UserRepository;
 import com.readthekjv.service.ActivityService;
-import com.readthekjv.service.ReadingRhythmService;
+import com.readthekjv.util.RequestZone;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -47,7 +47,7 @@ public class ActivityController {
     @GetMapping("/heatmap")
     public Map<String, Integer> getHeatmap(@AuthenticationPrincipal UserDetails ud,
                                            @RequestHeader(value = "X-Time-Zone", required = false) String tz) {
-        ZoneId zone = ReadingRhythmService.resolveZone(tz);
+        ZoneId zone = RequestZone.resolve(tz);
         return activityService.getHeatmap(resolveUser(ud).getId(), zone);
     }
 }

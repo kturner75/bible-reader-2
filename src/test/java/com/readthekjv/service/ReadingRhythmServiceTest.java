@@ -502,13 +502,7 @@ class ReadingRhythmServiceTest {
                      "day boundary must follow the caller's zone, not the server's");
     }
 
-    @Test
-    void resolveZoneFallsBackToTheServerZoneRatherThanFailing() {
-        assertEquals(ZoneId.of("Asia/Tokyo"), ReadingRhythmService.resolveZone("Asia/Tokyo"));
-        assertEquals(ZoneId.systemDefault(), ReadingRhythmService.resolveZone(null));
-        assertEquals(ZoneId.systemDefault(), ReadingRhythmService.resolveZone(""));
-        assertEquals(ZoneId.systemDefault(), ReadingRhythmService.resolveZone("Not/AZone"));
-    }
+    // Header parsing moved to RequestZone — see RequestZoneTest.
 
     @Test
     void createRejectsALaneWithNoBooks() {

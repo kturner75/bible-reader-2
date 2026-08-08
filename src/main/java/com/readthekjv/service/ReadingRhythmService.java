@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DayOfWeek;
-import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -87,24 +86,6 @@ public class ReadingRhythmService {
     @Transactional(readOnly = true)
     public RhythmLaneResponse getLane(Long userId, Long laneId, ZoneId zone) {
         return toLaneResponse(findOwnedLane(userId, laneId), markedTodayLaneIds(userId, zone));
-    }
-
-    /**
-     * Resolves the caller's time zone, falling back to the server's.
-     *
-     * <p>The dashboard picks today's lanes with the *browser's* weekday, so the
-     * day boundary used for {@code markedToday} and {@code todayLaneIds} has to
-     * agree with it. Without this, a reader ahead of the server sees a lane they
-     * marked shortly after local midnight resurface as outstanding once the server
-     * rolls over.
-     */
-    public static ZoneId resolveZone(String timeZone) {
-        if (timeZone == null || timeZone.isBlank()) return ZoneId.systemDefault();
-        try {
-            return ZoneId.of(timeZone.trim());
-        } catch (DateTimeException e) {
-            return ZoneId.systemDefault();   // never fail a read over a bad header
-        }
     }
 
     /**
