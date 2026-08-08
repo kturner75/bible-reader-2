@@ -842,8 +842,8 @@
         const label = `${isPsalm ? 'Psalm' : verse.book} ${verse.chapter}`;
         const hasNote = !!state.chapterNotes[chapterKey(verse.bookId, verse.chapter)];
         return `<div class="chapter-header"><span>${headerText}</span><button class="chapter-note-btn${hasNote ? ' has-note' : ''}"
-            data-book-id="${verse.bookId}" data-chapter="${verse.chapter}" data-label="${escapeHtml(label)}"
-            title="${hasNote ? 'Edit chapter note (c)' : 'Add chapter note (c)'}" aria-label="Chapter note for ${escapeHtml(label)}">&#9998;</button></div>`;
+            data-book-id="${verse.bookId}" data-chapter="${verse.chapter}" data-label="${escapeAttr(label)}"
+            title="${hasNote ? 'Edit chapter note (c)' : 'Add chapter note (c)'}" aria-label="Chapter note for ${escapeAttr(label)}">&#9998;</button></div>`;
     }
 
     /**
@@ -1355,8 +1355,8 @@
             const hasBookNote = bookRef && !!state.bookNotes[bookRef.bookId];
             const bookTitle = bookRef ? bookRef.bookName : firstVerse.book;
             elements.chapterTitle.innerHTML = `${escapeHtml(titleText)}<button class="chapter-note-btn book-note-btn${hasBookNote ? ' has-note' : ''}"
-                title="${hasBookNote ? `Edit ${escapeHtml(bookTitle)} book note (B)` : `Add ${escapeHtml(bookTitle)} book note (B)`}"
-                aria-label="Book note for ${escapeHtml(bookTitle)}">&#9998;</button>`;
+                title="${hasBookNote ? `Edit ${escapeAttr(bookTitle)} book note (B)` : `Add ${escapeAttr(bookTitle)} book note (B)`}"
+                aria-label="Book note for ${escapeAttr(bookTitle)}">&#9998;</button>`;
         }
         
         updateCurrentReference();
@@ -1393,6 +1393,16 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * escapeHtml() serialises a text node, so it encodes & < > but leaves quotes
+     * alone — safe between tags, unsafe inside an attribute, where a value like
+     * `" onfocus="…` closes the attribute and injects a new one. Use this for any
+     * value interpolated into a quoted attribute.
+     */
+    function escapeAttr(text) {
+        return escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     // ============================================
@@ -2663,7 +2673,7 @@
                     const body = serializeVBody(parseVToken(trimmed));
                     const p = findPassageByVBody(body);
                     const label = p ? passageDisplayLabel(p) : body;
-                    return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${escapeHtml(label)}</a>`;
+                    return `<a class="note-range-link" data-v="${escapeAttr(body)}" href="#">${escapeHtml(label)}</a>`;
                 } catch {
                     return match;
                 }
@@ -2691,24 +2701,24 @@
                         const ranges = resolveBookRelativeRanges(trimmed, cached);
                         if (ranges) {
                             const body = serializeVBody(ranges);
-                            return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${match}</a>`;
+                            return `<a class="note-range-link" data-v="${escapeAttr(body)}" href="#">${match}</a>`;
                         }
                         return match;
                     }
                     // Cold cache — provisional; hydrateBookRelativeLinks upgrades or strips
-                    return `<a class="note-verse-link note-book-rel-pending" data-book-id="${ctx.bookId}" data-book-rel="${escapeHtml(trimmed)}" href="#">${match}</a>`;
+                    return `<a class="note-verse-link note-book-rel-pending" data-book-id="${ctx.bookId}" data-book-rel="${escapeAttr(trimmed)}" href="#">${match}</a>`;
                 }
                 if (/^\d+$/.test(trimmed) || /^\d+:\d+$/.test(trimmed)) {
-                    return `<a class="note-verse-link" data-ref="${ctx.bookName} ${trimmed}" href="#">${match}</a>`;
+                    return `<a class="note-verse-link" data-ref="${escapeAttr(ctx.bookName + ' ' + trimmed)}" href="#">${match}</a>`;
                 }
-                return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
+                return `<a class="note-verse-link" data-ref="${escapeAttr(trimmed)}" href="#">${match}</a>`;
             }
             // Chapter / verse-note scope: [12], [1-11], [1,5,7], [1-11,15]
             if (ctx && ctx.firstVerseId && ctx.verseCount && isChapterRelativeToken(trimmed)) {
                 const ranges = resolveChapterRelativeRanges(trimmed, ctx.firstVerseId, ctx.verseCount);
                 if (ranges) {
                     const body = serializeVBody(ranges);
-                    return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${match}</a>`;
+                    return `<a class="note-range-link" data-v="${escapeAttr(body)}" href="#">${match}</a>`;
                 }
                 return match;
             }
@@ -2716,7 +2726,7 @@
                 // No usable chapter context — leave plain text
                 return match;
             }
-            return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
+            return `<a class="note-verse-link" data-ref="${escapeAttr(trimmed)}" href="#">${match}</a>`;
         });
         return html;
     }
@@ -3890,7 +3900,7 @@
 
         elements.passageInsertList.innerHTML = list.map(p => `
             <div class="collections-item passage-insert-item" data-passage-id="${p.id}"
-                 data-natural-key="${escapeHtml(p.naturalKey || '')}">
+                 data-natural-key="${escapeAttr(p.naturalKey || '')}">
                 <div class="collections-item-body">
                     <div class="collections-item-label">${escapeHtml(passageDisplayLabel(p))}</div>
                     <div class="collections-item-meta">${escapeHtml(p.reference || '')}${p.global ? ' · Featured' : ''}</div>
@@ -4431,7 +4441,6 @@
                     <span class="cb-queue-ref">${escapeHtml(passageDisplayLabel(p))}</span>
                     <input type="text" class="cb-queue-title" data-seg="${i}"
                         placeholder="Optional title…" maxlength="100"
-                        value="${escapeHtml(p.title || '')}"
                         aria-label="Optional passage title">
                 </div>
                 <span class="cb-queue-btns">
@@ -4443,6 +4452,10 @@
 
         // Titles are local until Save. Same Passage id (or pending naturalKey) shares one title.
         elements.cbQueueList.querySelectorAll('.cb-queue-title').forEach(input => {
+            // Assigned as a property, never interpolated into the markup above: a passage
+            // title is free text, and a quote in an attribute would inject markup.
+            const seg = builder.queue[parseInt(input.dataset.seg, 10)];
+            input.value = (seg && seg.title) || '';
             input.addEventListener('change', () => {
                 const i = parseInt(input.dataset.seg, 10);
                 const item = builder.queue[i];
@@ -4939,16 +4952,16 @@
                 ? entry.verses[0].text
                 : '';
             return `
-            <div class="memorization-item" data-entry-id="${escapeHtml(entry.id)}"
+            <div class="memorization-item" data-entry-id="${escapeAttr(entry.id)}"
                  data-verse-id="${entry.passage.fromVerseId}">
                 <div class="memorization-item-body">
                     <div class="memorization-item-ref">${refDisplay}</div>
                     <div class="memorization-item-text">${escapeHtml(previewText)}</div>
                     <div class="memorization-item-mastery">${dots}</div>
-                    <button class="memorization-practice-btn" data-entry-id="${escapeHtml(entry.id)}"
+                    <button class="memorization-practice-btn" data-entry-id="${escapeAttr(entry.id)}"
                             aria-label="Practice this passage">Practice</button>
                 </div>
-                <button class="memorization-item-remove" data-entry-id="${escapeHtml(entry.id)}"
+                <button class="memorization-item-remove" data-entry-id="${escapeAttr(entry.id)}"
                         aria-label="Remove from queue">&times;</button>
             </div>`;
         }).join('');
@@ -5344,7 +5357,7 @@
                                ${isDisabled ? 'disabled' : ''}>
                         <span class="tag-color-dot"></span>
                         <span class="tag-name">${escapeHtml(tag.name)}</span>
-                        <button class="tag-delete-btn" data-tag-id="${tag.id}" title="Delete tag" aria-label="Delete tag ${escapeHtml(tag.name)}">×</button>
+                        <button class="tag-delete-btn" data-tag-id="${tag.id}" title="Delete tag" aria-label="Delete tag ${escapeAttr(tag.name)}">×</button>
                     </label>
                 `;
             }).join('');

@@ -8,6 +8,16 @@
         return d.innerHTML;
     }
 
+    /**
+     * escapeHtml() serialises a text node, so it encodes & < > but leaves quotes
+     * alone — safe between tags, unsafe inside an attribute, where a value like
+     * `" onfocus="…` closes the attribute and injects a new one. Use this for any
+     * value interpolated into a quoted attribute.
+     */
+    function escapeAttr(str) {
+        return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     let _toastTimer = null;
     function showToast(message, durationMs = 2500) {
         const existing = document.querySelector('.toast');
@@ -190,7 +200,7 @@
                 const body = vTok[1].replace(/\s/g, '');
                 const p = findPassageByVBody(body);
                 const label = p ? passageDisplayLabel(p) : body;
-                return `<a class="note-range-link" data-v="${escapeHtml(body)}" href="#">${escapeHtml(label)}</a>`;
+                return `<a class="note-range-link" data-v="${escapeAttr(body)}" href="#">${escapeHtml(label)}</a>`;
             }
             const passageTok = trimmed.match(/^passage=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
             if (passageTok) {
@@ -205,7 +215,7 @@
                 return `<a class="note-collection-link" data-collection-id="${pid[1]}" href="#">${escapeHtml(label)}</a>`;
             }
             if (/^\d+$/.test(trimmed)) return match;
-            return `<a class="note-verse-link" data-ref="${trimmed}" href="#">${match}</a>`;
+            return `<a class="note-verse-link" data-ref="${escapeAttr(trimmed)}" href="#">${match}</a>`;
         });
         return html;
     }
@@ -758,7 +768,7 @@
         }
         insertList.innerHTML = list.map(p => `
             <button type="button" class="sermon-note-row passage-insert-row" data-passage-id="${p.id}"
-                data-natural-key="${escapeHtml(p.naturalKey || '')}">
+                data-natural-key="${escapeAttr(p.naturalKey || '')}">
                 <span class="sermon-note-row-title">${escapeHtml(passageDisplayLabel(p))}</span>
                 <span class="sermon-note-row-meta">${escapeHtml(p.reference || '')}${p.global ? ' · Featured' : ''}</span>
             </button>`).join('');
