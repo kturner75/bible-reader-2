@@ -19,29 +19,14 @@
         return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    /**
-     * Calendar date of a Date in the *browser's* zone.
-     *
-     * toISOString() converts to UTC first, so east of UTC a local midnight lands on
-     * the previous day — the heatmap would read an August 7 count into the August 8
-     * cell. The activity API now keys its buckets by the caller's zone, so the cell
-     * keys have to be built the same way.
-     */
-    function localIsoDate(date) {
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        return `${date.getFullYear()}-${m}-${d}`;
-    }
+    // Shared with the reader so a passage cannot be due in one place and not the
+    // other — see date-utils.js for why this is one definition rather than a copy.
+    const localIsoDate = window.KjvDate.localIsoDate;
 
-
-    // nextReviewAt is a server LocalDate, so "today" has to be the reader's calendar
-    // day too. toISOString() would convert to UTC first — west of UTC that rolls over
-    // in the evening and marks tomorrow's passages due tonight, which matters now that
-    // due-ness decides what the queue shows rather than just how a row is styled.
-    const TODAY = localIsoDate(new Date());
+    const TODAY = window.KjvDate.todayIso();
 
     function isDue(entry) {
-        return !entry.nextReviewAt || entry.nextReviewAt <= TODAY;
+        return window.KjvDate.isEntryDue(entry, TODAY);
     }
 
     function formatDueDate(nextReviewAt) {

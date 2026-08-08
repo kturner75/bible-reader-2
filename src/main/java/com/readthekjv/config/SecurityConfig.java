@@ -45,6 +45,7 @@ public class SecurityConfig {
                     "/dashboard", "/dashboard.html", "/dashboard.css", "/dashboard.js",
                     "/notes", "/notes.html", "/notes.css", "/notes.js",
                     "/style.css", "/app.js",
+                    "/date-utils.js",                      // shared by the public reader — a 302 here breaks it
                     "/error",                              // Spring Boot error controller — must be public
                     "/api/verses", "/api/books/**", "/api/search",
                     "/api/reference", "/api/navigate/**",
