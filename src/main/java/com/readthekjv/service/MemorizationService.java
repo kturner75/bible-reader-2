@@ -267,7 +267,14 @@ public class MemorizationService {
         if (user.getCurrentStreak() > user.getLongestStreak()) {
             user.setLongestStreak(user.getCurrentStreak());
         }
-        user.setLastReviewDate(today);
+        // Only ever move the stored date forward. `today` comes from the caller's
+        // zone, so it can go backwards between reviews — crossing the date line,
+        // changing the device zone, or simply sending a different header. Rewinding
+        // it would let the "reviewed yesterday" branch fire again on the return trip,
+        // so alternating two zones could ratchet the streak up indefinitely.
+        if (last == null || today.isAfter(last)) {
+            user.setLastReviewDate(today);
+        }
         userRepo.save(user);
 
         return response;

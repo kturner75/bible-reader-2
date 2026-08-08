@@ -89,6 +89,32 @@ class MemorizationReviewZoneTest {
     }
 
     @Test
+    void alternatingZonesCannotRatchetTheStreak() {
+        // today now comes from the caller, so it can move backwards between reviews.
+        // If lastReviewDate rewound with it, returning to the later zone would look
+        // like "reviewed yesterday" and extend the streak again, without limit.
+        User user = userRepo.findById(USER_ID).orElseThrow();
+        LocalDate day2 = LocalDate.of(2026, 8, 9);
+        user.setLastReviewDate(day2);
+        user.setCurrentStreak(5);
+
+        ZoneId ahead  = ZoneId.of("Pacific/Kiritimati");   // UTC+14
+        ZoneId behind = ZoneId.of("Pacific/Honolulu");     // UTC-10
+
+        for (int i = 0; i < 5; i++) {
+            service.submitReview(USER_ID, ENTRY_ID, 4, behind);
+            service.submitReview(USER_ID, ENTRY_ID, 4, ahead);
+        }
+
+        assertEquals(day2.isAfter(LocalDate.now(ahead)) ? day2 : LocalDate.now(ahead),
+                     user.getLastReviewDate(),
+                     "stored review date must never move backwards");
+        org.junit.jupiter.api.Assertions.assertTrue(user.getCurrentStreak() <= 6,
+                "ten alternating-zone reviews must not ratchet a 5-day streak; got "
+                        + user.getCurrentStreak());
+    }
+
+    @Test
     void anAgainReviewIsNotStillDueOnTheCallersToday() {
         // The failure this guards: scheduling from a server day already behind the
         // reader's produced nextReviewAt == the reader's today, so the passage the
