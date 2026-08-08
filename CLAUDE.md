@@ -166,9 +166,26 @@ supports catching up by completing several days in a sitting.
   ambiguous — `nextReading` would advance into the second occurrence while `chaptersRead`
   resolved back to the first. Rejected in `validateBookIds`.
 
-**Time zone:** clients send `X-Time-Zone` (IANA); the server uses it for the `markedToday` /
-`todayLaneIds` day boundary so it agrees with the browser's weekday. Absent or unparseable falls
-back to the server zone rather than failing the read.
+## Calendar days belong to the reader, not the server
+
+Anything the app calls "today" — a due passage, a scheduled review, a heatmap square, the lane the
+dashboard leads with — means today *where the reader is*. The server's zone is an accident of
+deployment and is wrong for most users on a UTC host.
+
+- **Client:** `date-utils.js` (`window.KjvDate`) is the single definition of the browser's calendar
+  day — `localIsoDate` / `todayIso` / `isEntryDue`. Loaded by `index.html` and `dashboard.html`.
+  Never derive a calendar date with `toISOString()`; it converts to UTC first and is off by one on
+  one side of the meridian or the other.
+- **Server:** clients send `X-Time-Zone` (IANA); `RequestZone.resolve` turns it into a `ZoneId`,
+  falling back to the server's when absent or unparseable — a bad header degrades the boundary,
+  it never fails the request. Used by rhythms (`markedToday`, `todayLaneIds`), the activity
+  heatmap, and memorization review scheduling.
+- **Both sides must agree.** `nextReviewAt` is written by the server and compared by the client;
+  if they use different days an "Again" review comes back due immediately, or waits an extra day.
+  The same boundary drives the review streak, so it moves with the scheduling.
+- A new shared static asset needs adding to `SecurityConfig`'s `permitAll` — `/read` is public, so
+  a 302 on `date-utils.js` would leave `window.KjvDate` undefined and break the reader for
+  signed-out visitors.
 
 **Reader integration:** `/read?vid=…&lane=N` shows a chip in the reading footer with a
 **Stopped here** button that marks the currently displayed chapter. It lives in `.reading-footer`
@@ -186,6 +203,10 @@ the page's bulk. Nothing is hidden behind navigation; the page is ~2000px instea
 
 - **All lanes** (`#rhythm-all-disclosure`) — collapsed by default; opens automatically only when
   no lane is scheduled today, so the Rhythms section is never empty-looking.
+- **Scheduled for later** (`#queue-later-disclosure`) — the Memorization Queue lists only what is
+  due; everything else lives here, and it opens automatically when nothing is due. Holds *only*
+  the not-yet-due entries, never a copy of a due one: a record rendered twice with two live sets
+  of controls is what produced the rhythm lanes' stale-copy and double-submit bugs.
 - **Add a featured passage** (`#featured-disclosure`) — lives *inside* the Memorization Queue,
   because it is a catalogue serving that intent, not a status of its own. Opens by default only
   when the queue is empty, and removes itself once every passage has been queued.

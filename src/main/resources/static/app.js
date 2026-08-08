@@ -4918,9 +4918,12 @@
             count === 1 ? '1 passage' :
             `${count} passages`;
 
-        // Compute entries due today (nextReviewAt null = never reviewed, counts as due)
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const dueEntries = entries.filter(e => !e.nextReviewAt || e.nextReviewAt <= todayStr);
+        // Compute entries due today (nextReviewAt null = never reviewed, counts as due).
+        // Shared with the dashboard: a UTC boundary here would disagree with the
+        // queue's local one in the evening, so the same passage could be listed as
+        // "Scheduled for later" there while being trained on from here.
+        const todayStr = window.KjvDate.todayIso();
+        const dueEntries = entries.filter(e => window.KjvDate.isEntryDue(e, todayStr));
         const dueCount = dueEntries.length;
         state.memorizationDueEntries = dueEntries;
         if (dueCount > 0) {

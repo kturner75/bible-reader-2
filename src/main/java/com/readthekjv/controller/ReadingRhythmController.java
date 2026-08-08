@@ -7,6 +7,7 @@ import com.readthekjv.model.dto.UpsertRhythmRequest;
 import com.readthekjv.model.entity.User;
 import com.readthekjv.repository.UserRepository;
 import com.readthekjv.service.ReadingRhythmService;
+import com.readthekjv.util.RequestZone;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -39,7 +40,7 @@ public class ReadingRhythmController {
      * or unparseable value falls back to the server's zone rather than failing.
      */
     private ZoneId resolveZone(String header) {
-        return ReadingRhythmService.resolveZone(header);
+        return RequestZone.resolve(header);
     }
 
     private User resolveUser(UserDetails ud) {

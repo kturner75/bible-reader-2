@@ -19,25 +19,14 @@
         return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    /**
-     * Calendar date of a Date in the *browser's* zone.
-     *
-     * toISOString() converts to UTC first, so east of UTC a local midnight lands on
-     * the previous day — the heatmap would read an August 7 count into the August 8
-     * cell. The activity API now keys its buckets by the caller's zone, so the cell
-     * keys have to be built the same way.
-     */
-    function localIsoDate(date) {
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        return `${date.getFullYear()}-${m}-${d}`;
-    }
+    // Shared with the reader so a passage cannot be due in one place and not the
+    // other — see date-utils.js for why this is one definition rather than a copy.
+    const localIsoDate = window.KjvDate.localIsoDate;
 
-
-    const TODAY = new Date().toISOString().slice(0, 10);
+    const TODAY = window.KjvDate.todayIso();
 
     function isDue(entry) {
-        return !entry.nextReviewAt || entry.nextReviewAt <= TODAY;
+        return window.KjvDate.isEntryDue(entry, TODAY);
     }
 
     function formatDueDate(nextReviewAt) {
@@ -216,32 +205,56 @@
         trainBtn.addEventListener('click', () => launchTraining(dueEntries));
     }
 
-    // Queue section
+    // Queue section — due passages lead; the rest are one click away.
     const queueSection = document.getElementById('queue-section');
     queueSection.hidden = false;
 
-    if (allEntries.length === 0) {
-        document.getElementById('queue-empty').hidden = false;
-    } else {
-        document.getElementById('queue-badge').textContent = allEntries.length;
-        const list = document.getElementById('queue-list');
-
-        allEntries.forEach(entry => {
-            const due = isDue(entry);
-            const row = document.createElement('div');
-            row.className = 'queue-row';
-            row.innerHTML = `
-                <span class="queue-ref">${escapeHtml(passageRef(entry))}</span>
-                <span class="queue-mastery" title="Mastery level ${entry.masteryLevel} of 5">${masteryDots(entry.masteryLevel)}</span>
-                <span class="queue-due${due ? ' is-due' : ''}">${escapeHtml(formatDueDate(entry.nextReviewAt))}</span>
-                <button class="queue-practice-btn">Practice</button>
-                ${historyDots(entry.recentHistory)}
-            `;
-            row.querySelector('.queue-practice-btn').addEventListener('click', () => {
-                launchTraining([entry]);
-            });
-            list.appendChild(row);
+    function buildQueueRow(entry) {
+        const due = isDue(entry);
+        const row = document.createElement('div');
+        row.className = 'queue-row';
+        row.innerHTML = `
+            <span class="queue-ref">${escapeHtml(passageRef(entry))}</span>
+            <span class="queue-mastery" title="Mastery level ${entry.masteryLevel} of 5">${masteryDots(entry.masteryLevel)}</span>
+            <span class="queue-due${due ? ' is-due' : ''}">${escapeHtml(formatDueDate(entry.nextReviewAt))}</span>
+            <button class="queue-practice-btn">Practice</button>
+            ${historyDots(entry.recentHistory)}
+        `;
+        row.querySelector('.queue-practice-btn').addEventListener('click', () => {
+            launchTraining([entry]);
         });
+        return row;
+    }
+
+    {
+        const badge       = document.getElementById('queue-badge');
+        const dueList     = document.getElementById('queue-list');
+        const laterList   = document.getElementById('queue-later-list');
+        const laterBox    = document.getElementById('queue-later-disclosure');
+        const laterLabel  = document.getElementById('queue-later-summary');
+        const caughtUpBox = document.getElementById('queue-caught-up');
+
+        const laterEntries = allEntries.filter(e => !isDue(e));
+
+        if (allEntries.length === 0) {
+            document.getElementById('queue-empty').hidden = false;
+        } else {
+            // The badge counts what needs doing, not what exists.
+            if (dueCount > 0) badge.textContent = dueCount;
+            else badge.hidden = true;
+
+            dueEntries.forEach(e => dueList.appendChild(buildQueueRow(e)));
+            caughtUpBox.hidden = dueCount > 0;
+
+            if (laterEntries.length > 0) {
+                laterBox.hidden = false;
+                laterLabel.textContent = `Scheduled for later (${laterEntries.length})`;
+                laterEntries.forEach(e => laterList.appendChild(buildQueueRow(e)));
+                // Open it when nothing is due, so the section is never just a
+                // "caught up" line with no visible content — same rule as All lanes.
+                laterBox.open = dueCount === 0;
+            }
+        }
     }
 
     // ── Featured Passages ──────────────────────────────────────────────────────

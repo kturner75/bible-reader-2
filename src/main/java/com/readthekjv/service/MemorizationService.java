@@ -24,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -209,7 +210,7 @@ public class MemorizationService {
      * Applies the SM-2 spaced-repetition algorithm and persists the result.
      * quality: 0 = Again, 3 = Hard, 4 = Good, 5 = Easy
      */
-    public MemorizationEntryResponse submitReview(Long userId, UUID entryId, int quality) {
+    public MemorizationEntryResponse submitReview(Long userId, UUID entryId, int quality, ZoneId zone) {
         MemorizationEntry entry = entryRepo.findById(entryId)
                 .filter(e -> e.getUser().getId().equals(userId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Entry not found"));
@@ -232,7 +233,12 @@ public class MemorizationService {
         entry.setEaseFactor(BigDecimal.valueOf(Math.max(1.30, newEase))
                 .setScale(2, RoundingMode.HALF_UP));
 
-        LocalDate today = LocalDate.now();
+        // The reader's calendar day, not the server's. nextReviewAt is compared
+        // client-side against the reader's today, so scheduling from a server day
+        // that has already rolled over (or not yet) makes an "Again" review either
+        // due again immediately or delayed a whole extra day. The streak below uses
+        // the same boundary so the two cannot disagree.
+        LocalDate today = LocalDate.now(zone);
         entry.setNextReviewAt(today.plusDays(entry.getIntervalDays()));
         entryRepo.save(entry);
 
@@ -261,7 +267,14 @@ public class MemorizationService {
         if (user.getCurrentStreak() > user.getLongestStreak()) {
             user.setLongestStreak(user.getCurrentStreak());
         }
-        user.setLastReviewDate(today);
+        // Only ever move the stored date forward. `today` comes from the caller's
+        // zone, so it can go backwards between reviews — crossing the date line,
+        // changing the device zone, or simply sending a different header. Rewinding
+        // it would let the "reviewed yesterday" branch fire again on the return trip,
+        // so alternating two zones could ratchet the streak up indefinitely.
+        if (last == null || today.isAfter(last)) {
+            user.setLastReviewDate(today);
+        }
         userRepo.save(user);
 
         return response;

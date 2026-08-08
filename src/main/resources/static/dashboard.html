@@ -69,11 +69,27 @@
                 <h2 class="section-title">Memorization Queue</h2>
                 <span class="section-badge" id="queue-badge"></span>
             </div>
+            <!-- Only what is due today. Everything else is real but not actionable,
+                 so it sits in the disclosure below rather than burying the page. -->
             <div class="queue-list" id="queue-list"></div>
+
+            <div class="queue-caught-up" id="queue-caught-up" hidden>
+                <p>All caught up — nothing due today.</p>
+            </div>
+
             <div class="queue-empty" id="queue-empty" hidden>
                 <p>No passages in your queue yet.</p>
                 <a href="/read" class="btn-secondary">Open the reader and press <kbd>m</kbd> on any verse to add a passage.</a>
             </div>
+
+            <!-- Passages whose next review has not come round yet. Deliberately holds
+                 only the not-yet-due ones: rendering a due passage in both places
+                 would repeat the stale-copy and double-submit bugs the rhythm lanes
+                 hit when the same record had two live sets of controls. -->
+            <details class="queue-later-disclosure" id="queue-later-disclosure" hidden>
+                <summary id="queue-later-summary">Scheduled for later</summary>
+                <div class="queue-list" id="queue-later-list"></div>
+            </details>
 
             <!-- Featured passages: a catalogue, not a status. Lives inside the queue
                  because that is where the intent is, opens by default only when the
@@ -207,6 +223,7 @@
         </div>
     </div>
 
+    <script src="date-utils.js"></script>
     <script src="dashboard.js"></script>
 </body>
 </html>
