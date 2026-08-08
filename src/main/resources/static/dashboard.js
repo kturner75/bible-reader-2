@@ -34,7 +34,11 @@
     }
 
 
-    const TODAY = new Date().toISOString().slice(0, 10);
+    // nextReviewAt is a server LocalDate, so "today" has to be the reader's calendar
+    // day too. toISOString() would convert to UTC first — west of UTC that rolls over
+    // in the evening and marks tomorrow's passages due tonight, which matters now that
+    // due-ness decides what the queue shows rather than just how a row is styled.
+    const TODAY = localIsoDate(new Date());
 
     function isDue(entry) {
         return !entry.nextReviewAt || entry.nextReviewAt <= TODAY;
@@ -216,32 +220,56 @@
         trainBtn.addEventListener('click', () => launchTraining(dueEntries));
     }
 
-    // Queue section
+    // Queue section — due passages lead; the rest are one click away.
     const queueSection = document.getElementById('queue-section');
     queueSection.hidden = false;
 
-    if (allEntries.length === 0) {
-        document.getElementById('queue-empty').hidden = false;
-    } else {
-        document.getElementById('queue-badge').textContent = allEntries.length;
-        const list = document.getElementById('queue-list');
-
-        allEntries.forEach(entry => {
-            const due = isDue(entry);
-            const row = document.createElement('div');
-            row.className = 'queue-row';
-            row.innerHTML = `
-                <span class="queue-ref">${escapeHtml(passageRef(entry))}</span>
-                <span class="queue-mastery" title="Mastery level ${entry.masteryLevel} of 5">${masteryDots(entry.masteryLevel)}</span>
-                <span class="queue-due${due ? ' is-due' : ''}">${escapeHtml(formatDueDate(entry.nextReviewAt))}</span>
-                <button class="queue-practice-btn">Practice</button>
-                ${historyDots(entry.recentHistory)}
-            `;
-            row.querySelector('.queue-practice-btn').addEventListener('click', () => {
-                launchTraining([entry]);
-            });
-            list.appendChild(row);
+    function buildQueueRow(entry) {
+        const due = isDue(entry);
+        const row = document.createElement('div');
+        row.className = 'queue-row';
+        row.innerHTML = `
+            <span class="queue-ref">${escapeHtml(passageRef(entry))}</span>
+            <span class="queue-mastery" title="Mastery level ${entry.masteryLevel} of 5">${masteryDots(entry.masteryLevel)}</span>
+            <span class="queue-due${due ? ' is-due' : ''}">${escapeHtml(formatDueDate(entry.nextReviewAt))}</span>
+            <button class="queue-practice-btn">Practice</button>
+            ${historyDots(entry.recentHistory)}
+        `;
+        row.querySelector('.queue-practice-btn').addEventListener('click', () => {
+            launchTraining([entry]);
         });
+        return row;
+    }
+
+    {
+        const badge       = document.getElementById('queue-badge');
+        const dueList     = document.getElementById('queue-list');
+        const laterList   = document.getElementById('queue-later-list');
+        const laterBox    = document.getElementById('queue-later-disclosure');
+        const laterLabel  = document.getElementById('queue-later-summary');
+        const caughtUpBox = document.getElementById('queue-caught-up');
+
+        const laterEntries = allEntries.filter(e => !isDue(e));
+
+        if (allEntries.length === 0) {
+            document.getElementById('queue-empty').hidden = false;
+        } else {
+            // The badge counts what needs doing, not what exists.
+            if (dueCount > 0) badge.textContent = dueCount;
+            else badge.hidden = true;
+
+            dueEntries.forEach(e => dueList.appendChild(buildQueueRow(e)));
+            caughtUpBox.hidden = dueCount > 0;
+
+            if (laterEntries.length > 0) {
+                laterBox.hidden = false;
+                laterLabel.textContent = `Scheduled for later (${laterEntries.length})`;
+                laterEntries.forEach(e => laterList.appendChild(buildQueueRow(e)));
+                // Open it when nothing is due, so the section is never just a
+                // "caught up" line with no visible content — same rule as All lanes.
+                laterBox.open = dueCount === 0;
+            }
+        }
     }
 
     // ── Featured Passages ──────────────────────────────────────────────────────

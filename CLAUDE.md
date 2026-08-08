@@ -186,6 +186,10 @@ the page's bulk. Nothing is hidden behind navigation; the page is ~2000px instea
 
 - **All lanes** (`#rhythm-all-disclosure`) — collapsed by default; opens automatically only when
   no lane is scheduled today, so the Rhythms section is never empty-looking.
+- **Scheduled for later** (`#queue-later-disclosure`) — the Memorization Queue lists only what is
+  due; everything else lives here, and it opens automatically when nothing is due. Holds *only*
+  the not-yet-due entries, never a copy of a due one: a record rendered twice with two live sets
+  of controls is what produced the rhythm lanes' stale-copy and double-submit bugs.
 - **Add a featured passage** (`#featured-disclosure`) — lives *inside* the Memorization Queue,
   because it is a catalogue serving that intent, not a status of its own. Opens by default only
   when the queue is empty, and removes itself once every passage has been queued.

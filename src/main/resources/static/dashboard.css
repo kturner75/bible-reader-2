@@ -277,6 +277,15 @@ a:hover { text-decoration: underline; }
     align-items: flex-start;
 }
 
+/* Shown when passages exist but none are due — the section still needs to say
+   something rather than render blank. */
+.queue-caught-up {
+    padding: 0.9rem 0;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+.queue-caught-up[hidden] { display: none; }
+
 .queue-empty kbd {
     font-family: var(--font-primary);
     font-size: 0.85em;
@@ -493,6 +502,7 @@ a:hover { text-decoration: underline; }
    secondary content stays one click away instead of becoming the page's bulk. */
 
 .rhythm-all-disclosure > summary,
+.queue-later-disclosure > summary,
 .featured-disclosure > summary {
     cursor: pointer;
     font-size: 0.82rem;
@@ -503,11 +513,13 @@ a:hover { text-decoration: underline; }
     list-style-position: outside;
 }
 .rhythm-all-disclosure > summary:hover,
+.queue-later-disclosure > summary:hover,
 .featured-disclosure > summary:hover { color: var(--color-text); }
 
 .featured-disclosure { margin-top: 0.75rem; }
 .featured-disclosure[hidden] { display: none; }
 .rhythm-all-disclosure[hidden] { display: none; }
+.queue-later-disclosure[hidden] { display: none; }
 
 /* The heatmap's summary carries the section heading itself. */
 .section-summary {
