@@ -193,6 +193,56 @@ deployment and is wrong for most users on a UTC host.
 measurement. The footer is hidden at ≤600px, so `#mobile-menu-rhythm` carries the same action in
 the mobile bottom sheet.
 
+## Remembering what the reader chose
+
+**The reader should never have to redo the same clicks to get back to the view they already
+asked for.** Every user-controllable view option persists — collapsed sections, chosen tabs, sort
+orders, font size, playback speed, panel widths, mode toggles. A control that resets on reload is
+a bug, not a default.
+
+Where it persists depends on what it is:
+
+| | **View state** | **Content** |
+|---|---|---|
+| Examples | disclosures, tabs, sort order, font size, audio speed, note-dock width, test/recite mode | notes, bookmarks, tags, collections, rhythms, review schedules, reading position |
+| Home | localStorage, per device | database, follows the reader everywhere |
+| If lost | mildly annoying | lost work |
+
+That last row is the test to apply when adding something new: *if this vanished when they opened
+the app on another machine, would they be annoyed or would they have lost work?* Annoyed →
+localStorage. Lost work → a table. localStorage may cache content (the anonymous-user library
+does), but it is never the only copy of something the reader wrote.
+
+`view-prefs.js` (`window.KjvViewPrefs`) is the single mechanism: `get(key, fallback)`,
+`set(key, value)` (JSON-encoded, wrapped so Safari private mode degrades to defaults rather than
+throwing), and `bindDisclosure(el, fallbackOpen)` for `<details>`. Loaded by `index.html` and
+`dashboard.html`; like `date-utils.js` it needs `permitAll` in `SecurityConfig`, since `/read` is
+public and a 302 would leave `window.KjvViewPrefs` undefined. A few older preferences
+(`kjv_font_size`, `kjv_audio_speed`, train's mode keys) still call `localStorage` directly — same
+principle, older plumbing; move them across when you next touch them.
+
+Two rules for `bindDisclosure`:
+- **A derived default is a first-visit default, not standing policy.** "Open All lanes when
+  nothing is scheduled today" applies until the reader expresses a preference; after that theirs
+  wins. Pass the rule as `fallbackOpen` and never assign `.open` directly on a bound element —
+  renderers that re-derive `open` would stomp the stored choice, so call it on every render.
+- **Programmatic changes are not recorded**, or a default would masquerade as a decision the
+  reader made. `toggle` fires asynchronously, hence the `pendingProgrammatic` flag rather than a
+  synchronous reset.
+
+**Preference, not query.** The line runs between how a view is *arranged* and what it is
+*restricted to*. The Library remembers its tab, sort order and whether More Filters is expanded;
+it still clears search text and filter pills on close, because a forgotten filter makes a full
+library look empty. Persist arrangement; reset queries.
+
+**A cursor is not a commitment.** `kjv_current_verse` — where the reader happens to be right now —
+stays in localStorage, deliberately. It changes on every verse and every page turn, so it is a
+scroll position, not a decision worth syncing; the dashboard's Continue Reading card reads it
+from there. The reading state a reader *does* expect on their phone is the deliberate kind: a
+rhythm lane's cursor and a plan's `currentDay`, which are already server-side and touch
+localStorage nowhere. When something new looks like "reading position", ask which of the two it
+is — incidental (local) or committed (database).
+
 ## Dashboard Layout
 
 Section order is by **volatility** — what changes daily sits high, retrospective content sits low:
@@ -204,9 +254,12 @@ the page's bulk. Nothing is hidden behind navigation; the page is ~2000px instea
 - **All lanes** (`#rhythm-all-disclosure`) — collapsed by default; opens automatically only when
   no lane is scheduled today, so the Rhythms section is never empty-looking.
 - **Scheduled for later** (`#queue-later-disclosure`) — the Memorization Queue lists only what is
-  due; everything else lives here, and it opens automatically when nothing is due. Holds *only*
-  the not-yet-due entries, never a copy of a due one: a record rendered twice with two live sets
-  of controls is what produced the rhythm lanes' stale-copy and double-submit bugs.
+  due; everything else lives here, always collapsed by default. A long list of passages that are
+  explicitly *not* actionable today is the exact thing this disclosure exists to keep off the
+  page, and "All caught up — nothing due today" already carries the state, so it does not
+  auto-open the way All lanes does. Holds *only* the not-yet-due entries, never a copy of a due
+  one: a record rendered twice with two live sets of controls is what produced the rhythm lanes'
+  stale-copy and double-submit bugs.
 - **Add a featured passage** (`#featured-disclosure`) — lives *inside* the Memorization Queue,
   because it is a catalogue serving that intent, not a status of its own. Opens by default only
   when the queue is empty, and removes itself once every passage has been queued.
@@ -215,6 +268,11 @@ the page's bulk. Nothing is hidden behind navigation; the page is ~2000px instea
 
 If adding a section, ask whether it reports *state* (belongs here) or offers a *catalogue*
 (belongs inside the section whose intent it serves).
+
+**The open/closed rules above are first-visit defaults only** — each disclosure is bound through
+`KjvViewPrefs.bindDisclosure`, so once the reader toggles a section their choice wins on every
+later visit. A new disclosure needs an `id` and must go through `bindDisclosure`, never a bare
+`.open =`. See "Remembering what the reader chose".
 
 ## Data
 

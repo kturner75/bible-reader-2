@@ -66,6 +66,10 @@
         return `<div class="queue-history">${dots}</div>`;
     }
 
+    // Every <details> on this page remembers whether the reader left it open —
+    // the auto-open rules below are first-visit defaults only. See view-prefs.js.
+    const bindDisclosure = window.KjvViewPrefs.bindDisclosure;
+
     // ── Auth ─────────────────────────────────────────────────────────────────
 
     let currentUser = null;
@@ -250,9 +254,12 @@
                 laterBox.hidden = false;
                 laterLabel.textContent = `Scheduled for later (${laterEntries.length})`;
                 laterEntries.forEach(e => laterList.appendChild(buildQueueRow(e)));
-                // Open it when nothing is due, so the section is never just a
-                // "caught up" line with no visible content — same rule as All lanes.
-                laterBox.open = dueCount === 0;
+                // Collapsed until the reader says otherwise: a long queue of things
+                // that are *not* actionable today is exactly what this disclosure
+                // exists to keep from pushing the rest of the dashboard down. The
+                // "All caught up" line above carries the state, so nothing is due
+                // and nothing looks empty.
+                bindDisclosure(laterBox, false);
             }
         }
     }
@@ -281,7 +288,7 @@
 
         // Expanded only when the queue is empty — the one moment this is the most
         // useful thing on the page rather than a distraction.
-        disclosure.open = allEntries.length === 0;
+        bindDisclosure(disclosure, allEntries.length === 0);
 
         available.forEach(p => {
             const ref = p.fromVerseRef === p.toVerseRef
@@ -648,7 +655,9 @@
         if (idx >= 0) rhythm.lanes[idx] = updatedLane;
         const wasOpen = rhythmAllDetails.open;
         renderRhythms();
-        rhythmAllDetails.open = wasOpen;   // renderRhythms re-derives this; keep the user's choice
+        // bindDisclosure already restores a remembered choice; this covers the case
+        // where localStorage is unavailable and nothing was remembered.
+        rhythmAllDetails.open = wasOpen;
         // A mark may have satisfied today's lane — let the card settle.
         renderTodayReadingCard();
     }
@@ -796,7 +805,7 @@
         const laneCount = rhythmsData.reduce((n, r) => n + r.lanes.length, 0);
         rhythmAllSummary.textContent = `All lanes (${laneCount})`;
         // Open when today has nothing — otherwise the section would look empty.
-        rhythmAllDetails.open = todayPairs.length === 0;
+        bindDisclosure(rhythmAllDetails, todayPairs.length === 0);
 
         rhythmsData.forEach(rhythm => {
             rhythmAllEl.appendChild(buildRhythmHeader(rhythm));
@@ -1311,6 +1320,9 @@
     renderTodayReadingCard();
 
     // ── Activity Heatmap ───────────────────────────────────────────────────────
+
+    // Retrospective, so it starts collapsed — but a reader who opens it keeps it open.
+    bindDisclosure(document.getElementById('activity-details'), false);
 
     function renderHeatmap(data) {
         // data: { "2026-03-14": 3, ... } — only active days included
