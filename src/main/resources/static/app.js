@@ -289,7 +289,11 @@
         FONT_SIZE: 'kjv_font_size',
         SAVED_VERSES: 'kjv_saved_verses',
         TAGS: 'kjv_tags',
-        AUDIO_SPEED: 'kjv_audio_speed'
+        AUDIO_SPEED: 'kjv_audio_speed',
+        // How the Library is arranged, not what it contains — see view-prefs.js
+        // for which side of that line a value belongs on.
+        LIBRARY_VIEW: 'kjv_library_view',
+        LIBRARY_SORT: 'kjv_library_sort'
     };
 
     // ============================================
@@ -4837,11 +4841,13 @@
         state.libraryOpen = true;
         elements.libraryOverlay.hidden = false;
 
-        // Always open on the Saved Verses tab for predictability
-        state.libraryView = 'verses';
-        elements.libraryTabVerses.classList.add('active');
-        elements.libraryTabChapterNotes.classList.remove('active');
-        elements.libraryFiltersBar.hidden = false;
+        // Reopen on the tab and sort order the reader left it in. How the Library is
+        // *arranged* is a preference worth remembering; what it is *filtered* to is a
+        // query, and that still resets in closeLibrary() — a forgotten filter makes a
+        // full library look empty.
+        applyLibraryView(window.KjvViewPrefs.get(STORAGE_KEYS.LIBRARY_VIEW, 'verses'));
+        state.libraryFilters.sort = window.KjvViewPrefs.get(STORAGE_KEYS.LIBRARY_SORT, 'date-desc');
+        elements.librarySort.value = state.libraryFilters.sort;
 
         // Load expanded state from localStorage
         loadLibraryFiltersExpandedState();
@@ -4863,16 +4869,16 @@
     function closeLibrary() {
         state.libraryOpen = false;
         elements.libraryOverlay.hidden = true;
-        // Reset filters when closing
+        // Reset the query — search text and pills — but keep the sort order, which
+        // openLibrary() restores from the reader's saved preference either way.
         state.libraryFilters = {
             search: '',
             tagIds: [],
             categoryIds: [],
             bookIds: [],
-            sort: 'date-desc'
+            sort: state.libraryFilters.sort
         };
         elements.librarySearch.value = '';
-        elements.librarySort.value = 'date-desc';
 
         // Clear combos
         if (categoryCombo) categoryCombo.clear();
@@ -5058,8 +5064,7 @@
     function toggleLibraryFilters() {
         state.libraryFiltersExpanded = !state.libraryFiltersExpanded;
         updateLibraryFiltersUI();
-        // Persist to localStorage
-        localStorage.setItem('kjv_library_filters_expanded', state.libraryFiltersExpanded);
+        window.KjvViewPrefs.set('kjv_library_filters_expanded', state.libraryFiltersExpanded);
     }
 
     function updateLibraryFiltersUI() {
@@ -5084,8 +5089,9 @@
     }
 
     function loadLibraryFiltersExpandedState() {
-        const saved = localStorage.getItem('kjv_library_filters_expanded');
-        state.libraryFiltersExpanded = saved === 'true';
+        // Values written before view-prefs.js read back unchanged: setItem coerced the
+        // boolean to "true"/"false", which is already valid JSON.
+        state.libraryFiltersExpanded = window.KjvViewPrefs.get('kjv_library_filters_expanded', false) === true;
     }
 
     function filterSavedVerses() {
@@ -5104,13 +5110,19 @@
         });
     }
 
-    function setLibraryView(view) {
-        state.libraryView = view;
+    /** Tab state + chrome, without rendering — openLibrary() renders once at the end. */
+    function applyLibraryView(view) {
         const chapterNotesActive = view === 'chapter-notes';
+        state.libraryView = chapterNotesActive ? 'chapter-notes' : 'verses';
         elements.libraryTabVerses.classList.toggle('active', !chapterNotesActive);
         elements.libraryTabChapterNotes.classList.toggle('active', chapterNotesActive);
         // Filter bar is verse-specific — hide it on the chapter notes tab
         elements.libraryFiltersBar.hidden = chapterNotesActive;
+    }
+
+    function setLibraryView(view) {
+        applyLibraryView(view);
+        window.KjvViewPrefs.set(STORAGE_KEYS.LIBRARY_VIEW, state.libraryView);
         renderLibraryResults();
     }
 
@@ -5300,6 +5312,7 @@
 
     function handleLibrarySortChange() {
         state.libraryFilters.sort = elements.librarySort.value;
+        window.KjvViewPrefs.set(STORAGE_KEYS.LIBRARY_SORT, state.libraryFilters.sort);
         renderLibraryResults();
     }
 
