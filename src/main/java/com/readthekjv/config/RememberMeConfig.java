@@ -1,5 +1,6 @@
 package com.readthekjv.config;
 
+import com.readthekjv.security.SameSiteRememberMeServices;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,8 +33,8 @@ public class RememberMeConfig {
             @Value("${security.remember-me.key}") String key,
             UserDetailsService userDetailsService,
             PersistentTokenRepository persistentTokenRepository) {
-        PersistentTokenBasedRememberMeServices services =
-                new PersistentTokenBasedRememberMeServices(key, userDetailsService, persistentTokenRepository);
+        SameSiteRememberMeServices services =
+                new SameSiteRememberMeServices(key, userDetailsService, persistentTokenRepository);
         services.setTokenValiditySeconds(REMEMBER_ME_VALIDITY_SECONDS);
         services.setAlwaysRemember(true); // no remember-me checkbox in the UI — always issue the cookie
         return services;

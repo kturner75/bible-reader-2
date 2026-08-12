@@ -96,7 +96,9 @@
         <button class="nav-signout" id="nav-signout">Sign Out</button>
     `;
     document.getElementById('nav-signout').addEventListener('click', async () => {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        await (window.KjvCsrf
+            ? window.KjvCsrf.fetch('/api/auth/logout', { method: 'POST' })
+            : fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }));
         window.location.href = '/landing.html';
     });
 
@@ -146,11 +148,14 @@
     // the browser's weekday, or a lane marked just after local midnight resurfaces
     // as outstanding when the server rolls over.
     const TZ_HEADER = { 'X-Time-Zone': Intl.DateTimeFormat().resolvedOptions().timeZone || '' };
-    const rhythmFetch = (url, opts = {}) => fetch(url, {
-        ...opts,
-        credentials: 'include',
-        headers: { ...TZ_HEADER, ...(opts.headers || {}) },
-    });
+    const rhythmFetch = (url, opts = {}) => {
+        const merged = {
+            ...opts,
+            credentials: 'include',
+            headers: { ...TZ_HEADER, ...(opts.headers || {}) },
+        };
+        return window.KjvCsrf ? window.KjvCsrf.fetch(url, merged) : fetch(url, merged);
+    };
     try {
         const [queueRes, streakRes, globalRes, plansRes, heatmapRes, sermonNotesRes,
                rhythmsRes, booksRes] = await Promise.all([
@@ -307,12 +312,18 @@
                 this.disabled = true;
                 this.textContent = 'Adding…';
                 try {
-                    const res = await fetch('/api/memorization/queue', {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ naturalKey: p.naturalKey }),
-                    });
+                    const res = await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch('/api/memorization/queue', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ naturalKey: p.naturalKey }),
+                        })
+                        : fetch('/api/memorization/queue', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ naturalKey: p.naturalKey }),
+                        }));
                     if (!res.ok) throw new Error('add failed');
                     this.textContent = '✓ Added';
                     this.classList.add('is-added');
@@ -400,10 +411,12 @@
                 this.disabled = true;
                 this.textContent = 'Enrolling…';
                 try {
-                    const res = await fetch(`/api/plans/${plan.id}/enroll`, {
-                        method: 'POST',
-                        credentials: 'include',
-                    });
+                    const res = await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch(`/api/plans/${plan.id}/enroll`, { method: 'POST' })
+                        : fetch(`/api/plans/${plan.id}/enroll`, {
+                            method: 'POST',
+                            credentials: 'include',
+                        }));
                     if (res.ok) {
                         const updated = await res.json();
                         const newRow = buildPlanRow(updated);
@@ -433,9 +446,11 @@
                 if (!ok) return;
                 this.disabled = true;
                 try {
-                    const res = await fetch(`/api/plans/${plan.id}/enroll`, {
-                        method: 'DELETE', credentials: 'include',
-                    });
+                    const res = await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch(`/api/plans/${plan.id}/enroll`, { method: 'DELETE' })
+                        : fetch(`/api/plans/${plan.id}/enroll`, {
+                            method: 'DELETE', credentials: 'include',
+                        }));
                     if (!res.ok) throw new Error('unenroll failed');
                     // 204 has no body — rebuild the unenrolled row from what we know.
                     const updated = { ...plan, enrolled: false, currentDay: null,
@@ -456,9 +471,11 @@
                 this.disabled = true;
                 this.textContent = 'Resetting…';
                 try {
-                    const res = await fetch(`/api/plans/${plan.id}/restart`, {
-                        method: 'POST', credentials: 'include',
-                    });
+                    const res = await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch(`/api/plans/${plan.id}/restart`, { method: 'POST' })
+                        : fetch(`/api/plans/${plan.id}/restart`, {
+                            method: 'POST', credentials: 'include',
+                        }));
                     if (!res.ok) throw new Error('restart failed');
                     const updated = await res.json();
                     const newRow = buildPlanRow(updated);
@@ -478,10 +495,12 @@
                 this.disabled = true;
                 this.textContent = 'Saving…';
                 try {
-                    const res = await fetch(`/api/plans/${plan.id}/complete-day`, {
-                        method: 'POST',
-                        credentials: 'include',
-                    });
+                    const res = await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch(`/api/plans/${plan.id}/complete-day`, { method: 'POST' })
+                        : fetch(`/api/plans/${plan.id}/complete-day`, {
+                            method: 'POST',
+                            credentials: 'include',
+                        }));
                     if (res.ok) {
                         const updated = await res.json();
                         const newRow = buildPlanRow(updated);
@@ -749,9 +768,11 @@
             return;
         }
         try {
-            const res = await fetch(`/api/rhythms/${rhythm.id}`, {
-                method: 'DELETE', credentials: 'include',
-            });
+            const res = await (window.KjvCsrf
+                ? window.KjvCsrf.fetch(`/api/rhythms/${rhythm.id}`, { method: 'DELETE' })
+                : fetch(`/api/rhythms/${rhythm.id}`, {
+                    method: 'DELETE', credentials: 'include',
+                }));
             if (!res.ok) throw new Error('delete failed');
             rhythmsData = rhythmsData.filter(r => r.id !== rhythm.id);
             renderRhythms();
@@ -1214,9 +1235,11 @@
         if (!draft?.id) return;
         if (!confirm(`Delete "${draft.title}" and its reading progress?`)) return;
         try {
-            const res = await fetch(`/api/rhythms/${draft.id}`, {
-                method: 'DELETE', credentials: 'include',
-            });
+            const res = await (window.KjvCsrf
+                ? window.KjvCsrf.fetch(`/api/rhythms/${draft.id}`, { method: 'DELETE' })
+                : fetch(`/api/rhythms/${draft.id}`, {
+                    method: 'DELETE', credentials: 'include',
+                }));
             if (!res.ok) throw new Error('Could not delete this rhythm.');
             rhythmsData = rhythmsData.filter(r => r.id !== draft.id);
             closeRhythmBuilder();

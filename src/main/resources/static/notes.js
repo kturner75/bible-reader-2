@@ -118,7 +118,9 @@
             unlockEditorInputs();
         }
         allowUnload = true;
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        await (window.KjvCsrf
+            ? window.KjvCsrf.fetch('/api/auth/logout', { method: 'POST' })
+            : fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }));
         window.location.href = '/landing.html';
     });
 
@@ -539,15 +541,19 @@
             // From here the server will commit — cancel/navigation must not abandon.
             saveWriteDispatched = true;
             if (cancelBtn) cancelBtn.disabled = true;
-            const res = await fetch(
-                targetId ? `/api/sermon-notes/${targetId}` : '/api/sermon-notes',
-                {
-                    method: targetId ? 'PUT' : 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, note }),
-                }
-            );
+            const saveOpts = {
+                method: targetId ? 'PUT' : 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, note }),
+            };
+            const res = await (window.KjvCsrf
+                ? window.KjvCsrf.fetch(
+                    targetId ? `/api/sermon-notes/${targetId}` : '/api/sermon-notes',
+                    saveOpts)
+                : fetch(
+                    targetId ? `/api/sermon-notes/${targetId}` : '/api/sermon-notes',
+                    saveOpts));
             if (saveGen !== openNoteGen) return;
             if (!res.ok) {
                 showToast('Failed to save note');
@@ -587,10 +593,12 @@
         const targetId = editingNoteId;
         const deleteGen = openNoteGen;
         try {
-            const res = await fetch(`/api/sermon-notes/${targetId}`, {
-                method: 'DELETE',
-                credentials: 'include',
-            });
+            const res = await (window.KjvCsrf
+                ? window.KjvCsrf.fetch(`/api/sermon-notes/${targetId}`, { method: 'DELETE' })
+                : fetch(`/api/sermon-notes/${targetId}`, {
+                    method: 'DELETE',
+                    credentials: 'include',
+                }));
             if (deleteGen !== openNoteGen) return;
             if (!res.ok && res.status !== 204) return;
             sermonNotes = sermonNotes.filter(n => n.id !== targetId);
@@ -1057,12 +1065,18 @@
 
     async function savePassageFromInsert(naturalKey, title) {
         try {
-            const res = await fetch('/api/passages', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ naturalKey, title: title || null })
-            });
+            const res = await (window.KjvCsrf
+                ? window.KjvCsrf.fetch('/api/passages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ naturalKey, title: title || null })
+                })
+                : fetch('/api/passages', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ naturalKey, title: title || null })
+                }));
             if (!res.ok) throw new Error('save failed');
             const listRes = await fetch('/api/passages', { credentials: 'include' });
             if (listRes.ok) {

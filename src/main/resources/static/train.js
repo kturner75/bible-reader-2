@@ -282,7 +282,7 @@
         async function submitRating(quality) {
             ratingsEl.querySelectorAll('.rating-btn').forEach(b => b.disabled = true);
             try {
-                const res = await fetch('/api/memorization/queue/' + entry.id + '/review', {
+                const reviewOpts = {
                     method: 'POST',
                     // The server schedules nextReviewAt from this zone, so it matches
                     // the boundary the dashboard and reader use to decide "due today".
@@ -292,7 +292,10 @@
                     },
                     credentials: 'include',
                     body: JSON.stringify({ quality })
-                });
+                };
+                const res = await (window.KjvCsrf
+                    ? window.KjvCsrf.fetch('/api/memorization/queue/' + entry.id + '/review', reviewOpts)
+                    : fetch('/api/memorization/queue/' + entry.id + '/review', reviewOpts));
                 if (res.status === 401) { window.location.href = '/login.html'; return; }
             } catch (e) {
                 errorEl.textContent = 'Could not save rating. Please try again.';
@@ -447,11 +450,14 @@
 
             let data;
             try {
-                const res = await fetch('/api/memorization/queue/' + entry.id + '/recite', {
+                const reciteOpts = {
                     method: 'POST',
                     credentials: 'include',
                     body: formData
-                });
+                };
+                const res = await (window.KjvCsrf
+                    ? window.KjvCsrf.fetch('/api/memorization/queue/' + entry.id + '/recite', reciteOpts)
+                    : fetch('/api/memorization/queue/' + entry.id + '/recite', reciteOpts));
 
                 if (res.status === 401) { window.location.href = '/login.html'; return; }
                 if (res.status === 503) {
