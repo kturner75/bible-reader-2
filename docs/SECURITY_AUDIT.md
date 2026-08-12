@@ -17,9 +17,9 @@ The app’s user-data APIs generally scope queries by authenticated user id (no 
 
 | ID | Severity | Title | Backlog priority |
 |----|----------|-------|------------------|
-| H1 | High | Account pre-hijacking via unverified email + Google OAuth auto-link | P0 |
-| H2 | High | Unauthenticated TTS generation / cost amplification (`/api/audio/**`) | P0 |
-| H3 | High | CSRF disabled for all `/api/**` with cookie sessions + always-on remember-me | P0 |
+| H1 | High | Account pre-hijacking via unverified email + Google OAuth auto-link | P0 — **remediated** (see Status) |
+| H2 | High | Unauthenticated TTS generation / cost amplification (`/api/audio/**`) | P0 — **remediated** (see Status) |
+| H3 | High | CSRF disabled for all `/api/**` with cookie sessions + always-on remember-me | P0 — **remediated** (see Status) |
 | M1 | Medium | No rate limiting / lockout on auth, registration, or paid AI endpoints | P1 |
 | M2 | Medium | Default `REMEMBER_ME_KEY` fallback committed; 30-day always-remember cookies | P1 |
 | M3 | Medium | PostgreSQL `sslmode` defaults to `disable` | P1 |
@@ -47,6 +47,7 @@ The app’s user-data APIs generally scope queries by authenticated user id (no 
 | **Evidence** | OAuth path: `userRepository.findByEmail(email).ifPresentOrElse(existing -> { existing.setGoogleSub(sub); … })` with no verification challenge. Registration only checks uniqueness + `@Email`. Live probe: `POST /api/auth/register` on production accepts new accounts without verification. |
 | **Remediation** | Require email verification before the account is fully usable; **do not** auto-link Google to an existing password account without a confirmed session or verified-email proof; prefer linking only when `email_verified=true` and/or after re-auth. Consider blocking password registration for emails that later authenticate via Google until verified. |
 | **Priority** | **P0** |
+| **Status** | **Remediated (MVP, 2026-08-12).** `users.email_verified` added (V21); password registration starts unverified; Google login requires IdP `email_verified`; unverified password rows are *claimed* (password cleared, `google_sub` set) when Google proves ownership; verified password accounts **refuse** auto-link (`?error=account_exists`). Full SMTP verify-before-login deferred — see PR. Closely related M5 (`email_verified` claim) addressed here. |
 
 ---
 
@@ -61,6 +62,7 @@ The app’s user-data APIs generally scope queries by authenticated user id (no 
 | **Evidence** | Live: `GET https://readthekjv.com/api/audio/1` returns a CDN URL; TTS status enabled. Code path generates on miss then calls `triggerPrefetch`. |
 | **Remediation** | Require auth and/or strict rate limits (IP + user); only return CDN URLs for pre-generated objects from a public path; move generation to a trusted job/admin path; cap concurrent TTS; validate `book` against known Bible book names; consider disabling on-demand generation in production. |
 | **Priority** | **P0** |
+| **Status** | **Remediated (MVP, 2026-08-12).** Cache-hit CDN URLs remain public; on-demand OpenAI generation + prefetch require an authenticated session; generation concurrency capped at 2; chapter `book` allowlisted via `BibleService` (also closes L2). Signed-out read-aloud works only for already-cached objects; cache-miss shows “Sign in to use read-aloud”. Per-user rate limits remain M1. |
 
 ---
 
@@ -74,6 +76,7 @@ The app’s user-data APIs generally scope queries by authenticated user id (no 
 | **Impact** | State-changing API calls (`POST/PATCH/DELETE` for library, notes, rhythms, memorization, logout, etc.) rely on session/remember-me cookies without CSRF tokens. Comment claims “same-site session cookies,” but remember-me cookies from Spring Security 6.2.1’s `AbstractRememberMeServices#setCookie` set `Secure` + `HttpOnly` only — **no `SameSite` attribute**. Browser defaults (Lax) reduce classic cross-site POST risk in modern Chrome/Firefox, but this is brittle (older clients, future cookie policy changes, non-browser clients, mistaken `SameSite=None`). |
 | **Remediation** | Re-enable CSRF for cookie-authenticated `/api/**` (or move authed APIs to header-based CSRF / double-submit); set `SameSite=Lax` or `Strict` explicitly on session + remember-me cookies; consider not using remember-me for CSRF-sensitive actions without additional binding. |
 | **Priority** | **P0** |
+| **Status** | **Remediated (2026-08-12).** CSRF re-enabled for `/api/**` via `CookieCsrfTokenRepository` (non-HttpOnly `XSRF-TOKEN`, `SameSite=Lax`) + SPA request handler; frontend `csrf-utils.js` (`KjvCsrf`) sends `X-XSRF-TOKEN` on mutating calls. Session cookie `SameSite=Lax` in `application.properties`; remember-me cookie sets `SameSite=Lax` via `SameSiteRememberMeServices`. Always-on 30-day remember-me key/TTL remain M2. |
 
 ---
 
@@ -139,6 +142,7 @@ The app’s user-data APIs generally scope queries by authenticated user id (no 
 | **Impact** | Best-practice gap. Google accounts normally verify email, but skipping `email_verified` weakens defense if claim sets ever differ or another IdP is added later. Compounds H1. |
 | **Remediation** | Reject login when `email_verified` is missing/false; keep linking logic strict (H1). |
 | **Priority** | **P2** |
+| **Status** | **Addressed with H1 (2026-08-12).** Google sign-in rejects missing/false `email_verified` (`?error=email_unverified`). |
 
 ---
 
@@ -165,6 +169,7 @@ The app’s user-data APIs generally scope queries by authenticated user id (no 
 | **Impact** | On-demand generation for non-existent books wastes API spend and creates odd public object keys under `audio/chapters/`. S3 keys are opaque (literal `../` is not filesystem traversal), so this is mainly abuse/spam, not classic path traversal RCE. |
 | **Remediation** | Allowlist book names/ids from `BibleService.getBooks()`; see H2 for generation controls. |
 | **Priority** | **P2** |
+| **Status** | **Addressed with H2 (2026-08-12).** `TtsController` rejects unknown book names via `TtsService.isKnownBook`. |
 
 ---
 
@@ -283,9 +288,9 @@ During live registration probing, account **`test@example.com` (user id `10`)** 
 
 ## Suggested backlog order
 
-1. **P0:** H1 (verify-email + safe OAuth link), H2 (TTS auth/rate/precompute), H3 (CSRF + explicit SameSite).  
+1. ~~**P0:** H1 (verify-email + safe OAuth link), H2 (TTS auth/rate/precompute), H3 (CSRF + explicit SameSite).~~ **Done (MVP)** — follow-ups: SMTP verify-before-login / password-reset (H1), optional signed-in Google link UI, M1 quotas on TTS.  
 2. **P1:** M1 rate limits, M2 remember-me key hard-fail, M3 DB SSL defaults, M4 Boot/Tomcat upgrade.  
-3. **P2:** M5 `email_verified`, L1–L4 hardening.  
+3. **P2:** ~~M5 `email_verified`~~ (done with H1), ~~L2 book allowlist~~ (done with H2), L1 / L3 / L4 hardening.  
 4. **P3:** L5 + informational cleanup (I1–I3).
 
 ---

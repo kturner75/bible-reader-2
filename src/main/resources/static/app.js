@@ -308,7 +308,10 @@
     // ============================================
 
     async function libApi(url, options = {}) {
-        const res = await fetch(url, { credentials: 'include', ...options });
+        const init = window.KjvCsrf
+            ? window.KjvCsrf.init({ credentials: 'include', ...options })
+            : { credentials: 'include', ...options };
+        const res = await fetch(url, init);
         if (!res.ok) throw new Error(`API ${res.status} for ${url}`);
         return res.status === 204 ? null : res.json();
     }
@@ -2604,12 +2607,18 @@
 
         state.rhythmMarkInFlight = (async () => {
             try {
-                const res = await fetch(`/api/rhythms/lanes/${state.rhythmLaneId}/progress`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json', ...rhythmTzHeader() },
-                    body: JSON.stringify({ bookId: target.bookId, throughChapter: target.chapter })
-                });
+                const res = await (window.KjvCsrf
+                    ? window.KjvCsrf.fetch(`/api/rhythms/lanes/${state.rhythmLaneId}/progress`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...rhythmTzHeader() },
+                        body: JSON.stringify({ bookId: target.bookId, throughChapter: target.chapter })
+                    })
+                    : fetch(`/api/rhythms/lanes/${state.rhythmLaneId}/progress`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json', ...rhythmTzHeader() },
+                        body: JSON.stringify({ bookId: target.bookId, throughChapter: target.chapter })
+                    }));
                 if (!res.ok) throw new Error('mark failed');
                 state.rhythmLane = await res.json();
                 button.textContent = 'Saved ✓';
@@ -6164,6 +6173,11 @@
             warmUrlCache(verseId);
             preBufferNextVerse(verseId);
         } catch (e) {
+            if (e && e.message === 'AUTH_REQUIRED') {
+                stopAudio();
+                showToast('Sign in to use read-aloud');
+                return;
+            }
             console.error('Failed to play audio', e);
             if (retryCount < 1) {
                 console.log('Retrying audio playback...');
@@ -6183,6 +6197,11 @@
             elements.ttsAudio.playbackRate = state.audioSpeed;
             await elements.ttsAudio.play();
         } catch (e) {
+            if (e && e.message === 'AUTH_REQUIRED') {
+                stopAudio();
+                showToast('Sign in to use read-aloud');
+                return;
+            }
             console.error('Failed to play chapter audio', e);
             if (retryCount < 1) {
                 console.log('Retrying chapter audio playback...');
@@ -6259,7 +6278,11 @@
     async function getAudioUrl(verseId) {
         const key = `verse:${verseId}`;
         if (audioUrlCache.has(key)) return audioUrlCache.get(key);
-        const response = await fetch(`/api/audio/${verseId}`);
+        // credentials: cache-miss generation requires a signed-in session (H2)
+        const response = await fetch(`/api/audio/${verseId}`, { credentials: 'include' });
+        if (response.status === 401) {
+            throw new Error('AUTH_REQUIRED');
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         audioUrlCache.set(key, data.url);
@@ -6273,7 +6296,12 @@
         const key = `chapter:${book}:${chapter}`;
         if (audioUrlCache.has(key)) return audioUrlCache.get(key);
         const encodedBook = encodeURIComponent(book);
-        const response = await fetch(`/api/audio/chapter/${encodedBook}/${chapter}`);
+        const response = await fetch(`/api/audio/chapter/${encodedBook}/${chapter}`, {
+            credentials: 'include'
+        });
+        if (response.status === 401) {
+            throw new Error('AUTH_REQUIRED');
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         audioUrlCache.set(key, data.url);
@@ -7157,9 +7185,10 @@
                     // One-time migration: sync whatever localStorage data existed at login time
                     await migrateLocalStorageToDb(localVerses, localTags);
                     // Mark migration complete on the server so it never runs again for this account
-                    await fetch('/api/auth/me/migration-complete', {
-                        method: 'POST', credentials: 'include'
-                    }).catch(() => { /* non-fatal */ });
+                    await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch('/api/auth/me/migration-complete', { method: 'POST' })
+                        : fetch('/api/auth/me/migration-complete', { method: 'POST', credentials: 'include' })
+                    ).catch(() => { /* non-fatal */ });
                     state.currentUser.localStorageMigrated = true;
                 }
                 updateAuthHeader();
@@ -7202,7 +7231,9 @@
             elements.authDisplayName.textContent = user.displayName || user.email;
             elements.authLogoutBtn.onclick = async () => {
                 try {
-                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                    await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch('/api/auth/logout', { method: 'POST' })
+                        : fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }));
                 } catch (_) { /* ignore */ }
                 state.currentUser = null;
                 updateAuthHeader();

@@ -70,6 +70,7 @@
         </div>
     </div>
 
+    <script src="/csrf-utils.js"></script>
     <script>
         (function () {
             const form = document.getElementById('register-form');
@@ -114,7 +115,7 @@
 
                 try {
                     // Step 1: Register
-                    const regRes = await fetch('/api/auth/register', {
+                    const regOpts = {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -123,7 +124,10 @@
                             displayName: displayName || null
                         }),
                         credentials: 'include'
-                    });
+                    };
+                    const regRes = await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch('/api/auth/register', regOpts)
+                        : fetch('/api/auth/register', regOpts));
 
                     if (!regRes.ok) {
                         const data = await regRes.json().catch(() => ({}));
@@ -140,13 +144,16 @@
                     }
 
                     // Step 2: Auto-login with the new credentials
-                    const loginRes = await fetch('/api/auth/login', {
+                    const loginOpts = {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: 'username=' + encodeURIComponent(email) +
                               '&password=' + encodeURIComponent(password),
                         credentials: 'include'
-                    });
+                    };
+                    const loginRes = await (window.KjvCsrf
+                        ? window.KjvCsrf.fetch('/api/auth/login', loginOpts)
+                        : fetch('/api/auth/login', loginOpts));
 
                     if (loginRes.ok) {
                         window.location.href = '/';

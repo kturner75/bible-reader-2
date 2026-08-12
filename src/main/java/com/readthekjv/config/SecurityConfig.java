@@ -1,6 +1,8 @@
 package com.readthekjv.config;
 
+import com.readthekjv.security.CsrfCookieFilter;
 import com.readthekjv.security.OAuth2SuccessHandler;
+import com.readthekjv.security.SpaCsrfTokenRequestHandler;
 import com.readthekjv.service.OAuth2UserServiceImpl;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -12,12 +14,21 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+
+import java.util.Set;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private static final Set<String> OAUTH_ERROR_CODES = Set.of(
+            "account_exists", "email_unverified", "google");
 
     private final OAuth2UserServiceImpl oAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
@@ -31,9 +42,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                             PersistentTokenBasedRememberMeServices rememberMeServices) throws Exception {
+        CookieCsrfTokenRepository csrfTokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfTokenRepository.setCookieCustomizer(cookie -> cookie.sameSite("Lax"));
+
         http
-            // Disable CSRF for all API endpoints — REST calls use same-site session cookies
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
+            // H3: CSRF for cookie-authenticated APIs (double-submit cookie + X-XSRF-TOKEN).
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(csrfTokenRepository)
+                .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
+                // OAuth2 redirect dance is browser-navigated; leave those matchers alone.
+                // All /api/** state changes require the header from csrf-utils.js.
+            )
+            .addFilterAfter(new CsrfCookieFilter(), UsernamePasswordAuthenticationFilter.class)
 
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
@@ -47,11 +67,14 @@ public class SecurityConfig {
                     "/style.css", "/app.js",
                     "/date-utils.js",                      // shared by the public reader — a 302 here breaks it
                     "/view-prefs.js",                      // ditto — window.KjvViewPrefs must exist for signed-out readers
+                    "/csrf-utils.js",                      // ditto — CSRF helper for public login/register/reader
                     "/error",                              // Spring Boot error controller — must be public
                     "/api/verses", "/api/books/**", "/api/search",
                     "/api/reference", "/api/navigate/**",
                     "/api/ranges", "/api/ranges/**",       // portable [v=…] hydrate + surrounding context — public
-                    "/api/audio/**", "/api/tts/status",   // audio + TTS feature detection
+                    // Audio: permitAll so cache-hit CDN URLs stay public; on-demand
+                    // OpenAI generation is gated inside TtsController (H2).
+                    "/api/audio/**", "/api/tts/status",
                     "/api/auth/**",
                     "/api/verse-of-day"                    // public — same verse shown to all visitors
                 ).permitAll()
@@ -80,6 +103,8 @@ public class SecurityConfig {
             // Spring Security handles POST /api/auth/logout
             .logout(logout -> logout
                 .logoutUrl("/api/auth/logout")
+                // Explicit matcher so logout accepts JSON SPA POSTs with CSRF header
+                .logoutRequestMatcher(new AntPathRequestMatcher("/api/auth/logout", "POST"))
                 .logoutSuccessHandler((req, res, auth) -> {
                     res.setStatus(HttpServletResponse.SC_OK);
                     res.setContentType("application/json");
@@ -93,8 +118,14 @@ public class SecurityConfig {
                 .userInfoEndpoint(info -> info.userService(oAuth2UserService))
                 .successHandler(oAuth2SuccessHandler)
                 .failureHandler((req, res, ex) -> {
+                    String code = "google";
+                    if (ex instanceof OAuth2AuthenticationException oauthEx
+                            && oauthEx.getError() != null
+                            && OAUTH_ERROR_CODES.contains(oauthEx.getError().getErrorCode())) {
+                        code = oauthEx.getError().getErrorCode();
+                    }
                     res.setStatus(HttpServletResponse.SC_FOUND);
-                    res.setHeader("Location", "/login.html?error=google");
+                    res.setHeader("Location", "/login.html?error=" + code);
                 })
             )
 

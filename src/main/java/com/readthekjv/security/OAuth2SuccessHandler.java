@@ -65,6 +65,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         // survives is keyed on the real email/username.
         rememberMeServices.loginSuccess(request, response, newAuth);
 
-        response.sendRedirect("/");
+        // Relative Location — sendRedirect() can emit http:// behind Nginx TLS termination.
+        response.setStatus(HttpServletResponse.SC_FOUND);
+        response.setHeader("Location", "/");
     }
 }

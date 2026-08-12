@@ -25,15 +25,22 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 /**
  * Service for text-to-speech audio generation using OpenAI's TTS API.
  * Stores audio files in Digital Ocean Spaces with CDN delivery.
+ *
+ * <p>H2: cache lookups are cheap; OpenAI generation is concurrency-capped and
+ * must only be invoked from an authenticated controller path.
  */
 @Service
 public class TtsService {
 
     private static final Logger log = LoggerFactory.getLogger(TtsService.class);
+
+    /** Max simultaneous OpenAI TTS HTTP calls (request + prefetch share this). */
+    private static final int MAX_CONCURRENT_GENERATIONS = 2;
 
     @Value("${tts.enabled:false}")
     private boolean enabled;
@@ -73,6 +80,7 @@ public class TtsService {
 
     private final BibleService bibleService;
     private final HttpClient httpClient;
+    private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
     private S3Client s3Client;
     private ExecutorService prefetchExecutor;
 
@@ -131,8 +139,34 @@ public class TtsService {
     }
 
     /**
+     * Returns the CDN URL if the verse audio already exists in Spaces.
+     * Does not call OpenAI and does not prefetch.
+     */
+    public Optional<String> findCachedAudioUrlForVerse(int verseId) {
+        if (!isEnabled() || s3Client == null) {
+            return Optional.empty();
+        }
+        String key = getVerseKey(verseId);
+        return existsInSpaces(key) ? Optional.of(getCdnUrl(key)) : Optional.empty();
+    }
+
+    /**
+     * Returns the CDN URL if the chapter announcement already exists in Spaces.
+     * Does not call OpenAI.
+     */
+    public Optional<String> findCachedAudioUrlForChapter(String book, int chapter) {
+        if (!isEnabled() || s3Client == null) {
+            return Optional.empty();
+        }
+        String key = getChapterKey(book, chapter);
+        return existsInSpaces(key) ? Optional.of(getCdnUrl(key)) : Optional.empty();
+    }
+
+    /**
      * Gets the CDN URL for a verse audio, generating it if not already in Spaces.
      * Also triggers background prefetch of upcoming verses.
+     *
+     * <p>Caller must enforce authentication — this method spends OpenAI budget.
      *
      * @param verseId The verse ID (1-31102)
      * @return Optional containing the CDN URL, or empty if unavailable
@@ -187,7 +221,9 @@ public class TtsService {
     /**
      * Gets the CDN URL for a chapter announcement audio.
      *
-     * @param book The book name
+     * <p>Caller must enforce authentication — this method spends OpenAI budget.
+     *
+     * @param book The book name (canonical Bible book name)
      * @param chapter The chapter number
      * @return Optional containing the CDN URL, or empty if unavailable
      */
@@ -227,9 +263,17 @@ public class TtsService {
     }
 
     /**
-     * Triggers background prefetch of upcoming verses.
+     * True when {@code book} is a known canonical Bible book name.
      */
-    private void triggerPrefetch(int currentVerseId) {
+    public boolean isKnownBook(String book) {
+        return book != null && bibleService.getBookByName(book).isPresent();
+    }
+
+    /**
+     * Triggers background prefetch of upcoming verses.
+     * Only call for authenticated requests (amplifies OpenAI spend).
+     */
+    public void triggerPrefetch(int currentVerseId) {
         if (prefetchExecutor == null) return;
 
         prefetchExecutor.submit(() -> {
@@ -315,29 +359,34 @@ public class TtsService {
     }
 
     /**
-     * Calls OpenAI's TTS API to generate audio.
+     * Calls OpenAI's TTS API to generate audio. Concurrency-capped (H2).
      */
     private byte[] callOpenAiTts(String text) throws IOException, InterruptedException {
-        String requestBody = String.format(
-                "{\"model\": \"%s\", \"input\": %s, \"voice\": \"%s\", \"response_format\": \"mp3\"}",
-                model, escapeJson(text), voice);
+        generationPermits.acquire();
+        try {
+            String requestBody = String.format(
+                    "{\"model\": \"%s\", \"input\": %s, \"voice\": \"%s\", \"response_format\": \"mp3\"}",
+                    model, escapeJson(text), voice);
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.openai.com/v1/audio/speech"))
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .timeout(Duration.ofSeconds(60))
-                .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.openai.com/v1/audio/speech"))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .timeout(Duration.ofSeconds(60))
+                    .build();
 
-        HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
 
-        if (response.statusCode() != 200) {
-            log.error("OpenAI TTS API error: {} - {}", response.statusCode(), new String(response.body()));
-            return null;
+            if (response.statusCode() != 200) {
+                log.error("OpenAI TTS API error: {} - {}", response.statusCode(), new String(response.body()));
+                return null;
+            }
+
+            return response.body();
+        } finally {
+            generationPermits.release();
         }
-
-        return response.body();
     }
 
     /**

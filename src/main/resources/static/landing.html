@@ -102,6 +102,7 @@
         </div>
     </footer>
 
+    <script src="/csrf-utils.js"></script>
     <script>
     (async function () {
         'use strict';
@@ -111,7 +112,7 @@
         // ── Auth state ────────────────────────────────────────────────────
         let currentUser = null;
         try {
-            const res = await fetch('/api/auth/me');
+            const res = await fetch('/api/auth/me', { credentials: 'include' });
             if (res.ok) {
                 currentUser = await res.json();
             }
@@ -127,7 +128,9 @@
                 <button class="nav-link nav-signout" id="nav-signout">Sign Out</button>
             `;
             document.getElementById('nav-signout').addEventListener('click', async () => {
-                await fetch('/api/auth/logout', { method: 'POST' });
+                await (window.KjvCsrf
+                    ? window.KjvCsrf.fetch('/api/auth/logout', { method: 'POST' })
+                    : fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }));
                 window.location.reload();
             });
         }

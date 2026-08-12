@@ -32,6 +32,8 @@ public class AuthService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(req.password()));
         user.setDisplayName(req.displayName() != null ? req.displayName().strip() : null);
+        // Ownership unproven until a verify-email flow or Google claim (H1).
+        user.setEmailVerified(false);
 
         return UserResponse.from(userRepository.save(user));
     }

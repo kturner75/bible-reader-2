@@ -23,6 +23,15 @@ public class User {
     @Column(name = "google_sub", unique = true)
     private String googleSub;
 
+    /**
+     * True when ownership of {@link #email} has been proven (Google
+     * {@code email_verified}, or a future verify-email flow). Password
+     * registrations start false; unverified rows may be claimed by a
+     * Google sign-in for the same address (see {@code OAuth2UserServiceImpl}).
+     */
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
     @Column(name = "display_name", length = 100)
     private String displayName;
 
@@ -68,6 +77,8 @@ public class User {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public String getGoogleSub() { return googleSub; }
     public void setGoogleSub(String googleSub) { this.googleSub = googleSub; }
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
