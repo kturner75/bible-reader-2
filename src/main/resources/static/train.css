@@ -146,7 +146,13 @@ html, body {
 .train-card.peeking #recite-panel,
 .train-card.peeking #transcript-panel,
 .train-card.peeking .train-actions,
-.train-card.peeking .train-ratings { display: none; }
+.train-card.peeking .train-ratings,
+.train-card.pretraining .train-ref-recall,
+.train-card.peeking .train-ref-recall { display: none; }
+
+/* During the exercise the printed reference is hidden — they type it. */
+.train-card:not(.pretraining):not(.peeking):not(.ref-checked) .train-ref { display: none; }
+.train-card:not(.pretraining):not(.peeking):not(.ref-checked) .train-verse-num { visibility: hidden; }
 
 /* Test mode: hide reference and verse numbers */
 .train-card.test-mode .train-ref { visibility: hidden; }
@@ -155,6 +161,37 @@ html, body {
 .train-card.peeking .train-ref,
 .train-card.pretraining .train-verse-num,
 .train-card.peeking .train-verse-num { visibility: visible; }
+
+.train-ref-recall { margin: -0.75rem 0 1.25rem; }
+.train-ref-recall[hidden] { display: none; }
+.train-ref-label {
+    display: block;
+    font-size: .85rem;
+    color: var(--color-text-muted);
+    margin-bottom: .4rem;
+}
+.train-ref-input {
+    font-family: var(--font-primary);
+    font-size: 1.05rem;
+    width: 100%;
+    max-width: 22rem;
+    padding: .4rem .6rem;
+    border: none;
+    border-bottom: 2px solid var(--color-link);
+    background: transparent;
+    color: var(--color-text);
+    outline: none;
+}
+.train-ref-input.ref-correct { border-color: #4a7c4e; color: #4a7c4e; background: #f0f7f0; }
+.train-ref-input.ref-wrong   { border-color: #b05040; color: #b05040; background: #fdf0ee; }
+.train-ref-feedback {
+    font-size: .9rem;
+    margin-top: .45rem;
+    color: #b05040;
+}
+.train-ref-feedback.is-ok { color: #4a7c4e; }
+.train-ref-feedback[hidden] { display: none; }
+.train-card.recite-mode.needs-ref-check #train-check-btn { display: inline-block; }
 
 /* Blanked verse */
 .train-verse {

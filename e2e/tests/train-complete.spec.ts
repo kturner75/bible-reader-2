@@ -45,7 +45,10 @@ test.describe('training complete screen', () => {
     await openCompletedSession(page);
 
     const nextUp = page.getByRole('button', { name: 'Next Up' });
-    await expect(page.getByRole('heading', { name: 'All done for today!' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '1 still due' })).toBeVisible();
+    await expect(page.getByText('Your reviews are saved.')).toBeVisible();
+    await expect(page.getByText('All done for today!')).toHaveCount(0);
+    await expect(page.getByText('Come back tomorrow for the next session.')).toHaveCount(0);
     await expect(nextUp).toBeVisible();
     await expect(nextUp).toBeFocused();
     await expect(page.locator('#train-done-dashboard')).toBeVisible();
