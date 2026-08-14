@@ -28,6 +28,13 @@
                     <button class="train-recite-toggle" id="train-recite-toggle">Recite</button>
                 </div>
             </div>
+            <div class="train-ref-recall" id="train-ref-recall" hidden>
+                <label class="train-ref-label" for="train-ref-input">What&rsquo;s the reference?</label>
+                <input id="train-ref-input" class="train-ref-input" type="text"
+                       autocomplete="off" spellcheck="false" placeholder="John 3:16"
+                       aria-describedby="train-ref-feedback">
+                <p class="train-ref-feedback" id="train-ref-feedback" hidden></p>
+            </div>
             <section class="passage-preview" id="passage-preview" aria-label="Passage preview">
                 <p class="passage-preview-intro">Read through the passage before you begin.</p>
                 <div class="passage-preview-text" id="passage-preview-text"></div>
@@ -69,14 +76,16 @@
         </div>
         <div class="train-done" id="train-done" hidden>
             <p class="train-done-icon">&#10003;</p>
-            <h2 class="train-done-title">All done for today!</h2>
-            <p class="train-done-sub">Your reviews are saved. Come back tomorrow for the next session.</p>
+            <h2 class="train-done-title" id="train-done-title"></h2>
+            <p class="train-done-sub" id="train-done-sub"></p>
             <div class="train-done-actions">
-                <a class="train-done-link" href="/dashboard">Back to dashboard</a>
-                <a class="train-done-link train-done-link-secondary" href="/read">Back to reading</a>
+                <button type="button" class="train-done-link" id="train-next-up" hidden>Next Up</button>
+                <a class="train-done-link" id="train-done-dashboard" href="/dashboard">Back to dashboard</a>
+                <a class="train-done-link train-done-link-secondary" id="train-done-reading" href="/read">Back to reading</a>
             </div>
         </div>
     </main>
+    <script src="date-utils.js"></script>
     <script src="csrf-utils.js"></script>
     <script src="train.js"></script>
 </body>

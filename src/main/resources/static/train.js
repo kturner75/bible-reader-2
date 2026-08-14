@@ -17,6 +17,172 @@
                    .replace(/'/g, '&#39;');
     }
 
+    // Common abbreviations so "Jn 3:16" matches "John 3:16" without a round-trip.
+    // /api/reference covers the full alias list when the server is available.
+    const BOOK_ALIAS = {
+        ge: 'genesis', gen: 'genesis',
+        ex: 'exodus', exo: 'exodus', exod: 'exodus',
+        lev: 'leviticus', le: 'leviticus',
+        nu: 'numbers', num: 'numbers',
+        de: 'deuteronomy', deu: 'deuteronomy', deut: 'deuteronomy', dt: 'deuteronomy',
+        jos: 'joshua', josh: 'joshua',
+        jdg: 'judges', judg: 'judges',
+        ru: 'ruth',
+        ps: 'psalm', psa: 'psalm', pss: 'psalm', psalms: 'psalm',
+        pr: 'proverbs', pro: 'proverbs', prov: 'proverbs',
+        ec: 'ecclesiastes', ecc: 'ecclesiastes',
+        sos: 'songofsolomon', song: 'songofsolomon', songofsongs: 'songofsolomon',
+        isa: 'isaiah', is: 'isaiah',
+        jer: 'jeremiah', je: 'jeremiah',
+        la: 'lamentations', lam: 'lamentations',
+        eze: 'ezekiel', ezk: 'ezekiel',
+        da: 'daniel', dan: 'daniel',
+        ho: 'hosea', hos: 'hosea',
+        joe: 'joel',
+        am: 'amos',
+        ob: 'obadiah', oba: 'obadiah',
+        jon: 'jonah',
+        mi: 'micah', mic: 'micah',
+        na: 'nahum', nah: 'nahum',
+        hab: 'habakkuk',
+        zep: 'zephaniah',
+        hag: 'haggai',
+        zec: 'zechariah',
+        mal: 'malachi',
+        mt: 'matthew', matt: 'matthew', mat: 'matthew',
+        mk: 'mark', mr: 'mark',
+        lk: 'luke', lu: 'luke',
+        jn: 'john', joh: 'john',
+        ac: 'acts', act: 'acts',
+        ro: 'romans', rom: 'romans',
+        cor: 'corinthians', co: 'corinthians',
+        ga: 'galatians', gal: 'galatians',
+        eph: 'ephesians',
+        php: 'philippians', phil: 'philippians',
+        col: 'colossians',
+        thess: 'thessalonians', th: 'thessalonians',
+        tim: 'timothy', ti: 'timothy',
+        tit: 'titus',
+        phm: 'philemon',
+        heb: 'hebrews',
+        jas: 'james', jam: 'james',
+        pet: 'peter', pe: 'peter',
+        jude: 'jude',
+        rev: 'revelation', re: 'revelation'
+    };
+
+    function canonBook(norm) {
+        if (!norm) return '';
+        if (norm === 'psalms') return 'psalm';
+        if (BOOK_ALIAS[norm]) return BOOK_ALIAS[norm];
+        const numbered = norm.match(/^(\d)([a-z]+)$/);
+        if (numbered) {
+            const mapped = BOOK_ALIAS[numbered[2]] || numbered[2];
+            return numbered[1] + mapped;
+        }
+        return norm;
+    }
+
+    function parseOneRef(s) {
+        const m = String(s || '').trim().match(
+            /^(\d+\s*)?([A-Za-z][A-Za-z']*(?:\s+[A-Za-z][A-Za-z']*)*)\s+(\d+)\s*[:.v]\s*(\d+)(?:\s*-\s*(?:(\d+)\s*[:.v]\s*)?(\d+))?$/i
+        );
+        if (!m) return null;
+        const book = canonBook(((m[1] || '') + m[2]).toLowerCase().replace(/[^a-z0-9]+/g, ''));
+        const chapter   = parseInt(m[3], 10);
+        const fromVerse = parseInt(m[4], 10);
+        const toChapter = m[5] ? parseInt(m[5], 10) : chapter;
+        const toVerse   = m[6] ? parseInt(m[6], 10) : fromVerse;
+        if (!book || chapter < 1 || fromVerse < 1 || toChapter < 1 || toVerse < 1) return null;
+        return { book, chapter, fromVerse, toChapter, toVerse };
+    }
+
+    /** Accept John 3:16, John 3:16-17, John 3:16 – John 3:17, extra spaces, en-dashes. */
+    function parseTrainingRef(raw) {
+        const s = String(raw || '')
+            .replace(/[\u2013\u2014\u2212]/g, '-')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/^["'`]+|["'`.,;]+$/g, '');
+        if (!s) return null;
+        const halves = s.split(/\s+-\s+/);
+        if (halves.length === 2) {
+            const a = parseOneRef(halves[0]);
+            const b = parseOneRef(halves[1]);
+            if (a && b) {
+                return {
+                    book: a.book,
+                    chapter: a.chapter,
+                    fromVerse: a.fromVerse,
+                    toChapter: b.chapter,
+                    toVerse: b.fromVerse
+                };
+            }
+        }
+        return parseOneRef(s);
+    }
+
+    function samePassage(got, expected) {
+        return !!got && !!expected
+            && got.book === expected.book
+            && got.chapter === expected.chapter
+            && got.fromVerse === expected.fromVerse
+            && got.toChapter === expected.toChapter
+            && got.toVerse === expected.toVerse;
+    }
+
+    function formatExpectedDisplay(firstRef, lastRef, first, last) {
+        if (!firstRef) return lastRef || '';
+        if (!lastRef || firstRef === lastRef) return firstRef;
+        if (first && last && first.book === last.book && first.chapter === last.chapter) {
+            const bookLabel = firstRef.replace(/\s+\d+:\d+\s*$/, '');
+            return bookLabel + ' ' + first.chapter + ':' + first.fromVerse + '\u2013' + last.fromVerse;
+        }
+        return firstRef + ' \u2013 ' + lastRef;
+    }
+
+    function expectedFromEntry(entry, verses) {
+        const firstRef = (verses[0] && verses[0].reference) || entry.fromVerseRef || '';
+        const lastRef  = (verses[verses.length - 1] && verses[verses.length - 1].reference)
+            || entry.toVerseRef || firstRef;
+        const first = parseTrainingRef(firstRef);
+        const last  = parseTrainingRef(lastRef);
+        const passage = (first && last) ? {
+            book: first.book,
+            chapter: first.chapter,
+            fromVerse: first.fromVerse,
+            toChapter: last.chapter,
+            toVerse: last.fromVerse
+        } : null;
+        return {
+            passage,
+            display: formatExpectedDisplay(firstRef, lastRef, first, last),
+            ids: verses.map(v => v.id).filter(id => typeof id === 'number')
+        };
+    }
+
+    async function matchRefViaApi(typed, expected) {
+        const q = String(typed || '').trim().replace(/[\u2013\u2014\u2212]/g, '-');
+        if (!q || !expected) return null;
+        const res = await fetch('/api/reference?ref=' + encodeURIComponent(q));
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!data || !data.valid) return { ok: false };
+        if (!data.verseSpecified) return { ok: false, reason: 'verse' };
+        if (!expected.ids.length) return null;
+        if (expected.ids.length === 1) {
+            const ranged = Array.isArray(data.ranges) && data.ranges.length > 0
+                && data.ranges[0].from !== data.ranges[0].to;
+            return { ok: data.verseId === expected.ids[0] && !ranged };
+        }
+        if (Array.isArray(data.ranges) && data.ranges.length) {
+            const from = data.ranges[0].from;
+            const to   = data.ranges[data.ranges.length - 1].to;
+            return { ok: from === expected.ids[0] && to === expected.ids[expected.ids.length - 1] };
+        }
+        return { ok: false };
+    }
+
     function computeBlankedSegments(text, masteryLevel) {
         const tokens = text.split(/(\s+)/);
         const shouldBlank = (i) => {
@@ -92,6 +258,14 @@
     }
 
     // --- Completion screen ---
+    function setDoneCopy(heading, subtitle, pageTitle) {
+        const title = document.getElementById('train-done-title');
+        const sub   = document.getElementById('train-done-sub');
+        if (title) title.textContent = heading;
+        if (sub)   sub.textContent   = subtitle;
+        document.title = pageTitle;
+    }
+
     function showCompletion() {
         const card     = document.getElementById('train-card');
         const progress = document.getElementById('train-progress');
@@ -99,7 +273,69 @@
         if (card)     card.hidden     = true;
         if (progress) progress.hidden = true;
         if (done)     done.hidden     = false;
-        document.title = 'All done — KJV Bible Reader';
+        // Don't paint "All done for today" until the due queue is known —
+        // a dozen remaining verses would make that heading a lie.
+        setDoneCopy('', '', 'Memory Training — KJV Bible Reader');
+        offerNextUp();
+    }
+
+    /**
+     * Remaining due verses use the same queue + calendar-day rule as the
+     * dashboard and reader (GET /api/memorization/queue, KjvDate.isEntryDue).
+     * A just-reviewed passage is scheduled for tomorrow, so it will not
+     * reappear here; Next Up is only for verses this session did not cover.
+     */
+    async function offerNextUp() {
+        const nextUp = document.getElementById('train-next-up');
+        const dash   = document.getElementById('train-done-dashboard');
+
+        let due = [];
+        let queueKnown = false;
+        if (window.KjvDate) {
+            try {
+                const res = await fetch('/api/memorization/queue', { credentials: 'include' });
+                if (res.ok) {
+                    const entries = await res.json();
+                    const today = window.KjvDate.todayIso();
+                    due = (Array.isArray(entries) ? entries : [])
+                        .filter(e => window.KjvDate.isEntryDue(e, today));
+                    queueKnown = true;
+                }
+            } catch (e) { /* fall through — don't claim the day is finished */ }
+        }
+
+        if (queueKnown && due.length === 0) {
+            setDoneCopy(
+                'All done for today!',
+                'Your reviews are saved. Come back tomorrow for the next session.',
+                'All done — KJV Bible Reader'
+            );
+            return;
+        }
+
+        // Session is over; the day is not, or we couldn't prove that it is.
+        const remaining = queueKnown
+            ? (due.length === 1 ? '1 still due today.' : due.length + ' still due today.')
+            : 'Your reviews are saved.';
+        setDoneCopy('Session complete', remaining, 'Next up — KJV Bible Reader');
+
+        if (!queueKnown || due.length === 0 || !nextUp) return;
+
+        nextUp.hidden = false;
+        if (dash) dash.classList.add('train-done-link-secondary');
+        nextUp.addEventListener('click', () => {
+            // Same session shape as dashboard Train Now / reader Train — the
+            // first remaining due verse is next; the rest follow in queue order.
+            sessionStorage.setItem('kjv_training_session', JSON.stringify({
+                entries: due,
+                index: 0
+            }));
+            const from = new URLSearchParams(window.location.search).get('from');
+            window.location.href = from
+                ? '/train?from=' + encodeURIComponent(from)
+                : '/train';
+        });
+        nextUp.focus();
     }
 
     // --- Main render ---
@@ -130,6 +366,9 @@
         const previewText     = document.getElementById('passage-preview-text');
         const beginBtn        = document.getElementById('train-begin-btn');
         const peekToggle      = document.getElementById('train-peek-toggle');
+        const refRecall       = document.getElementById('train-ref-recall');
+        const refInput        = document.getElementById('train-ref-input');
+        const refFeedback     = document.getElementById('train-ref-feedback');
 
         // --- Test mode ---
         const TEST_MODE_KEY = 'kjv_test_mode';
@@ -198,11 +437,12 @@
         const isSingle = verses.length === 1;
         const useFirstLetter = entry.masteryLevel >= 4;
 
-        document.title = (isSingle ? verses[0].reference : `${entry.fromVerseRef} – ${entry.toVerseRef}`)
-                         + ' — Memory Training';
-        refEl.textContent = isSingle
-            ? verses[0].reference
-            : `${entry.fromVerseRef} – ${entry.toVerseRef}`;
+        const expectedRef = expectedFromEntry(entry, verses);
+        const passageTitle = expectedRef.display
+            || (isSingle ? verses[0].reference : `${entry.fromVerseRef} – ${entry.toVerseRef}`);
+        const trainingTitle = passageTitle + ' — Memory Training';
+        document.title = trainingTitle;
+        refEl.textContent = passageTitle;
 
         // Always begin with an unmasked read-through of the complete passage.
         // This is a separate element so peeking later does not discard answers.
@@ -231,18 +471,28 @@
             if (first) first.focus();
         }
 
+        function focusRecall() {
+            if (refInput && !refInput.disabled) {
+                refInput.focus();
+                return;
+            }
+            focusFirstBlank();
+        }
+
         function setPeeking(peeking) {
             card.classList.toggle('peeking', peeking);
             peekToggle.classList.toggle('active', peeking);
             peekToggle.textContent = peeking ? 'Hide passage' : 'Peek';
             peekToggle.setAttribute('aria-expanded', String(peeking));
-            if (!peeking) focusFirstBlank();
+            if (!peeking) focusRecall();
         }
 
         beginBtn.addEventListener('click', () => {
             card.classList.remove('pretraining');
             peekToggle.hidden = false;
-            focusFirstBlank();
+            if (refRecall) refRecall.hidden = false;
+            document.title = 'Memory Training — KJV Bible Reader';
+            focusRecall();
         });
 
         peekToggle.addEventListener('click', () => {
@@ -260,20 +510,89 @@
                 .toLowerCase();
         }
 
+        function showRefFeedback(message, ok) {
+            if (!refFeedback) return;
+            refFeedback.hidden = !message;
+            refFeedback.textContent = message || '';
+            refFeedback.classList.toggle('is-ok', !!ok);
+        }
+
+        function markRefInput(ok) {
+            if (!refInput) return;
+            refInput.classList.toggle('ref-correct', ok);
+            refInput.classList.toggle('ref-wrong', !ok);
+            refInput.disabled = true;
+        }
+
+        let refEvaluated = false;
+
+        async function evaluateReference() {
+            if (refEvaluated) return { blocked: false };
+            const typed = refInput ? refInput.value : '';
+            if (!String(typed).trim()) {
+                showRefFeedback('Enter the book, chapter, and verse.', false);
+                if (refInput) refInput.focus();
+                return { blocked: true };
+            }
+
+            const local = parseTrainingRef(typed);
+            let matched = samePassage(local, expectedRef.passage);
+            let missingVerse = false;
+
+            if (!matched) {
+                try {
+                    const api = await matchRefViaApi(typed, expectedRef);
+                    if (api && api.ok) matched = true;
+                    else if (api && api.reason === 'verse') missingVerse = true;
+                } catch (e) { /* local result stands */ }
+            }
+
+            refEvaluated = true;
+            const display = expectedRef.display || 'the printed reference';
+            if (matched) {
+                markRefInput(true);
+                showRefFeedback('', true);
+            } else if (missingVerse) {
+                markRefInput(false);
+                showRefFeedback('Include the verse number — this passage is ' + display + '.', false);
+            } else if (!local) {
+                markRefInput(false);
+                showRefFeedback('That doesn\u2019t look like a reference. This passage is ' + display + '.', false);
+            } else {
+                markRefInput(false);
+                showRefFeedback('That\u2019s not it \u2014 this passage is ' + display + '.', false);
+            }
+            document.title = trainingTitle;
+            return { blocked: false };
+        }
+
         // --- Check (fill-in-blank mode) ---
-        function checkAnswers() {
-            checkBtn.disabled = true;
-            verseEl.querySelectorAll('.blank-input').forEach(input => {
-                input.disabled = true;
-                const answer   = normalizeAnswer(input.value);
-                const expected = normalizeAnswer(input.dataset.expected);
-                if (answer === expected) {
-                    input.classList.add('blank-correct');
-                } else {
-                    input.classList.add('blank-wrong');
-                    input.value = input.dataset.expected;
-                }
-            });
+        async function checkAnswers() {
+            const refResult = await evaluateReference();
+            if (refResult.blocked) {
+                card.classList.add('needs-ref-check');
+                checkBtn.disabled = false;
+                checkBtn.hidden = false;
+                return;
+            }
+
+            if (!reciteMode) {
+                checkBtn.disabled = true;
+                verseEl.querySelectorAll('.blank-input').forEach(input => {
+                    input.disabled = true;
+                    const answer   = normalizeAnswer(input.value);
+                    const expected = normalizeAnswer(input.dataset.expected);
+                    if (answer === expected) {
+                        input.classList.add('blank-correct');
+                    } else {
+                        input.classList.add('blank-wrong');
+                        input.value = input.dataset.expected;
+                    }
+                });
+            }
+
+            card.classList.add('ref-checked');
+            card.classList.remove('needs-ref-check');
             checkBtn.hidden  = true;
             ratingsEl.hidden = false;
         }
@@ -377,8 +696,7 @@
             ratingsEl.querySelectorAll('.rating-btn').forEach(btn => {
                 btn.classList.toggle('suggested', parseInt(btn.dataset.quality) === suggested);
             });
-            ratingsEl.hidden = false;
-            checkBtn.hidden  = true;
+            checkAnswers();
         }
 
         // --- Recite: recording ---
@@ -495,6 +813,16 @@
         verseEl.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !checkBtn.disabled && !checkBtn.hidden) checkAnswers();
         });
+
+        if (refInput) {
+            refInput.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') return;
+                if (reciteMode && !card.classList.contains('needs-ref-check')) return;
+                if (checkBtn.disabled) return;
+                e.preventDefault();
+                checkAnswers();
+            });
+        }
 
         recordBtn.addEventListener('click', () => {
             if (isRecording) {
