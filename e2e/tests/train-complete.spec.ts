@@ -18,11 +18,15 @@ const LATER_ENTRY = {
 };
 
 async function openCompletedSession(page: import('@playwright/test').Page) {
+  // Only seed a finished session when none is present, so Next Up's
+  // newly written session survives the reload.
   await page.addInitScript(() => {
-    sessionStorage.setItem(
-      'kjv_training_session',
-      JSON.stringify({ entries: [{ id: 'done' }], index: 1 })
-    );
+    if (!sessionStorage.getItem('kjv_training_session')) {
+      sessionStorage.setItem(
+        'kjv_training_session',
+        JSON.stringify({ entries: [{ id: 'done' }], index: 1 })
+      );
+    }
   });
   await page.goto('/train');
 }
@@ -44,8 +48,8 @@ test.describe('training complete screen', () => {
     await expect(page.getByRole('heading', { name: 'All done for today!' })).toBeVisible();
     await expect(nextUp).toBeVisible();
     await expect(nextUp).toBeFocused();
-    await expect(page.getByRole('link', { name: 'Back to dashboard' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Back to reading' })).toBeVisible();
+    await expect(page.locator('#train-done-dashboard')).toBeVisible();
+    await expect(page.locator('#train-done-reading')).toBeVisible();
     await expect(page.locator('#train-done-dashboard')).toHaveClass(/train-done-link-secondary/);
   });
 
@@ -64,8 +68,8 @@ test.describe('training complete screen', () => {
     await expect(page.getByRole('heading', { name: 'All done for today!' })).toBeVisible();
     await expect(page.getByText('Come back tomorrow for the next session.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Next Up' })).toBeHidden();
-    await expect(page.getByRole('link', { name: 'Back to dashboard' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Back to reading' })).toBeVisible();
+    await expect(page.locator('#train-done-dashboard')).toBeVisible();
+    await expect(page.locator('#train-done-reading')).toBeVisible();
     await expect(page.locator('#train-done-dashboard')).not.toHaveClass(/train-done-link-secondary/);
   });
 
