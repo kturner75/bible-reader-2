@@ -287,17 +287,21 @@ html, body {
     padding: 0.5rem 1.5rem;
     background: var(--color-link);
     color: white;
+    border: none;
     border-radius: 4px;
     text-decoration: none;
+    font-family: var(--font-primary);
     font-size: 0.9rem;
+    cursor: pointer;
 }
+.train-done-link[hidden] { display: none; }
 .train-done-link:hover { background: var(--color-text); }
 .train-done-link-secondary {
     background: transparent;
     color: var(--color-link);
     border: 1px solid var(--color-link);
 }
-.train-done-link-secondary:hover { color: white; }
+.train-done-link-secondary:hover { color: white; background: var(--color-link); }
 
 /* First-letter hint placeholder */
 .blank-input::placeholder { color: var(--color-text-muted); opacity: 1; }

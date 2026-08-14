@@ -100,6 +100,51 @@
         if (progress) progress.hidden = true;
         if (done)     done.hidden     = false;
         document.title = 'All done — KJV Bible Reader';
+        offerNextUp();
+    }
+
+    /**
+     * Remaining due verses use the same queue + calendar-day rule as the
+     * dashboard and reader (GET /api/memorization/queue, KjvDate.isEntryDue).
+     * A just-reviewed passage is scheduled for tomorrow, so it will not
+     * reappear here; Next Up is only for verses this session did not cover.
+     */
+    async function offerNextUp() {
+        const nextUp = document.getElementById('train-next-up');
+        const dash   = document.getElementById('train-done-dashboard');
+        if (!nextUp || !window.KjvDate) return;
+
+        let due = [];
+        try {
+            const res = await fetch('/api/memorization/queue', { credentials: 'include' });
+            if (!res.ok) return;
+            const entries = await res.json();
+            const today = window.KjvDate.todayIso();
+            due = (Array.isArray(entries) ? entries : [])
+                .filter(e => window.KjvDate.isEntryDue(e, today));
+        } catch (e) {
+            return;
+        }
+        if (due.length === 0) return;
+
+        const sub = document.querySelector('.train-done-sub');
+        if (sub) sub.textContent = 'Your reviews are saved.';
+
+        nextUp.hidden = false;
+        if (dash) dash.classList.add('train-done-link-secondary');
+        nextUp.addEventListener('click', () => {
+            // Same session shape as dashboard Train Now / reader Train — the
+            // first remaining due verse is next; the rest follow in queue order.
+            sessionStorage.setItem('kjv_training_session', JSON.stringify({
+                entries: due,
+                index: 0
+            }));
+            const from = new URLSearchParams(window.location.search).get('from');
+            window.location.href = from
+                ? '/train?from=' + encodeURIComponent(from)
+                : '/train';
+        });
+        nextUp.focus();
     }
 
     // --- Main render ---
