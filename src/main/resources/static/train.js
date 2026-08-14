@@ -258,6 +258,14 @@
     }
 
     // --- Completion screen ---
+    function setDoneCopy(heading, subtitle, pageTitle) {
+        const title = document.getElementById('train-done-title');
+        const sub   = document.getElementById('train-done-sub');
+        if (title) title.textContent = heading;
+        if (sub)   sub.textContent   = subtitle;
+        document.title = pageTitle;
+    }
+
     function showCompletion() {
         const card     = document.getElementById('train-card');
         const progress = document.getElementById('train-progress');
@@ -265,7 +273,9 @@
         if (card)     card.hidden     = true;
         if (progress) progress.hidden = true;
         if (done)     done.hidden     = false;
-        document.title = 'All done — KJV Bible Reader';
+        // Don't paint "All done for today" until the due queue is known —
+        // a dozen remaining verses would make that heading a lie.
+        setDoneCopy('', '', 'Memory Training — KJV Bible Reader');
         offerNextUp();
     }
 
@@ -278,26 +288,38 @@
     async function offerNextUp() {
         const nextUp = document.getElementById('train-next-up');
         const dash   = document.getElementById('train-done-dashboard');
-        if (!nextUp || !window.KjvDate) return;
 
         let due = [];
-        try {
-            const res = await fetch('/api/memorization/queue', { credentials: 'include' });
-            if (!res.ok) return;
-            const entries = await res.json();
-            const today = window.KjvDate.todayIso();
-            due = (Array.isArray(entries) ? entries : [])
-                .filter(e => window.KjvDate.isEntryDue(e, today));
-        } catch (e) {
+        let queueKnown = false;
+        if (window.KjvDate) {
+            try {
+                const res = await fetch('/api/memorization/queue', { credentials: 'include' });
+                if (res.ok) {
+                    const entries = await res.json();
+                    const today = window.KjvDate.todayIso();
+                    due = (Array.isArray(entries) ? entries : [])
+                        .filter(e => window.KjvDate.isEntryDue(e, today));
+                    queueKnown = true;
+                }
+            } catch (e) { /* fall through — don't claim the day is finished */ }
+        }
+
+        if (queueKnown && due.length === 0) {
+            setDoneCopy(
+                'All done for today!',
+                'Your reviews are saved. Come back tomorrow for the next session.',
+                'All done — KJV Bible Reader'
+            );
             return;
         }
-        if (due.length === 0) return;
 
-        const title = document.getElementById('train-done-title');
-        const sub   = document.getElementById('train-done-sub');
-        if (title) title.textContent = due.length === 1 ? '1 still due' : due.length + ' still due';
-        if (sub)   sub.textContent   = 'Your reviews are saved.';
-        document.title = 'Next up — KJV Bible Reader';
+        // Session is over; the day is not, or we couldn't prove that it is.
+        const remaining = queueKnown
+            ? (due.length === 1 ? '1 still due today.' : due.length + ' still due today.')
+            : 'Your reviews are saved.';
+        setDoneCopy('Session complete', remaining, 'Next up — KJV Bible Reader');
+
+        if (!queueKnown || due.length === 0 || !nextUp) return;
 
         nextUp.hidden = false;
         if (dash) dash.classList.add('train-done-link-secondary');
