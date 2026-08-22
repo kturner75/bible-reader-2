@@ -1443,9 +1443,12 @@
             if (state.pageVerses.length > 0) {
                 state.pageStartVerseId = state.pageVerses[0].id;
                 
-                // If current verse is not on this page, set it to first verse
+                // If current verse is not on this page, set it to first verse.
+                // During init, keep the intended target (saved verse / ?vid=).
+                // A premature loadPage(1) from font restore used to persist Genesis 1
+                // over rhythm/dashboard deep links.
                 const isCurrentOnPage = state.pageVerses.some(v => v.id === state.currentVerseId);
-                if (!isCurrentOnPage) {
+                if (!isCurrentOnPage && state.initialPageLoaded) {
                     state.currentVerseId = state.pageStartVerseId;
                 }
             }
@@ -2338,8 +2341,16 @@
         const baseSizePx = 20 * state.fontSizeMultiplier;
         document.documentElement.style.setProperty('--font-size-base', `${baseSizePx}px`);
         localStorage.setItem(STORAGE_KEYS.FONT_SIZE, state.fontSizeMultiplier.toString());
-        
-        // Reload page with new font size
+
+        // loadFontSize() runs during init, before goToVerse(). pageStartVerseId is
+        // still 1 then — loading that page would clobber ?vid= / saved position
+        // (and persist Genesis 1) once fonts/TTS/layout await. Relayout after
+        // the first real page is enough for A+/A-.
+        if (!state.initialPageLoaded) return;
+        if (state.collection) {
+            loadCollectionPage(state.collection.pageStartIndex);
+            return;
+        }
         loadPage(state.pageStartVerseId);
     }
 

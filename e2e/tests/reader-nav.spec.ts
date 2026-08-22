@@ -39,6 +39,21 @@ test.describe('reader page-turn and keyboard navigation', () => {
     await expect(page.locator('#chapter-title')).toContainText(/Genesis/i);
   });
 
+  // Dashboard rhythm "Continue with Exodus 33" is /read?vid=2475&lane=N.
+  // A saved font size used to trigger loadPage(1) during init and overwrite
+  // the deep link with Genesis 1 before goToVerse ran.
+  test('honors ?vid= when a saved font size would otherwise load Genesis 1', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('kjv_font_size', '1.25');
+      localStorage.setItem('kjv_current_verse', '1');
+    });
+    await page.goto('/read?vid=2475&lane=7');
+    await expect(page.locator('#reading-area .verse').first()).toBeVisible();
+    await expect(page.locator('#current-reference')).toHaveText('Exodus 33:1');
+    await expect(page.locator('.verse.current')).toHaveAttribute('data-verse-id', '2475');
+    await expect(page.locator('#chapter-title')).toContainText(/Exodus\s*33/i);
+  });
+
   test('j/k move by verse', async ({ page }) => {
     await openReaderAt(page, 1);
     await page.keyboard.press('j');
