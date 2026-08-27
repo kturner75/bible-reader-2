@@ -9,7 +9,7 @@
   "terminals": [
     {
       "name": "app",
-      "command": "mvn spring-boot:run"
+      "command": "bash .cursor/start.sh && mvn spring-boot:run"
     }
   ],
   "ports": [8081]
