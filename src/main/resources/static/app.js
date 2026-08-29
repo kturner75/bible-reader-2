@@ -107,7 +107,8 @@
         // { kind:'collection'|'passage'|'range', id, label, verses, ... }
         collection: null,
         // Where to return when leaving scoped mode (reading position + optional note)
-        // { verseId, note: null | { type:'verse', verseId } | { type:'chapter'|'book', ... }, historyPushed }
+        // { verseId, note, historyPushed, href? } — href is a same-origin /notes URL
+        // staged by the /notes page across a full-page deep-link boot.
         scopedReturn: null,
         // Auth
         currentUser: null                  // null = anonymous; object = { id, email, displayName }
@@ -1258,13 +1259,14 @@
     /**
      * Snapshot reading position (and any note return already staged) before
      * entering scoped mode.
-     * push=false on a fresh deep link clears return; push=false while already
-     * in scoped mode (popstate between scoped URLs) keeps the original return.
+     * push=false on a fresh deep link consumes a /notes sessionStorage return
+     * if the notes page staged one; otherwise it clears. push=false while
+     * already in scoped mode (popstate between scoped URLs) keeps the original.
      */
     function rememberScopedReturn(push) {
         if (!push) {
             if (!state.collection) {
-                state.scopedReturn = null;
+                state.scopedReturn = consumeStagedNotesReturn();
             }
             return;
         }
@@ -1310,10 +1312,20 @@
         }
     }
 
+    function consumeStagedNotesReturn() {
+        return window.KjvNotesReturn ? window.KjvNotesReturn.consume() : null;
+    }
+
+    function notesReturnHref(href) {
+        return window.KjvNotesReturn ? window.KjvNotesReturn.parseHref(href) : null;
+    }
+
     /**
      * Leave scoped reader; restore prior reading position and optional note.
      * When we entered via pushState, ← Back / Esc use history.back() so the
      * browser Back button and in-app Back share the same restore path.
+     * A /notes deep-link return (historyPushed false) assigns that URL instead
+     * of landing on the range's first verse. Browser Back still uses history.
      */
     async function exitCollectionMode({ push = true } = {}) {
         if (!state.collection) return;
@@ -1326,6 +1338,13 @@
         const ret = state.scopedReturn;
         state.collection = null;
         state.scopedReturn = null;
+
+        const notesHref = ret && notesReturnHref(ret.href);
+        if (notesHref) {
+            window.location.assign(notesHref);
+            return;
+        }
+
         const verseId = (ret && ret.verseId) || state.currentVerseId;
 
         if (push) {
@@ -7445,6 +7464,9 @@
                 enteredScoped = await enterRangeMode(rangeV, { push: false });
             }
             if (!enteredScoped) {
+                // /read?vid= also stages a notes return; discard so it cannot
+                // attach to a later /read/range reload.
+                consumeStagedNotesReturn();
                 await goToVerse(state.currentVerseId);
             }
             state.initialPageLoaded = true;

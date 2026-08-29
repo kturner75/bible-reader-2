@@ -69,6 +69,7 @@ public class SecurityConfig {
                     "/view-prefs.js",                      // ditto — window.KjvViewPrefs must exist for signed-out readers
                     "/note-links.js",                      // portable [v=]/[e=] helpers — public reader + notes dock
                     "/verse-range-gap.js",                 // omitted-verse cue — public /read/range must not 302 this
+                    "/notes-return.js",                    // /notes → reader return href — public /read deep-link boot
                     "/note-embed.css",                     // shared [e=…] quote block — reader dock + /notes
                     "/csrf-utils.js",                      // ditto — CSRF helper for public login/register/reader
                     "/error",                              // Spring Boot error controller — must be public
