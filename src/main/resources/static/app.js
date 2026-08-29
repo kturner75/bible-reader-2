@@ -902,11 +902,31 @@
     }
 
     /**
+     * True when two adjacent rendered verses skip one or more ids.
+     * Detect from verse ids — range mode is one blob (passageStarts:[0]).
+     * Consecutive ids across a chapter boundary are not a skip.
+     */
+    function isVerseRangeSkip(prevVerse, verse) {
+        return !!(prevVerse && verse && prevVerse.id + 1 !== verse.id);
+    }
+
+    /** Column-local omitted-verse cue. Empty visual; not a full-page rule. */
+    function createVerseRangeGapHTML() {
+        return '<div class="verse-range-gap" role="separator" aria-label="Omitted verses"></div>';
+    }
+
+    /**
      * Create HTML for a verse, optionally preceded by a chapter header.
      * Includes chapter header if the verse is the first verse of a chapter.
      */
     function createVerseWithHeaderHTML(verse, isCurrent, prevVerse) {
         let html = '';
+
+        // First verse has no predecessor — never a gap. id+1 across a chapter
+        // is consecutive, so a chapter header stays the only cue.
+        if (isVerseRangeSkip(prevVerse, verse)) {
+            html += createVerseRangeGapHTML();
+        }
         
         // Add chapter header if this is the first verse of a chapter
         // (verse number is 1, or this is a different chapter than the previous verse)
@@ -974,15 +994,22 @@
      * Render collection verses with passage sub-headings before each verse that
      * starts a passage. Used for both measurement (markCurrent=false) and
      * display so pagination is exact. No chapter headers in this mode.
+     * Skips in a flattened range (notes [v=]/[e=], /read/range) get a
+     * column-local gap from verse ids, not from passageStarts.
      */
     function renderCollectionVersesWithHeaders(verses, markCurrent = false) {
         const col = state.collection;
         let html = '';
+        let prevVerse = null;
         for (const verse of verses) {
+            if (isVerseRangeSkip(prevVerse, verse)) {
+                html += createVerseRangeGapHTML();
+            }
             if (col.passageRefs[verse._ci] !== undefined) {
                 html += createPassageHeaderHTML(col.passageRefs[verse._ci]);
             }
             html += createVerseHTML(verse, markCurrent && verse._ci === col.currentIndex);
+            prevVerse = verse;
         }
         return html;
     }

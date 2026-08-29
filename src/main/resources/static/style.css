@@ -516,6 +516,16 @@ body.note-dock-resizing {
     font-variant: normal;
 }
 
+/* Omitted-verse cue in scoped/range lists (e.g. Eph 6:11 then 6:13).
+   Short centered rule in the column — extra space, not a full-page break. */
+.verse-range-gap {
+    margin: 0.85em 15%;
+    border-top: 1px solid var(--color-border);
+    opacity: 0.4;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
 /* Scoped reader Back control (range / passage / collection) */
 .scoped-back-btn {
     font-family: var(--font-primary);
