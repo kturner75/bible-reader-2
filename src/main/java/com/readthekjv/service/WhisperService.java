@@ -110,27 +110,6 @@ public class WhisperService {
         return resolvedKey();
     }
 
-    private boolean wasOAuthBearer(String bearer) {
-        if (!isXai() || xaiOAuthTokenManager == null || bearer == null || bearer.isBlank()) {
-            return false;
-        }
-        String key = resolvedKey();
-        return key == null || key.isBlank() || !bearer.equals(key);
-    }
-
-    /** After invalidate(): a fresh access token if it differs, else the API key. */
-    private String retryXaiBearer(String rejectedBearer) {
-        var refreshed = xaiOAuthTokenManager.getAccessToken();
-        if (refreshed.isPresent() && !refreshed.get().isBlank() && !refreshed.get().equals(rejectedBearer)) {
-            return refreshed.get();
-        }
-        String key = resolvedKey();
-        if (key != null && !key.isBlank() && !key.equals(rejectedBearer)) {
-            return key;
-        }
-        return null;
-    }
-
     private HttpResponse<String> sendStt(byte[] body, String boundary, String bearer)
             throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
@@ -157,9 +136,11 @@ public class WhisperService {
         log.debug("STT provider={} url={}", provider, resolvedUrl());
 
         HttpResponse<String> response = sendStt(body, boundary, bearer);
-        if (isXai() && response.statusCode() == 401 && wasOAuthBearer(bearer)) {
+        if (isXai() && xaiOAuthTokenManager != null && response.statusCode() == 401
+                && XaiOAuthTokenManager.wasOAuthBearer(bearer, resolvedKey())) {
             xaiOAuthTokenManager.invalidate();
-            String retryBearer = retryXaiBearer(bearer);
+            String retryBearer = XaiOAuthTokenManager.retryXaiBearer(
+                    xaiOAuthTokenManager, bearer, resolvedKey());
             if (retryBearer != null) {
                 log.warn("event=xai_oauth_rejected retrying_stt");
                 response = sendStt(body, boundary, retryBearer);

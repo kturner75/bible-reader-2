@@ -306,9 +306,11 @@ public class VerseOfDayService {
         }
 
         HttpResponse<String> response = sendChat(requestBody, bearer);
-        if (isXai() && response.statusCode() == 401 && wasOAuthBearer(bearer)) {
+        if (isXai() && xaiOAuthTokenManager != null && response.statusCode() == 401
+                && XaiOAuthTokenManager.wasOAuthBearer(bearer, resolvedKey())) {
             xaiOAuthTokenManager.invalidate();
-            String retryBearer = retryXaiBearer(bearer);
+            String retryBearer = XaiOAuthTokenManager.retryXaiBearer(
+                    xaiOAuthTokenManager, bearer, resolvedKey());
             if (retryBearer != null) {
                 log.warn("event=xai_oauth_rejected retrying_votd");
                 response = sendChat(requestBody, retryBearer);
@@ -321,27 +323,6 @@ public class VerseOfDayService {
         }
 
         return response.body();
-    }
-
-    private boolean wasOAuthBearer(String bearer) {
-        if (!isXai() || xaiOAuthTokenManager == null || bearer == null || bearer.isBlank()) {
-            return false;
-        }
-        String key = resolvedKey();
-        return key == null || key.isBlank() || !bearer.equals(key);
-    }
-
-    /** After invalidate(): a fresh access token if it differs, else the API key. */
-    private String retryXaiBearer(String rejectedBearer) {
-        Optional<String> refreshed = xaiOAuthTokenManager.getAccessToken();
-        if (refreshed.isPresent() && !refreshed.get().isBlank() && !refreshed.get().equals(rejectedBearer)) {
-            return refreshed.get();
-        }
-        String key = resolvedKey();
-        if (key != null && !key.isBlank() && !key.equals(rejectedBearer)) {
-            return key;
-        }
-        return null;
     }
 
     private HttpResponse<String> sendChat(String requestBody, String bearer) throws Exception {

@@ -172,6 +172,35 @@ public class XaiOAuthTokenManager {
         cachedToken.set(null);
     }
 
+    /**
+     * True when {@code bearer} is an OAuth access token rather than the static
+     * {@code XAI_API_KEY}. Shared by VOTD and Whisper 401 retry.
+     */
+    static boolean wasOAuthBearer(String bearer, String apiKey) {
+        if (bearer == null || bearer.isBlank()) {
+            return false;
+        }
+        return apiKey == null || apiKey.isBlank() || !bearer.equals(apiKey);
+    }
+
+    /**
+     * After {@link #invalidate()}: a fresh access token if it differs from the
+     * rejected bearer, else the API key. Shared by VOTD and Whisper.
+     */
+    static String retryXaiBearer(XaiOAuthTokenManager manager, String rejectedBearer, String apiKey) {
+        if (manager != null) {
+            Optional<String> refreshed = manager.getAccessToken();
+            if (refreshed.isPresent() && !refreshed.get().isBlank()
+                    && !refreshed.get().equals(rejectedBearer)) {
+                return refreshed.get();
+            }
+        }
+        if (apiKey != null && !apiKey.isBlank() && !apiKey.equals(rejectedBearer)) {
+            return apiKey;
+        }
+        return null;
+    }
+
     /** True if a refresh token is configured and enabled, without making a network call. */
     public boolean isConfigured() {
         String token = refreshToken.get();

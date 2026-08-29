@@ -283,6 +283,27 @@ class XaiOAuthTokenManagerTest {
         assertFalse(Files.exists(tmp));
     }
 
+    @Test
+    void wasOAuthBearer_sharedHelper_treatsNonKeyAsOAuth() {
+        assertTrue(XaiOAuthTokenManager.wasOAuthBearer("oauth-token", "xai-key"));
+        assertTrue(XaiOAuthTokenManager.wasOAuthBearer("oauth-token", ""));
+        assertFalse(XaiOAuthTokenManager.wasOAuthBearer("xai-key", "xai-key"));
+        assertFalse(XaiOAuthTokenManager.wasOAuthBearer("", "xai-key"));
+        assertFalse(XaiOAuthTokenManager.wasOAuthBearer(null, "xai-key"));
+    }
+
+    @Test
+    void retryXaiBearer_sharedHelper_prefersRefreshedTokenThenApiKey() {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken()).thenReturn(Optional.of("fresh-oauth"));
+        assertEquals("fresh-oauth", XaiOAuthTokenManager.retryXaiBearer(oauth, "dead-oauth", "xai-key"));
+
+        when(oauth.getAccessToken()).thenReturn(Optional.empty());
+        assertEquals("xai-key", XaiOAuthTokenManager.retryXaiBearer(oauth, "dead-oauth", "xai-key"));
+
+        assertEquals(null, XaiOAuthTokenManager.retryXaiBearer(oauth, "dead-oauth", "dead-oauth"));
+    }
+
     private XaiOAuthTokenManager manager(String refreshToken, boolean enabled, HttpClient httpClient) {
         return manager(refreshToken, enabled, null, httpClient);
     }
