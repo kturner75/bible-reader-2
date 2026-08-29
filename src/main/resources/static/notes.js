@@ -1,4 +1,69 @@
-(async function () {
+/**
+ * /notes sermon-note Print helpers.
+ * Exported so Node tests can require this file without booting the page IIFE.
+ */
+(function (global) {
+    'use strict';
+
+    const TITLE_PRINT = 'Print';
+    const TITLE_LOADING = 'Quoted scripture is still loading';
+    const TITLE_UNAVAILABLE = 'Some quoted scripture could not be loaded';
+
+    function embedIsReady(el) {
+        if (!el || el.dataset.embedReady !== '1') return false;
+        const textEl = el.querySelector && el.querySelector('.note-scripture-embed-text');
+        return !!(textEl && String(textEl.textContent || '').trim());
+    }
+
+    function viewEmbedsPending(root) {
+        if (!root || !root.querySelectorAll) return false;
+        return [...root.querySelectorAll('.note-scripture-embed[data-v]')]
+            .some(el => !embedIsReady(el));
+    }
+
+    function printButtonState({ inView, hydrationDone, embedsPending }) {
+        if (!inView) {
+            return { disabled: true, title: TITLE_PRINT };
+        }
+        if (embedsPending && !hydrationDone) {
+            return { disabled: true, title: TITLE_LOADING };
+        }
+        return {
+            disabled: false,
+            title: embedsPending ? TITLE_UNAVAILABLE : TITLE_PRINT
+        };
+    }
+
+    /** Set document.title for Save-as-PDF, restore in finally (Safari afterprint can miss). */
+    function runPrintWithTitle(doc, noteTitle, printFn) {
+        if (!doc) return;
+        const previousTitle = doc.title;
+        const next = String(noteTitle || '').trim();
+        if (next) doc.title = next;
+        try {
+            printFn();
+        } finally {
+            doc.title = previousTitle;
+        }
+    }
+
+    const api = {
+        TITLE_PRINT,
+        TITLE_LOADING,
+        TITLE_UNAVAILABLE,
+        embedIsReady,
+        viewEmbedsPending,
+        printButtonState,
+        runPrintWithTitle
+    };
+
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = api;
+    }
+    global.KjvNotePrint = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+if (typeof document !== 'undefined') (async function () {
     'use strict';
 
     // ── Utilities ────────────────────────────────────────────────────────────
@@ -43,6 +108,7 @@
     let saveWriteDispatched = false; // true once POST/PUT has been sent
     let allowUnload = false;
     let embedMode = false; // one flag per open note editor; Insert checkbox is this flag
+    let embedHydration = 'idle'; // 'idle' | 'pending' | 'done' — Print enablement
 
     function isEditorDirty() {
         if (editorMode !== 'edit') return false;
@@ -295,6 +361,7 @@
         editorMode = null;
         editingNoteId = null;
         embedMode = false;
+        embedHydration = 'idle';
         savedTitle = '';
         savedNoteText = '';
         paneEmpty.hidden = false;
@@ -306,38 +373,33 @@
     }
 
     function viewEmbedsPending() {
-        return [...viewBody.querySelectorAll('.note-scripture-embed[data-v]')]
-            .some(el => {
-                if (el.dataset.embedReady !== '1') return true;
-                const textEl = el.querySelector('.note-scripture-embed-text');
-                return !(textEl && textEl.textContent.trim());
-            });
+        return window.KjvNotePrint.viewEmbedsPending(viewBody);
+    }
+
+    function currentPrintState() {
+        return window.KjvNotePrint.printButtonState({
+            inView: editorMode === 'view' && !viewSection.hidden,
+            hydrationDone: embedHydration === 'done',
+            embedsPending: viewEmbedsPending()
+        });
     }
 
     function syncPrintButton() {
         if (!printBtn) return;
-        const ready = editorMode === 'view' && !viewSection.hidden && !viewEmbedsPending();
-        printBtn.disabled = !ready;
-        printBtn.title = ready ? 'Print' : 'Quoted scripture is still loading';
+        const state = currentPrintState();
+        printBtn.disabled = state.disabled;
+        printBtn.title = state.title;
     }
 
     function printOpenNote() {
-        if (!printBtn || printBtn.disabled || editorMode !== 'view' || viewEmbedsPending()) {
-            return;
-        }
-        const previousTitle = document.title;
-        const noteTitle = (viewTitle.textContent || '').trim();
-        const restoreTitle = () => {
-            document.title = previousTitle;
-            window.removeEventListener('afterprint', restoreTitle);
-        };
-        if (noteTitle) document.title = noteTitle;
-        window.addEventListener('afterprint', restoreTitle);
-        try {
-            window.print();
-        } finally {
-            if (document.title !== previousTitle) restoreTitle();
-        }
+        if (!printBtn || printBtn.disabled || editorMode !== 'view') return;
+        const state = currentPrintState();
+        if (state.disabled) return;
+        window.KjvNotePrint.runPrintWithTitle(
+            document,
+            (viewTitle.textContent || '').trim(),
+            () => window.print()
+        );
     }
 
     function updateCharCount() {
@@ -422,6 +484,11 @@
 
     async function hydrateRangeLinkLabels(root) {
         if (!root) return;
+        const gen = openNoteGen;
+        if (root === viewBody) {
+            embedHydration = 'pending';
+            syncPrintButton();
+        }
         await hydrateNoteEmbeds(root);
         for (const link of root.querySelectorAll('.note-range-link[data-v]')) {
             const embedCite = !!link.closest('.note-scripture-embed');
@@ -457,7 +524,10 @@
                 link.dataset.labelReady = '1';
             } catch (_) { /* ignore */ }
         }
-        if (root === viewBody) syncPrintButton();
+        if (root === viewBody && gen === openNoteGen) {
+            embedHydration = 'done';
+            syncPrintButton();
+        }
     }
 
     function setMode(mode) {
@@ -466,8 +536,9 @@
         if (mode === 'view') {
             viewSection.hidden = false;
             editSection.hidden = true;
+            embedHydration = 'pending';
             syncPrintButton();
-            hydrateRangeLinkLabels(viewBody).then(syncPrintButton);
+            hydrateRangeLinkLabels(viewBody);
         } else {
             viewSection.hidden = true;
             editSection.hidden = false;
