@@ -16,6 +16,14 @@ if [ "${DB_PORT}" != "5432" ]; then
   exit 1
 fi
 
+# Package cluster is local. Honor KJV_DB_HOST only when unset, localhost, or
+# 127.0.0.1; any other value is a configuration error (do not provision a remote host).
+DB_HOST="${KJV_DB_HOST:-localhost}"
+if [ "${DB_HOST}" != "localhost" ] && [ "${DB_HOST}" != "127.0.0.1" ]; then
+  echo "KJV_DB_HOST=${DB_HOST} is not supported: the package PostgreSQL cluster is local (will not provision a remote host)" >&2
+  exit 1
+fi
+
 # Start the cluster created by the postgresql package (idempotent — tolerates
 # an already-running server). Prefer the "main" cluster from pg_lsclusters;
 # fall back to 16 (Ubuntu 24.04 default).
