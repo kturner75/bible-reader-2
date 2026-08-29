@@ -63,6 +63,26 @@ test('Print is disabled until embeds are ready', () => {
     assert.equal(notInView.disabled, true);
 });
 
+test('Print stays disabled while [v=] labels hydrate, even with no embeds', () => {
+    assert.equal(notes.viewEmbedsPending(mockRoot([])), false);
+
+    const hydratingLabels = notes.printButtonState({
+        inView: true,
+        hydrationDone: false,
+        embedsPending: false
+    });
+    assert.equal(hydratingLabels.disabled, true);
+    assert.equal(hydratingLabels.title, notes.TITLE_LOADING);
+
+    const labelsReady = notes.printButtonState({
+        inView: true,
+        hydrationDone: true,
+        embedsPending: false
+    });
+    assert.equal(labelsReady.disabled, false);
+    assert.equal(labelsReady.title, notes.TITLE_PRINT);
+});
+
 test('document.title stays the note title after print() returns; restore on afterprint', () => {
     const listeners = [];
     const doc = {
@@ -83,6 +103,21 @@ test('document.title stays the note title after print() returns; restore on afte
     assert.ok(after, 'afterprint listener registered');
     after.fn();
     assert.equal(doc.title, 'Notes — KJV Bible Reader');
+
+    const timers = [];
+    const fallbackDoc = {
+        title: 'Notes — KJV Bible Reader',
+        defaultView: {
+            addEventListener() {},
+            removeEventListener() {},
+            setTimeout(fn) { timers.push(fn); return 1; },
+            clearTimeout() {}
+        }
+    };
+    notes.runPrintWithTitle(fallbackDoc, 'Psalm 23', () => {}, { restoreAfterMs: 0 });
+    assert.equal(fallbackDoc.title, 'Psalm 23', 'held after print() if afterprint never comes');
+    timers.forEach(fn => fn());
+    assert.equal(fallbackDoc.title, 'Notes — KJV Bible Reader');
 
     const throwing = { title: 'Notes — KJV Bible Reader' };
     assert.throws(() => {

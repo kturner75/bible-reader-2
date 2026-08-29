@@ -8,6 +8,7 @@
     const TITLE_PRINT = 'Print';
     const TITLE_LOADING = 'Quoted scripture is still loading';
     const TITLE_UNAVAILABLE = 'Some quoted scripture could not be loaded';
+    const TITLE_RESTORE_FALLBACK_MS = 60000;
 
     function embedIsReady(el) {
         if (!el || el.dataset.embedReady !== '1') return false;
@@ -25,7 +26,8 @@
         if (!inView) {
             return { disabled: true, title: TITLE_PRINT };
         }
-        if (embedsPending && !hydrationDone) {
+        // Wait for the current hydrate run — [v=] labels as well as [e=] embeds.
+        if (!hydrationDone) {
             return { disabled: true, title: TITLE_LOADING };
         }
         return {
@@ -43,28 +45,41 @@
     /**
      * Set document.title for Save-as-PDF. Safari reads the title after
      * print() returns, so restore on afterprint — not in a finally.
+     * If afterprint never fires, a fallback timer restores the tab title.
      */
-    function runPrintWithTitle(doc, noteTitle, printFn) {
+    function runPrintWithTitle(doc, noteTitle, printFn, options) {
         if (!doc) return;
         const previousTitle = doc.title;
         const next = String(noteTitle || '').trim();
         if (next) doc.title = next;
 
+        const host = printHost(doc);
+        const delay = options && Number.isFinite(options.restoreAfterMs)
+            ? options.restoreAfterMs
+            : TITLE_RESTORE_FALLBACK_MS;
+
         let restored = false;
+        let timer = null;
         const restore = () => {
             if (restored) return;
             restored = true;
             doc.title = previousTitle;
-            const host = printHost(doc);
+            if (timer != null) {
+                if (host && typeof host.clearTimeout === 'function') host.clearTimeout(timer);
+                else clearTimeout(timer);
+            }
             if (host && host.removeEventListener) {
                 host.removeEventListener('afterprint', restore);
             }
         };
 
-        const host = printHost(doc);
         if (host && host.addEventListener) {
             host.addEventListener('afterprint', restore);
         }
+        const schedule = (host && typeof host.setTimeout === 'function')
+            ? host.setTimeout.bind(host)
+            : setTimeout;
+        timer = schedule(restore, delay);
 
         try {
             printFn();
@@ -103,6 +118,7 @@
         TITLE_PRINT,
         TITLE_LOADING,
         TITLE_UNAVAILABLE,
+        TITLE_RESTORE_FALLBACK_MS,
         embedIsReady,
         viewEmbedsPending,
         printButtonState,
