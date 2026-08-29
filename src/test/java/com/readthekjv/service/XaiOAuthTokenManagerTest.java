@@ -544,6 +544,40 @@ class XaiOAuthTokenManagerTest {
         stillSuperseded.getAccessToken();
         assertEquals("seed-next", readPersistedSeed(tokenFile));
         assertEquals("next-rot", readPersistedCurrentToken(tokenFile));
+
+        XaiOAuthTokenManager prunedOldest = manager(
+                "seed-0", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("pruned-access", 3600, "pruned-rot")));
+        prunedOldest.getAccessToken();
+        assertEquals("seed-next", readPersistedSeed(tokenFile));
+        assertEquals("next-rot", readPersistedCurrentToken(tokenFile));
+        assertFalse(readPersistedSuperseded(tokenFile).contains("seed-0"));
+    }
+
+    @Test
+    void persist_generationA_cannotOverwriteAfterMoreThanCapTakeovers() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        writePersistedState(tokenFile, "seed-a", "current-a");
+        XaiOAuthTokenManager generationA = manager(
+                "seed-a", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-a", 3600, "rot-a")));
+        String lastSeed = null;
+        String lastRot = null;
+        for (int i = 0; i <= XaiOAuthTokenManager.MAX_SUPERSEDED_SEEDS; i++) {
+            lastSeed = "gen-" + i;
+            lastRot = "rot-gen-" + i;
+            XaiOAuthTokenManager next = manager(
+                    lastSeed, true, tokenFile.toString(),
+                    countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-" + i, 3600, lastRot)));
+            assertEquals(Optional.of("access-" + i), next.getAccessToken());
+        }
+
+        generationA.invalidate();
+        assertEquals(Optional.of("access-a"), generationA.getAccessToken());
+        assertEquals(lastRot, readPersistedCurrentToken(tokenFile));
+        assertEquals(lastSeed, readPersistedSeed(tokenFile));
+        assertFalse(readPersistedSuperseded(tokenFile).contains("seed-a"));
+        assertEquals(XaiOAuthTokenManager.MAX_SUPERSEDED_SEEDS, readPersistedSuperseded(tokenFile).size());
     }
 
     @Test

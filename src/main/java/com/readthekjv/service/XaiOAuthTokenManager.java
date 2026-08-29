@@ -24,9 +24,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -62,12 +65,13 @@ import java.util.function.Supplier;
  *
  * <p>A rolling deploy that changes {@code XAI_OAUTH_REFRESH_TOKEN} can leave
  * an old and a new container on the same {@code /data} file with different
- * seeds. Persist records a bounded {@code supersededSeeds} set so older
- * generations cannot reclaim the file after A→B→C overlap. If persist
- * fails after the token endpoint rotated the refresh token, this class
- * does not cache or return that access token — callers fall back to
- * {@code XAI_API_KEY} rather than serving a rotation that a restart
- * cannot recover.
+ * seeds. Persist records a bounded {@code supersededSeeds} list (oldest
+ * dropped) plus SHA-256 digests of every superseded seed so a pruned
+ * generation cannot reclaim the file after A→B→C and further takeovers.
+ * If persist fails after the token endpoint rotated the refresh token,
+ * this class does not cache or return that access token — callers fall
+ * back to {@code XAI_API_KEY} rather than serving a rotation that a
+ * restart cannot recover.
  *
  * <p>Callers must treat a missing token (empty Optional) as "fall back to
  * {@code XAI_API_KEY}" — this class never throws for an unconfigured or
@@ -107,13 +111,21 @@ public class XaiOAuthTokenManager {
     // simply by rotating XAI_OAUTH_REFRESH_TOKEN and redeploying — without this, a persisted
     // token that goes bad (revoked, corrupted, copied from another deployment) would be
     // stuck forever, since it always wins over the configured value.
-    private record PersistedState(String seedToken, String currentToken, List<String> supersededSeeds) {
+    private record PersistedState(
+            String seedToken,
+            String currentToken,
+            List<String> supersededSeeds,
+            List<String> supersededDigests) {
         PersistedState {
             supersededSeeds = boundSupersededSeeds(supersededSeeds);
+            supersededDigests = supersededDigests == null ? List.of() : List.copyOf(supersededDigests);
         }
 
         boolean supersedes(String seed) {
-            return seed != null && supersededSeeds.contains(seed);
+            if (seed == null) {
+                return false;
+            }
+            return supersededSeeds.contains(seed) || supersededDigests.contains(seedDigest(seed));
         }
     }
 
@@ -406,7 +418,7 @@ public class XaiOAuthTokenManager {
             if (current == null || current.isBlank()) {
                 return null;
             }
-            return new PersistedState(seed, current, readSupersededSeeds(node));
+            return new PersistedState(seed, current, readSupersededSeeds(node), readSupersededDigests(node));
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_file_read_failed error={}", e.getMessage());
             return null;
@@ -463,10 +475,11 @@ public class XaiOAuthTokenManager {
     private PersistedState stateToPersist(String token) {
         PersistedState existing = readPersistedState();
         if (existing == null) {
-            return new PersistedState(seedRefreshToken, token, List.of());
+            return new PersistedState(seedRefreshToken, token, List.of(), List.of());
         }
         if (Objects.equals(existing.seedToken(), seedRefreshToken)) {
-            return new PersistedState(seedRefreshToken, token, existing.supersededSeeds());
+            return new PersistedState(
+                    seedRefreshToken, token, existing.supersededSeeds(), existing.supersededDigests());
         }
         if (existing.supersedes(seedRefreshToken)) {
             log.info("event=xai_oauth_refresh_token_persist_skipped_foreign_seed");
@@ -477,7 +490,7 @@ public class XaiOAuthTokenManager {
                 && !superseded.contains(existing.seedToken())) {
             superseded.add(existing.seedToken());
         }
-        return new PersistedState(seedRefreshToken, token, superseded);
+        return new PersistedState(seedRefreshToken, token, superseded, lineageDigests(existing));
     }
 
     private static List<String> readSupersededSeeds(JsonNode node) {
@@ -496,6 +509,55 @@ public class XaiOAuthTokenManager {
             superseded.add(legacy);
         }
         return superseded;
+    }
+
+    private static List<String> readSupersededDigests(JsonNode node) {
+        List<String> digests = new ArrayList<>();
+        JsonNode arr = node.get("supersededDigests");
+        if (arr == null || !arr.isArray()) {
+            arr = node.get("supersededSeedDigests");
+        }
+        if (arr != null && arr.isArray()) {
+            for (JsonNode item : arr) {
+                String value = item.asText(null);
+                if (value != null && !value.isBlank() && !digests.contains(value)) {
+                    digests.add(value);
+                }
+            }
+        }
+        for (String seed : readSupersededSeeds(node)) {
+            addDigest(digests, seed);
+        }
+        return digests;
+    }
+
+    private static List<String> lineageDigests(PersistedState existing) {
+        List<String> digests = new ArrayList<>(existing.supersededDigests());
+        for (String seed : existing.supersededSeeds()) {
+            addDigest(digests, seed);
+        }
+        addDigest(digests, existing.seedToken());
+        return digests;
+    }
+
+    private static void addDigest(List<String> digests, String seed) {
+        if (seed == null || seed.isBlank()) {
+            return;
+        }
+        String digest = seedDigest(seed);
+        if (!digests.contains(digest)) {
+            digests.add(digest);
+        }
+    }
+
+    private static String seedDigest(String seed) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256")
+                    .digest(seed.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 required for superseded-seed tombstones", e);
+        }
     }
 
     private static List<String> boundSupersededSeeds(List<String> seeds) {
