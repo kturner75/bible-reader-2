@@ -49,8 +49,18 @@ public final class VerseRangeParser {
             Pattern.compile("^[ve]=(.+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern EMBED_TOKEN_IN_BODY =
             Pattern.compile("\\[e=([^\\]]+)\\]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern VERSE_ID_DIGITS = Pattern.compile("\\d+");
 
     private VerseRangeParser() {}
+
+    /** Entire token must be digits — {@code Integer.parseInt} would accept {@code 13junk}. */
+    private static int parseVerseId(String raw) {
+        String s = raw == null ? "" : raw.trim();
+        if (!VERSE_ID_DIGITS.matcher(s).matches()) {
+            throw new IllegalArgumentException("Malformed verse id: " + raw);
+        }
+        return Integer.parseInt(s);
+    }
 
     /**
      * Parses a full token like {@code [v=1-3,5]} / {@code [e=1-3,5]} or bare
@@ -105,11 +115,9 @@ public final class VerseRangeParser {
                 if (bounds.length != 2 || bounds[0].isBlank() || bounds[1].isBlank()) {
                     throw new IllegalArgumentException("Malformed range segment: " + part);
                 }
-                int a = Integer.parseInt(bounds[0].trim());
-                int b = Integer.parseInt(bounds[1].trim());
-                ranges.add(new Range(a, b));
+                ranges.add(new Range(parseVerseId(bounds[0]), parseVerseId(bounds[1])));
             } else {
-                int v = Integer.parseInt(part);
+                int v = parseVerseId(part);
                 ranges.add(new Range(v, v));
             }
         }

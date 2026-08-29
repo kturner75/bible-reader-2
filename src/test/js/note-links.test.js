@@ -93,6 +93,47 @@ test('whole-line insert: [e=] sits alone on its line with no surrounding spaces'
     assert.equal(vInline.next, 'see [v=26137]');
 });
 
+test('trailing junk on a bound is not a real range and does not render as an embed', () => {
+    assert.throws(() => links.parseToken('[e=1-13junk]'));
+    assert.throws(() => links.parseToken('[e=13junk]'));
+    assert.throws(() => links.parseRangeBody('1-13junk'));
+    assert.throws(() => links.parseRangeBody('13junk'));
+    assert.throws(() => links.renderEmbedHtml('[e=1-13junk]'));
+    assert.throws(() => links.renderEmbedHtml('[e=13junk]'));
+
+    const rangeHtml = links.renderFlowWithEmbeds('See [e=1-13junk] today', s => s);
+    assert.doesNotMatch(rangeHtml, /note-scripture-embed/);
+    assert.match(rangeHtml, /1-13junk/);
+    assert.match(rangeHtml, /See/);
+    assert.match(rangeHtml, /today/);
+
+    const singleHtml = links.renderFlowWithEmbeds('See [e=13junk] today', s => s);
+    assert.doesNotMatch(singleHtml, /note-scripture-embed/);
+    assert.match(singleHtml, /13junk/);
+
+    // Same skip as Java requireNoteEmbedCap: junk is not a 13-verse embed.
+    assert.equal(links.refuseOversizedEmbeds('[e=1-13junk]').ok, true);
+    assert.equal(links.refuseOversizedEmbeds('[e=13junk]').ok, true);
+});
+
+test('extra hyphens after the upper bound are not a valid range', () => {
+    assert.throws(() => links.parseToken('[e=1-2-junk]'));
+    assert.throws(() => links.parseToken('[v=1-2-junk]'));
+    assert.throws(() => links.parseToken('[e=1-2-3]'));
+    assert.throws(() => links.parseRangeBody('1-2-junk'));
+    assert.throws(() => links.parseRangeBody('1-2-3'));
+    assert.throws(() => links.renderEmbedHtml('[e=1-2-junk]'));
+
+    const html = links.renderFlowWithEmbeds('See [e=1-2-junk] today', s => s);
+    assert.doesNotMatch(html, /note-scripture-embed/);
+    assert.match(html, /1-2-junk/);
+    assert.match(html, /See/);
+    assert.match(html, /today/);
+
+    // Fail-closed with Java: extra-hyphen junk is skipped, not treated as 1-2.
+    assert.equal(links.refuseOversizedEmbeds('[e=1-2-junk]').ok, true);
+});
+
 test('pasted [e=] over 12 verses is refused and not truncated', () => {
     const pasted = 'Notes\n[e=1-13]\nmore';
     const refused = links.refuseOversizedEmbeds(pasted);

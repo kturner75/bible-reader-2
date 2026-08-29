@@ -134,4 +134,38 @@ class VerseRangeParserTest {
         assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap(""));
         assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=not-a-range]"));
     }
+
+    @Test
+    void trailingJunkOnABoundIsNotARealRange() {
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[e=1-13junk]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[e=13junk]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseRangeBody("1-13junk"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseRangeBody("13junk"));
+
+        // Fail-closed with JS: junk is skipped, not treated as a 13-verse embed.
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=1-13junk]"));
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=13junk]"));
+    }
+
+    @Test
+    void extraHyphensAfterUpperBoundAreNotARealRange() {
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[e=1-2-junk]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[v=1-2-junk]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[e=1-2-3]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseRangeBody("1-2-junk"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseRangeBody("1-2-3"));
+
+        // Fail-closed with JS: extra-hyphen junk is skipped, not treated as 1-2.
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=1-2-junk]"));
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=1-2-3]"));
+    }
 }
