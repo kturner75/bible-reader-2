@@ -241,7 +241,7 @@ public final class VerseRangeParser {
             List<Range> ranges;
             try {
                 ranges = parseVToken(m.group(0));
-            } catch (IllegalArgumentException | NumberFormatException ex) {
+            } catch (IllegalArgumentException ex) {
                 continue;
             }
             int count = expandVerseIds(ranges).size();
@@ -252,6 +252,7 @@ public final class VerseRangeParser {
     }
 
     /** True if both normalize to the same range list. */
+    public static boolean equalRanges(List<Range> a, List<Range> b) {
         try {
             return normalizeRanges(a).equals(normalizeRanges(b));
         } catch (Exception e) {

@@ -123,7 +123,7 @@ test('mid-line pasted [e=] promotes the quote out of the paragraph', () => {
     assert.doesNotMatch(whole, /<p>/);
 
     const two = links.renderFlowWithEmbeds('A [e=1] and [e=2] B', s => s);
-    assert.equal((two.match(/note-scripture-embed/g) || []).length, 2);
+    assert.equal((two.match(/class="note-scripture-embed"/g) || []).length, 2);
     assert.match(two, /<p>A<\/p>/);
     assert.match(two, /<p>and<\/p>/);
     assert.match(two, /<p>B<\/p>/);
