@@ -383,7 +383,7 @@ public class TtsService {
      */
     String getVerseKey(int verseId) {
         int bucket = verseId / 1000;
-        return audioPrefix + "/" + providerKeySegment() + "/" + resolvedVoice()
+        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment()
                 + "/verses/" + bucket + "/" + verseId + ".mp3";
     }
 
@@ -392,8 +392,30 @@ public class TtsService {
      */
     String getChapterKey(String book, int chapter) {
         String safeBookName = book.replace(" ", "_");
-        return audioPrefix + "/" + providerKeySegment() + "/" + resolvedVoice()
+        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment()
                 + "/chapters/" + safeBookName + "_" + chapter + ".mp3";
+    }
+
+    /**
+     * Single S3 path segment for the resolved voice. Neutralizes {@code /},
+     * {@code ..}, backslashes, and other path tricks so {@code TTS_VOICE}
+     * cannot escape {@code audio/{provider}/{voice}/}. The TTS request still
+     * receives {@link #resolvedVoice()} as a pass-through (any string).
+     */
+    String voiceKeySegment() {
+        String raw = resolvedVoice();
+        StringBuilder sb = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                    || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+                sb.append(c);
+            } else {
+                sb.append('_');
+            }
+        }
+        String segment = sb.toString();
+        return segment.isBlank() ? "_" : segment;
     }
 
     String getLegacyVerseKey(int verseId) {
@@ -499,9 +521,10 @@ public class TtsService {
                     + ", \"language\": \"en\""
                     + ", \"output_format\": {\"codec\": \"mp3\"}}";
         }
-        return String.format(
-                "{\"model\": \"%s\", \"input\": %s, \"voice\": \"%s\", \"response_format\": \"mp3\"}",
-                resolvedModel(), escapeJson(text), resolvedVoice());
+        return "{\"model\": " + escapeJson(resolvedModel())
+                + ", \"input\": " + escapeJson(text)
+                + ", \"voice\": " + escapeJson(resolvedVoice())
+                + ", \"response_format\": \"mp3\"}";
     }
 
     /**

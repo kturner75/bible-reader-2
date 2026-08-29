@@ -306,6 +306,43 @@ class TtsServiceTest {
     }
 
     @Test
+    void openaiJsonEscapesVoiceAndModelQuotesAndBackslashes() throws Exception {
+        configure("openai", "sk-openai", "xai-key", "onyx\"\\x", "tts-1-\"hd\\");
+        String json = service.buildTtsRequestBody("say \"hi\"");
+        JsonNode body = MAPPER.readTree(json);
+
+        assertEquals("onyx\"\\x", body.path("voice").asText());
+        assertEquals("tts-1-\"hd\\", body.path("model").asText());
+        assertEquals("say \"hi\"", body.path("input").asText());
+        assertTrue(json.contains("\\\""));
+        assertTrue(json.contains("\\\\"));
+    }
+
+    @Test
+    void voiceKeySegmentNeutralizesPathTricksButApiKeepsPassThrough() throws Exception {
+        configure("xai", "sk-openai", "xai-key", "../etc/passwd", "tts-1-hd");
+        assertEquals("../etc/passwd", service.resolvedVoice());
+        assertEquals("../etc/passwd",
+                MAPPER.readTree(service.buildTtsRequestBody("hi")).path("voice_id").asText());
+        assertEquals("___etc_passwd", service.voiceKeySegment());
+        assertEquals("audio/xai/___etc_passwd/verses/0/1.mp3", service.getVerseKey(1));
+        assertFalse(service.getVerseKey(1).contains(".."));
+        assertTrue(service.getVerseKey(1).startsWith("audio/xai/"));
+    }
+
+    @Test
+    void voiceKeySegmentNeutralizesSlashDotDotAndBackslash() {
+        configure("openai", "sk-openai", "xai-key", "foo/../../bar\\baz", "tts-1-hd");
+        assertEquals("foo/../../bar\\baz", service.resolvedVoice());
+        assertEquals("foo_______bar_baz", service.voiceKeySegment());
+        assertEquals("audio/openai/foo_______bar_baz/verses/0/1.mp3", service.getVerseKey(1));
+        assertEquals("audio/openai/foo_______bar_baz/chapters/Genesis_1.mp3",
+                service.getChapterKey("Genesis", 1));
+        assertFalse(service.getVerseKey(1).contains(".."));
+        assertFalse(service.getVerseKey(1).contains("\\"));
+    }
+
+    @Test
     void findCachedAudioUrlForVerseHitsLegacyOpenAiOnyxKey() {
         configure("openai", "sk-openai", "xai-key", "", "tts-1-hd");
         when(s3Client.headObject(any(HeadObjectRequest.class))).thenAnswer(inv -> {
