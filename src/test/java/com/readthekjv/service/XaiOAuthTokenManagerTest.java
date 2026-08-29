@@ -297,10 +297,11 @@ class XaiOAuthTokenManagerTest {
 
         Optional<String> access = manager.getAccessToken();
 
-        assertEquals(Optional.of("access-token"), access);
+        assertEquals(Optional.empty(), access);
         assertEquals("rotated-refresh-token", manager.currentRefreshTokenForTesting());
         assertFalse(Files.exists(tokenFile));
         assertFalse(Files.exists(tmp));
+        assertEquals(Optional.empty(), manager.getAccessToken());
     }
 
     @Test
@@ -319,7 +320,7 @@ class XaiOAuthTokenManagerTest {
 
         Optional<String> access = manager.getAccessToken();
 
-        assertEquals(Optional.of("access-token"), access);
+        assertEquals(Optional.empty(), access);
         assertEquals("rotated-refresh-token", manager.currentRefreshTokenForTesting());
         assertFalse(Files.exists(tokenFile));
         assertFalse(Files.exists(tmp));
@@ -494,6 +495,55 @@ class XaiOAuthTokenManagerTest {
         assertEquals("rot-c", readPersistedCurrentToken(tokenFile));
         assertEquals("seed-c", readPersistedSeed(tokenFile));
         assertEquals(List.of("seed-a", "seed-b"), readPersistedSuperseded(tokenFile));
+    }
+
+    @Test
+    void persist_failureAfterRotate_doesNotReturnAccessToken() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        AtomicInteger calls = new AtomicInteger();
+        XaiOAuthTokenManager manager = manager(
+                "original-refresh-token", true, tokenFile.toString(),
+                countingHttpClient(calls, 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
+        manager.fileMover = (tmp, dest, atomic) -> {
+            throw new IOException("volume read-only");
+        };
+
+        assertEquals(Optional.empty(), manager.getAccessToken());
+        assertEquals("rotated-refresh-token", manager.currentRefreshTokenForTesting());
+        assertFalse(Files.exists(tokenFile));
+        assertEquals(Optional.empty(), manager.getAccessToken());
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void persist_supersededSeeds_areBoundedAndDropOldest() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        int cap = XaiOAuthTokenManager.MAX_SUPERSEDED_SEEDS;
+        List<String> historical = new ArrayList<>();
+        for (int i = 0; i < cap; i++) {
+            historical.add("seed-" + i);
+        }
+        Files.writeString(tokenFile, """
+                {"seedToken":"seed-current","currentToken":"current-rot","supersededSeeds":[%s]}
+                """.formatted(historical.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","))));
+        XaiOAuthTokenManager newer = manager(
+                "seed-next", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("next-access", 3600, "next-rot")));
+
+        assertEquals(Optional.of("next-access"), newer.getAccessToken());
+        List<String> superseded = readPersistedSuperseded(tokenFile);
+        assertEquals(cap, superseded.size());
+        assertFalse(superseded.contains("seed-0"));
+        assertTrue(superseded.contains("seed-1"));
+        assertTrue(superseded.contains("seed-current"));
+        assertEquals("seed-next", readPersistedSeed(tokenFile));
+
+        XaiOAuthTokenManager stillSuperseded = manager(
+                "seed-1", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("old-access", 3600, "old-rot")));
+        stillSuperseded.getAccessToken();
+        assertEquals("seed-next", readPersistedSeed(tokenFile));
+        assertEquals("next-rot", readPersistedCurrentToken(tokenFile));
     }
 
     @Test

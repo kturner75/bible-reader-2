@@ -62,8 +62,12 @@ import java.util.function.Supplier;
  *
  * <p>A rolling deploy that changes {@code XAI_OAUTH_REFRESH_TOKEN} can leave
  * an old and a new container on the same {@code /data} file with different
- * seeds. Persist records the full {@code supersededSeeds} set so older
- * generations cannot reclaim the file after A→B→C overlap.
+ * seeds. Persist records a bounded {@code supersededSeeds} set so older
+ * generations cannot reclaim the file after A→B→C overlap. If persist
+ * fails after the token endpoint rotated the refresh token, this class
+ * does not cache or return that access token — callers fall back to
+ * {@code XAI_API_KEY} rather than serving a rotation that a restart
+ * cannot recover.
  *
  * <p>Callers must treat a missing token (empty Optional) as "fall back to
  * {@code XAI_API_KEY}" — this class never throws for an unconfigured or
@@ -85,6 +89,8 @@ public class XaiOAuthTokenManager {
     private static final Duration MAX_REFRESH_SKEW = Duration.ofMinutes(5);
     // If a refresh attempt fails, don't hammer the endpoint on every subsequent call.
     private static final Duration FAILURE_COOLDOWN = Duration.ofMinutes(1);
+    /** Oldest seeds are dropped first so the durable file cannot grow without bound. */
+    static final int MAX_SUPERSEDED_SEEDS = 16;
 
     /**
      * Production default: absolute path on the durable {@code /data} volume,
@@ -103,7 +109,7 @@ public class XaiOAuthTokenManager {
     // stuck forever, since it always wins over the configured value.
     private record PersistedState(String seedToken, String currentToken, List<String> supersededSeeds) {
         PersistedState {
-            supersededSeeds = supersededSeeds == null ? List.of() : List.copyOf(supersededSeeds);
+            supersededSeeds = boundSupersededSeeds(supersededSeeds);
         }
 
         boolean supersedes(String seed) {
@@ -349,7 +355,15 @@ public class XaiOAuthTokenManager {
             if (rotatedRefreshToken != null && !rotatedRefreshToken.isBlank()
                     && !rotatedRefreshToken.equals(currentRefreshToken)) {
                 refreshToken.set(rotatedRefreshToken);
-                persistRefreshToken(rotatedRefreshToken);
+                // Keep the rotated refresh in memory so a later call can retry persist
+                // after the volume recovers. Do not cache/return the access token —
+                // a restart would reload the stale file and lose OAuth.
+                if (!persistRefreshToken(rotatedRefreshToken) && !persistRefreshToken(rotatedRefreshToken)) {
+                    lastFailureAt = Instant.now();
+                    cachedToken.set(null);
+                    log.warn("event=xai_oauth_refresh_unpersisted");
+                    return Optional.empty();
+                }
                 log.info("event=xai_oauth_refresh_token_rotated");
             }
 
@@ -399,9 +413,14 @@ public class XaiOAuthTokenManager {
         }
     }
 
-    private void persistRefreshToken(String token) {
+    /**
+     * @return true when durable state is safe (no persist path, skipped
+     * foreign seed, or dest written at 0600). False means this process
+     * must not treat the rotation as served.
+     */
+    private boolean persistRefreshToken(String token) {
         if (refreshTokenFile == null) {
-            return;
+            return true;
         }
         Path tmp = null;
         try {
@@ -410,14 +429,14 @@ public class XaiOAuthTokenManager {
             }
             PersistedState toWrite = stateToPersist(token);
             if (toWrite == null) {
-                return;
+                return true;
             }
             String json = objectMapper.writeValueAsString(toWrite);
             tmp = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".tmp");
             // Create at POSIX 0600 — never writeString-into-umask then chmod.
             if (!tryCreateOwnerOnly(tmp)) {
                 deleteQuietly(tmp);
-                return;
+                return false;
             }
             Files.writeString(tmp, json, StandardCharsets.UTF_8,
                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
@@ -427,11 +446,13 @@ public class XaiOAuthTokenManager {
             if (!tryRestrictToOwnerOnly(refreshTokenFile)) {
                 deleteQuietly(refreshTokenFile);
                 deleteQuietly(tmp);
-                return;
+                return false;
             }
+            return true;
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_persist_failed error={}", e.getMessage());
             deleteQuietly(tmp);
+            return false;
         }
     }
 
@@ -475,6 +496,16 @@ public class XaiOAuthTokenManager {
             superseded.add(legacy);
         }
         return superseded;
+    }
+
+    private static List<String> boundSupersededSeeds(List<String> seeds) {
+        if (seeds == null || seeds.isEmpty()) {
+            return List.of();
+        }
+        if (seeds.size() <= MAX_SUPERSEDED_SEEDS) {
+            return List.copyOf(seeds);
+        }
+        return List.copyOf(seeds.subList(seeds.size() - MAX_SUPERSEDED_SEEDS, seeds.size()));
     }
 
     private boolean tryCreateOwnerOnly(Path path) {
