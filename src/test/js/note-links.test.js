@@ -129,10 +129,34 @@ test('mid-line pasted [e=] promotes the quote out of the paragraph', () => {
     assert.match(two, /<p>B<\/p>/);
     assert.doesNotMatch(two, /<p>[^<]*<blockquote/);
 
-    const heading = links.renderFlowWithEmbeds('Title [e=26137]', s => s, 'h4');
+    const heading = links.renderHeadingWithEmbeds('Title [e=26137]', s => s, 'h4');
     assert.match(heading, /<h4>Title<\/h4>/);
     assert.match(heading, /note-scripture-embed/);
     assert.doesNotMatch(heading, /<h4>[^<]*<blockquote/);
+});
+
+test('list/heading [e=] keeps surrounding structure', () => {
+    const item1 = links.renderListItemWithEmbeds('first', s => s);
+    const item2 = links.renderListItemWithEmbeds('See [e=26137] today', s => s);
+    const item3 = links.renderListItemWithEmbeds('third', s => s);
+    const list = '<ul>' + item1 + item2 + item3 + '</ul>';
+    assert.match(list, /<ul><li>first<\/li>/);
+    assert.match(list, /<li>See today<blockquote[\s\S]*<\/blockquote><\/li>/);
+    assert.match(list, /<li>third<\/li><\/ul>/);
+    assert.equal((list.match(/<ul>/g) || []).length, 1);
+    assert.equal((list.match(/<\/ul>/g) || []).length, 1);
+    assert.doesNotMatch(list, /<p>/);
+    assert.doesNotMatch(list, /<li>[^<]*<p>/);
+    assert.match(list, /data-v="26137"/);
+    assert.match(list, /See/);
+    assert.match(list, /today/);
+
+    const heading = links.renderHeadingWithEmbeds('Title [e=26137] amen', s => s, 'h4');
+    assert.match(heading, /<h4>Title amen<\/h4>/);
+    assert.match(heading, /<\/h4><blockquote/);
+    assert.match(heading, /note-scripture-embed/);
+    assert.doesNotMatch(heading, /<h4>[^<]*<blockquote/);
+    assert.doesNotMatch(heading, /<h4>Title<\/h4>[\s\S]*<h4>amen<\/h4>/);
 });
 
 test('hydrate does not Passage-title an [e=] cite', () => {

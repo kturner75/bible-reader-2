@@ -255,12 +255,10 @@
 
     /**
      * Render a line that may contain mid-line [e=…] tokens. Surrounding text
-     * stays; each embed becomes a sibling blockquote — never nested in <p>
-     * (or in {@code textTag}, e.g. a heading).
+     * stays; each embed becomes a sibling blockquote — never nested in <p>.
      */
-    function renderFlowWithEmbeds(line, renderInlineText, textTag) {
+    function renderFlowWithEmbeds(line, renderInlineText) {
         const renderText = typeof renderInlineText === 'function' ? renderInlineText : escapeHtml;
-        const tag = textTag || 'p';
         const parts = splitLineByEmbeds(line);
         let html = '';
         for (const part of parts) {
@@ -268,13 +266,51 @@
                 try {
                     html += renderEmbedHtml(part.value);
                 } catch (_) {
-                    html += '<' + tag + '>' + renderText(part.value) + '</' + tag + '>';
+                    html += '<p>' + renderText(part.value) + '</p>';
                 }
             } else if (part.value.trim()) {
-                html += '<' + tag + '>' + renderText(part.value.trim()) + '</' + tag + '>';
+                html += '<p>' + renderText(part.value.trim()) + '</p>';
             }
         }
         return html;
+    }
+
+    function collectEmbedParts(line, renderInlineText) {
+        const renderText = typeof renderInlineText === 'function' ? renderInlineText : escapeHtml;
+        const texts = [];
+        const embeds = [];
+        for (const part of splitLineByEmbeds(line)) {
+            if (part.type === 'embed') {
+                try {
+                    embeds.push(renderEmbedHtml(part.value));
+                } catch (_) {
+                    texts.push(renderText(part.value));
+                }
+            } else if (part.value.trim()) {
+                texts.push(renderText(part.value.trim()));
+            }
+        }
+        return { textHtml: texts.join(' '), embedHtml: embeds.join('') };
+    }
+
+    /**
+     * Heading: one heading element keeps all the text; quotes are siblings
+     * after it. Never nest a blockquote in the heading.
+     */
+    function renderHeadingWithEmbeds(rest, renderInlineText, tag) {
+        const wrap = tag || 'h4';
+        const { textHtml, embedHtml } = collectEmbedParts(rest, renderInlineText);
+        const head = textHtml ? '<' + wrap + '>' + textHtml + '</' + wrap + '>' : '';
+        return head + embedHtml;
+    }
+
+    /**
+     * List item: text stays in <li>; quotes sit after the text inside the
+     * same item so the surrounding <ul>/<ol> is not closed.
+     */
+    function renderListItemWithEmbeds(item, renderInlineText) {
+        const { textHtml, embedHtml } = collectEmbedParts(item, renderInlineText);
+        return '<li>' + textHtml + embedHtml + '</li>';
     }
 
     function verseTextsHtml(verses) {
@@ -323,6 +359,8 @@
         renderEmbedHtml,
         splitLineByEmbeds,
         renderFlowWithEmbeds,
+        renderHeadingWithEmbeds,
+        renderListItemWithEmbeds,
         verseTextsHtml,
         applyEmbedHydration
     };

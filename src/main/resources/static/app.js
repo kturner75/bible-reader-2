@@ -2693,15 +2693,8 @@
         // Verse links — brackets are reserved for verse refs, not markdown URLs
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
-            // [e=26136-26138] — quoted embed (ids only; text resolved at hydrate)
-            const eTok = trimmed.match(/^e=(.+)$/i);
-            if (eTok && window.KjvNoteLinks) {
-                try {
-                    return window.KjvNoteLinks.renderEmbedHtml(trimmed);
-                } catch {
-                    return match;
-                }
-            }
+            // [e=…] is block-level — markdown promotes it; do not nest a quote in <p>
+            if (/^e=/i.test(trimmed)) return match;
             // [v=26136-26138] — portable scripture pointer
             const vTok = trimmed.match(/^v=(.+)$/i);
             if (vTok) {
@@ -2899,26 +2892,24 @@
                 const level = heading[1].length;
                 const rest = heading[2];
                 if (window.KjvNoteLinks && /\[e=/i.test(rest)) {
-                    out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                    out.push(window.KjvNoteLinks.renderHeadingWithEmbeds(
                         rest, frag => renderNoteInline(frag, ctx), 'h' + (level + 3)));
                 } else {
                     out.push(`<h${level + 3}>${renderNoteInline(rest, ctx)}</h${level + 3}>`);
                 }
             } else if (bullet || numbered) {
+                flushParagraph();
+                const type = bullet ? 'ul' : 'ol';
+                if (list !== type) {
+                    closeList();
+                    out.push(`<${type}>`);
+                    list = type;
+                }
                 const item = (bullet || numbered)[1];
                 if (window.KjvNoteLinks && /\[e=/i.test(item)) {
-                    flushParagraph();
-                    closeList();
-                    out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                    out.push(window.KjvNoteLinks.renderListItemWithEmbeds(
                         item, frag => renderNoteInline(frag, ctx)));
                 } else {
-                    flushParagraph();
-                    const type = bullet ? 'ul' : 'ol';
-                    if (list !== type) {
-                        closeList();
-                        out.push(`<${type}>`);
-                        list = type;
-                    }
                     out.push(`<li>${renderNoteInline(item, ctx)}</li>`);
                 }
             } else if (window.KjvNoteLinks && /\[e=/i.test(line)) {

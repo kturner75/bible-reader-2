@@ -2,6 +2,7 @@ package com.readthekjv.service;
 
 import com.readthekjv.exception.BadRequestException;
 import com.readthekjv.model.entity.SavedVerse;
+import com.readthekjv.util.VerseRangeParser;
 import com.readthekjv.repository.SavedVerseRepository;
 import com.readthekjv.repository.TagRepository;
 import com.readthekjv.repository.UserRepository;
@@ -40,8 +41,7 @@ class LibraryServiceTest {
 
         BadRequestException ex = assertThrows(BadRequestException.class,
                 () -> service.updateNote(USER_ID, VERSE_ID, "See [e=1-13]"));
-        assertTrue(ex.getMessage().contains("12"));
-        assertTrue(ex.getMessage().contains("13"));
+        assertEquals(VerseRangeParser.embedCapMessage(13), ex.getMessage());
         verify(savedVerseRepository, never()).save(any());
         assertEquals("old note", existing.getNote());
     }

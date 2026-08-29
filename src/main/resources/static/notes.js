@@ -167,14 +167,7 @@
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
-            const eTok = trimmed.match(/^e=(.+)$/i);
-            if (eTok && window.KjvNoteLinks) {
-                try {
-                    return window.KjvNoteLinks.renderEmbedHtml(trimmed);
-                } catch {
-                    return match;
-                }
-            }
+            if (/^e=/i.test(trimmed)) return match;
             const vTok = trimmed.match(/^v=(.+)$/i);
             if (vTok) {
                 const body = vTok[1].replace(/\s/g, '');
@@ -234,26 +227,24 @@
                 const level = heading[1].length;
                 const rest = heading[2];
                 if (window.KjvNoteLinks && /\[e=/i.test(rest)) {
-                    out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                    out.push(window.KjvNoteLinks.renderHeadingWithEmbeds(
                         rest, frag => renderNoteInline(frag), 'h' + (level + 3)));
                 } else {
                     out.push(`<h${level + 3}>${renderNoteInline(rest)}</h${level + 3}>`);
                 }
             } else if (bullet || numbered) {
+                flushParagraph();
+                const type = bullet ? 'ul' : 'ol';
+                if (list !== type) {
+                    closeList();
+                    out.push(`<${type}>`);
+                    list = type;
+                }
                 const item = (bullet || numbered)[1];
                 if (window.KjvNoteLinks && /\[e=/i.test(item)) {
-                    flushParagraph();
-                    closeList();
-                    out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                    out.push(window.KjvNoteLinks.renderListItemWithEmbeds(
                         item, frag => renderNoteInline(frag)));
                 } else {
-                    flushParagraph();
-                    const type = bullet ? 'ul' : 'ol';
-                    if (list !== type) {
-                        closeList();
-                        out.push(`<${type}>`);
-                        list = type;
-                    }
                     out.push(`<li>${renderNoteInline(item)}</li>`);
                 }
             } else if (window.KjvNoteLinks && /\[e=/i.test(line)) {
