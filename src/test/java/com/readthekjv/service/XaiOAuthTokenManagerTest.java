@@ -12,8 +12,10 @@ import java.lang.reflect.Constructor;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -235,6 +237,27 @@ class XaiOAuthTokenManagerTest {
         manager.getAccessToken();
 
         assertFalse(Files.exists(tokenFile));
+    }
+
+    @Test
+    void persist_atomicMoveUnsupported_fallsBackAndWritesFile() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        AtomicInteger atomicAttempts = new AtomicInteger();
+        XaiOAuthTokenManager manager = manager(
+                "original-refresh-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
+        manager.fileMover = (tmp, dest, atomic) -> {
+            if (atomic) {
+                atomicAttempts.incrementAndGet();
+                throw new AtomicMoveNotSupportedException(tmp.toString(), dest.toString(), "no atomic move");
+            }
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
+        };
+
+        manager.getAccessToken();
+
+        assertEquals(1, atomicAttempts.get());
+        assertEquals("rotated-refresh-token", readPersistedCurrentToken(tokenFile));
     }
 
     private XaiOAuthTokenManager manager(String refreshToken, boolean enabled, HttpClient httpClient) {

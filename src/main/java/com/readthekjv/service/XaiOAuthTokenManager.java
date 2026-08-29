@@ -14,6 +14,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -93,6 +94,20 @@ public class XaiOAuthTokenManager {
 
     private final AtomicReference<CachedToken> cachedToken = new AtomicReference<>();
     private volatile Instant lastFailureAt;
+
+    @FunctionalInterface
+    interface FileMover {
+        void move(Path tmp, Path dest, boolean atomic) throws IOException;
+    }
+
+    // Test seam (ReflectionTestUtils) — not a second constructor. Defaults to Files.move.
+    FileMover fileMover = (tmp, dest, atomic) -> {
+        if (atomic) {
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } else {
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
+        }
+    };
 
     public XaiOAuthTokenManager(
             @Value("${ai.xai.oauth.refresh-token:}") String refreshToken,
@@ -257,9 +272,25 @@ public class XaiOAuthTokenManager {
             Path tmp = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".tmp");
             Files.writeString(tmp, json, StandardCharsets.UTF_8);
             restrictToOwnerOnly(tmp);
-            Files.move(tmp, refreshTokenFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            movePersistedFile(tmp, refreshTokenFile);
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_persist_failed error={}", e.getMessage());
+        }
+    }
+
+    /**
+     * Prefer ATOMIC_MOVE so a crash cannot leave a half-written dest. Some
+     * mounts (network FS, Docker volume bind on certain hosts) throw
+     * {@link AtomicMoveNotSupportedException}; retry without ATOMIC_MOVE so
+     * the durable file still updates instead of leaving only the in-memory
+     * rotated token.
+     */
+    void movePersistedFile(Path tmp, Path dest) throws IOException {
+        try {
+            fileMover.move(tmp, dest, true);
+        } catch (AtomicMoveNotSupportedException e) {
+            log.warn("event=xai_oauth_refresh_token_atomic_move_unsupported");
+            fileMover.move(tmp, dest, false);
         }
     }
 
