@@ -56,7 +56,7 @@ test('stage then consume yields href + historyPushed false and clears the key', 
     assert.equal(store.getItem(ret.STORAGE_KEY), '/notes?id=note-42');
 
     const first = ret.consume(ORIGIN, store);
-    assert.deepEqual(first, { href: '/notes?id=note-42', historyPushed: false });
+    assert.deepEqual(first, { href: '/notes?id=note-42', historyPushed: false, fromNotes: true });
     assert.equal(store.getItem(ret.STORAGE_KEY), null);
 
     const second = ret.consume(ORIGIN, store);
@@ -66,7 +66,7 @@ test('stage then consume yields href + historyPushed false and clears the key', 
 test('stage with no id stores /notes; invalid stored value is consumed and dropped', () => {
     const store = memStorage();
     ret.stage(null, store);
-    assert.deepEqual(ret.consume(ORIGIN, store), { href: '/notes', historyPushed: false });
+    assert.deepEqual(ret.consume(ORIGIN, store), { href: '/notes', historyPushed: false, fromNotes: true });
 
     const bad = memStorage({ [ret.STORAGE_KEY]: 'https://evil.example/notes' });
     assert.equal(ret.consume(ORIGIN, bad), null);
@@ -96,6 +96,8 @@ test('canUnwindToNotes only when previous document was /notes and history can po
     assert.equal(ret.canUnwindToNotes(null, ORIGIN, 2), false);
     assert.equal(ret.canUnwindToNotes(ORIGIN + '/read/range?v=1', ORIGIN, 2), false);
     assert.equal(ret.canUnwindToNotes('https://evil.example/notes', ORIGIN, 2), false);
+    assert.equal(ret.canUnwindToNotes('', ORIGIN, 2, true), true);
+    assert.equal(ret.canUnwindToNotes('', ORIGIN, 1, true), false);
 });
 
 test('in-app Back from a notes-pushed reader unwinds; does not stack the range', () => {
@@ -136,4 +138,71 @@ test('deep-link /notes return with no notes history entry replaces, never assign
     }), null);
     assert.deepEqual(calls, ['replace:/notes?id=1']);
 });
+
+test('stripped referrer still unwinds when fromNotes; does not stack notes, notes', () => {
+    const history = ['/notes?id=1', '/read/range?v=1'];
+    const calls = [];
+    const nav = ret.returnToNotes('/notes?id=1', {
+        origin: ORIGIN,
+        referrer: '',
+        historyLength: 2,
+        fromNotes: true,
+        back: () => { calls.push('back'); history.pop(); },
+        replace: (u) => { calls.push('replace:' + u); history[history.length - 1] = u; }
+    });
+    assert.equal(nav, 'back');
+    assert.deepEqual(calls, ['back']);
+    assert.deepEqual(history, ['/notes?id=1']);
+});
+
+test('stripped referrer without fromNotes replaces once (deep-link, no notes entry)', () => {
+    const history = ['/read/range?v=1'];
+    const calls = [];
+    const nav = ret.returnToNotes('/notes?id=1', {
+        origin: ORIGIN,
+        referrer: '',
+        historyLength: 1,
+        fromNotes: true,
+        back: () => { calls.push('back'); history.pop(); },
+        replace: (u) => { calls.push('replace:' + u); history[history.length - 1] = u; }
+    });
+    assert.equal(nav, 'replace');
+    assert.deepEqual(calls, ['replace:/notes?id=1']);
+    assert.deepEqual(history, ['/notes?id=1']);
+
+    const prior = ['/dashboard', '/read/range?v=1'];
+    const calls2 = [];
+    const nav2 = ret.returnToNotes('/notes?id=1', {
+        origin: ORIGIN,
+        referrer: '',
+        historyLength: 2,
+        fromNotes: false,
+        back: () => { calls2.push('back'); prior.pop(); },
+        replace: (u) => { calls2.push('replace:' + u); prior[prior.length - 1] = u; }
+    });
+    assert.equal(nav2, 'replace');
+    assert.deepEqual(calls2, ['replace:/notes?id=1']);
+    assert.deepEqual(prior, ['/dashboard', '/notes?id=1']);
+});
+
+test('sessionStorage getter SecurityError degrades to no-return', () => {
+    const desc = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+    Object.defineProperty(globalThis, 'sessionStorage', {
+        configurable: true,
+        get() {
+            const err = new Error('The operation is insecure.');
+            err.name = 'SecurityError';
+            throw err;
+        }
+    });
+    try {
+        assert.doesNotThrow(() => ret.stage('blocked'));
+        assert.equal(ret.hasStaged(ORIGIN), false);
+        assert.equal(ret.consume(ORIGIN), null);
+    } finally {
+        if (desc) Object.defineProperty(globalThis, 'sessionStorage', desc);
+        else delete globalThis.sessionStorage;
+    }
+});
+
 

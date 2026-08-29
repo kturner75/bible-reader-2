@@ -8,17 +8,25 @@
  * deep link.
  *
  * Only /notes or /notes?… on this origin are accepted — never an open redirect.
- * In-app Back pops the reader when the previous document was /notes; otherwise
- * it replaces the current entry. Never assign — that stacks a second /notes
- * on top of the range.
+ * In-app Back pops the reader when history can unwind to /notes (referrer
+ * or a fromNotes staged return). Otherwise it replaces the current entry.
+ * Never assign — that stacks a second /notes on top of the range. Never
+ * replace onto /notes when the previous entry is already /notes (stripped
+ * referrer + fromNotes → back, not notes,notes).
  */
 (function (global) {
     'use strict';
 
     const STORAGE_KEY = 'kjv_notes_return';
 
+    /** sessionStorage itself can throw (sandbox / opaque origin / policy). */
     function defaultStorage() {
-        return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+        try {
+            const store = globalThis.sessionStorage;
+            return store || null;
+        } catch (_) {
+            return null;
+        }
     }
 
     function notesHrefFor(editingNoteId) {
@@ -73,6 +81,8 @@
     /**
      * Read and clear the staged return. Invalid or missing values yield null.
      * Always clears so a later /read/range reload is a normal deep link.
+     * fromNotes: this key is only written by the /notes click path, so the
+     * current reader entry was that navigation even if referrer is stripped.
      */
     function consume(origin, storage) {
         const store = storage || defaultStorage();
@@ -86,17 +96,19 @@
             }
         }
         const href = parseHref(raw, origin);
-        return href ? { href: href, historyPushed: false } : null;
+        return href ? { href: href, historyPushed: false, fromNotes: true } : null;
     }
 
     /**
-     * True when this reader entry was reached from /notes and history can
-     * pop back there. Deep-link / reload / typed URL have no notes referrer
-     * (or a single history entry) — do not history.back() in those cases.
+     * True when this reader entry can pop back to /notes.
+     * Referrer is sufficient; a fromNotes / historyPushed scopedReturn is
+     * too (notes.js just pushed this range), even when referrer is empty.
+     * Deep-link / typed URL with a single history entry must not back().
      */
-    function canUnwindToNotes(referrer, origin, historyLength) {
+    function canUnwindToNotes(referrer, origin, historyLength, fromNotes) {
         if (typeof historyLength === 'number' && historyLength < 2) return false;
-        return parseHref(referrer, origin) != null;
+        if (parseHref(referrer, origin)) return true;
+        return !!(fromNotes);
     }
 
     /**
@@ -109,7 +121,8 @@
         if (!notesHref) return null;
         const back = opts.back || function () { history.back(); };
         const replace = opts.replace || function (u) { location.replace(u); };
-        if (canUnwindToNotes(opts.referrer, opts.origin, opts.historyLength)) {
+        const fromNotes = !!(opts.fromNotes || opts.historyPushed);
+        if (canUnwindToNotes(opts.referrer, opts.origin, opts.historyLength, fromNotes)) {
             back();
             return 'back';
         }

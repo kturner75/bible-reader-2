@@ -1321,9 +1321,11 @@
      * When we entered via pushState, ← Back / Esc use history.back() so the
      * browser Back button and in-app Back share the same restore path.
      * A /notes return pops the notes→reader entry when this document was
-     * opened from /notes; otherwise it replaces (never assign — that stacks
-     * the range under a second /notes). Do not back() on a typed/reloaded
-     * deep link: there is no notes entry to unwind to.
+     * opened from /notes (referrer, or fromNotes/historyPushed even if
+     * referrer is stripped). Otherwise it replaces once (never assign —
+     * that stacks the range under a second /notes; replace on a notes-pushed
+     * entry would stack notes,notes). Do not back() on a typed/reloaded
+     * deep link with no notes entry to unwind to.
      */
     async function exitCollectionMode({ push = true } = {}) {
         if (!state.collection) return;
@@ -1337,7 +1339,8 @@
         if (ret && window.KjvNotesReturn) {
             const navigated = window.KjvNotesReturn.returnToNotes(ret.href, {
                 referrer: document.referrer,
-                historyLength: history.length
+                historyLength: history.length,
+                fromNotes: !!(ret.fromNotes || ret.historyPushed)
             });
             if (navigated) return;
         }
