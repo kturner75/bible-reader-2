@@ -228,24 +228,39 @@
             if (!line) {
                 flushParagraph();
                 closeList();
-            } else if (/^\[e=[^\]]+\]$/i.test(line)) {
-                flushParagraph();
-                closeList();
-                out.push(renderNoteInline(line));
             } else if (heading) {
                 flushParagraph();
                 closeList();
                 const level = heading[1].length;
-                out.push(`<h${level + 3}>${renderNoteInline(heading[2])}</h${level + 3}>`);
-            } else if (bullet || numbered) {
-                flushParagraph();
-                const type = bullet ? 'ul' : 'ol';
-                if (list !== type) {
-                    closeList();
-                    out.push(`<${type}>`);
-                    list = type;
+                const rest = heading[2];
+                if (window.KjvNoteLinks && /\[e=/i.test(rest)) {
+                    out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                        rest, frag => renderNoteInline(frag), 'h' + (level + 3)));
+                } else {
+                    out.push(`<h${level + 3}>${renderNoteInline(rest)}</h${level + 3}>`);
                 }
-                out.push(`<li>${renderNoteInline((bullet || numbered)[1])}</li>`);
+            } else if (bullet || numbered) {
+                const item = (bullet || numbered)[1];
+                if (window.KjvNoteLinks && /\[e=/i.test(item)) {
+                    flushParagraph();
+                    closeList();
+                    out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                        item, frag => renderNoteInline(frag)));
+                } else {
+                    flushParagraph();
+                    const type = bullet ? 'ul' : 'ol';
+                    if (list !== type) {
+                        closeList();
+                        out.push(`<${type}>`);
+                        list = type;
+                    }
+                    out.push(`<li>${renderNoteInline(item)}</li>`);
+                }
+            } else if (window.KjvNoteLinks && /\[e=/i.test(line)) {
+                flushParagraph();
+                closeList();
+                out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                    line, frag => renderNoteInline(frag)));
             } else {
                 closeList();
                 paragraph.push(renderNoteInline(line));

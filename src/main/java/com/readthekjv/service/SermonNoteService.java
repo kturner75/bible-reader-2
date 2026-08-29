@@ -1,10 +1,12 @@
 package com.readthekjv.service;
 
+import com.readthekjv.exception.BadRequestException;
 import com.readthekjv.model.dto.SermonNoteResponse;
 import com.readthekjv.model.dto.SermonNoteSummary;
 import com.readthekjv.model.entity.SermonNote;
 import com.readthekjv.repository.SermonNoteRepository;
 import com.readthekjv.repository.UserRepository;
+import com.readthekjv.util.VerseRangeParser;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,19 +43,28 @@ public class SermonNoteService {
         SermonNote n = new SermonNote();
         n.setUser(userRepository.getReferenceById(userId));
         n.setTitle(title.trim());
-        n.setNote(note.trim());
+        n.setNote(prepareNote(note));
         return SermonNoteResponse.from(sermonNoteRepository.save(n));
     }
 
     public SermonNoteResponse update(Long userId, UUID id, String title, String note) {
         SermonNote n = findOwned(userId, id);
         n.setTitle(title.trim());
-        n.setNote(note.trim());
+        n.setNote(prepareNote(note));
         return SermonNoteResponse.from(sermonNoteRepository.save(n));
     }
 
     public void delete(Long userId, UUID id) {
         sermonNoteRepository.delete(findOwned(userId, id));
+    }
+
+    private static String prepareNote(String note) {
+        try {
+            VerseRangeParser.requireNoteEmbedCap(note);
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException(ex.getMessage());
+        }
+        return note.trim();
     }
 
     private SermonNote findOwned(Long userId, UUID id) {

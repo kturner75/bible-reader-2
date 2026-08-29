@@ -1,5 +1,6 @@
 package com.readthekjv.service;
 
+import com.readthekjv.exception.BadRequestException;
 import com.readthekjv.model.dto.SermonNoteResponse;
 import com.readthekjv.model.dto.SermonNoteSummary;
 import com.readthekjv.model.entity.SermonNote;
@@ -65,6 +66,33 @@ class SermonNoteServiceTest {
         assertEquals("Body text", captor.getValue().getNote());
         assertEquals("Sermon on the Mount", res.title());
         assertEquals("Body text", res.note());
+    }
+
+    @Test
+    void createRefusesPastedEmbedOverTwelveAndDoesNotSave() {
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> service.create(USER_ID, "Title", "See [e=1-13]"));
+        assertTrue(ex.getMessage().contains("12"));
+        assertTrue(ex.getMessage().contains("13"));
+        verify(sermonNoteRepository, never()).save(any());
+    }
+
+    @Test
+    void updateRefusesPastedEmbedOverTwelveAndDoesNotSave() {
+        SermonNote existing = existingNote("Old", "old text");
+        when(sermonNoteRepository.findByIdAndUserId(NOTE_ID, USER_ID)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> service.update(USER_ID, NOTE_ID, "New Title", "[e=1-10,20-22]"));
+        verify(sermonNoteRepository, never()).save(any());
+        assertEquals("old text", existing.getNote());
+    }
+
+    @Test
+    void createAcceptsTwelveVerseEmbed() {
+        SermonNoteResponse res = service.create(USER_ID, "Title", "[e=1-12]");
+        assertEquals("[e=1-12]", res.note());
+        verify(sermonNoteRepository).save(any(SermonNote.class));
     }
 
     @Test

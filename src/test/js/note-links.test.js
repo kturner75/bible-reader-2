@@ -107,6 +107,34 @@ test('pasted [e=] over 12 verses is refused and not truncated', () => {
     assert.equal(vUncapped.ok, true);
 });
 
+test('mid-line pasted [e=] promotes the quote out of the paragraph', () => {
+    const html = links.renderFlowWithEmbeds('See [e=26137] today', s => s);
+    assert.doesNotMatch(html, /<p>[^<]*<blockquote/);
+    assert.doesNotMatch(html, /<blockquote[\s\S]*<\/blockquote>\s*<\/p>/);
+    assert.match(html, /<p>See<\/p>/);
+    assert.match(html, /<p>today<\/p>/);
+    assert.match(html, /note-scripture-embed/);
+    assert.match(html, /data-v="26137"/);
+    assert.match(html, /See/);
+    assert.match(html, /today/);
+
+    const whole = links.renderFlowWithEmbeds('[e=26137]', s => s);
+    assert.match(whole, /note-scripture-embed/);
+    assert.doesNotMatch(whole, /<p>/);
+
+    const two = links.renderFlowWithEmbeds('A [e=1] and [e=2] B', s => s);
+    assert.equal((two.match(/note-scripture-embed/g) || []).length, 2);
+    assert.match(two, /<p>A<\/p>/);
+    assert.match(two, /<p>and<\/p>/);
+    assert.match(two, /<p>B<\/p>/);
+    assert.doesNotMatch(two, /<p>[^<]*<blockquote/);
+
+    const heading = links.renderFlowWithEmbeds('Title [e=26137]', s => s, 'h4');
+    assert.match(heading, /<h4>Title<\/h4>/);
+    assert.match(heading, /note-scripture-embed/);
+    assert.doesNotMatch(heading, /<h4>[^<]*<blockquote/);
+});
+
 test('hydrate does not Passage-title an [e=] cite', () => {
     const embedLabel = links.rangeLinkDisplayLabel({
         embedCite: true,

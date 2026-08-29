@@ -25,6 +25,9 @@ public final class VerseRangeParser {
     public static final int MIN_VERSE_ID = 1;
     public static final int MAX_VERSE_ID = 31102;
 
+    /** First-cut write-side cap for {@code [e=…]} — refuse, do not truncate. */
+    public static final int EMBED_VERSE_CAP = 12;
+
     /** Inclusive verse id range. */
     public record Range(int from, int to) {
         public Range {
@@ -44,6 +47,8 @@ public final class VerseRangeParser {
             Pattern.compile("^\\[?([ve])=([^\\]]+)\\]?$", Pattern.CASE_INSENSITIVE);
     private static final Pattern INNER =
             Pattern.compile("^[ve]=(.+)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern EMBED_TOKEN_IN_BODY =
+            Pattern.compile("\\[e=([^\\]]+)\\]", Pattern.CASE_INSENSITIVE);
 
     private VerseRangeParser() {}
 
@@ -216,8 +221,37 @@ public final class VerseRangeParser {
         return ids;
     }
 
+    public static String embedCapMessage(int count) {
+        return "Quoted scripture is limited to " + EMBED_VERSE_CAP
+                + " verses (this reference is " + count + ").";
+    }
+
+    /**
+     * Write-side refuse for any {@code [e=…]} in a note body over {@link #EMBED_VERSE_CAP}.
+     * Does not truncate. Malformed tokens are skipped (render / other validators handle them).
+     *
+     * @throws IllegalArgumentException when a well-formed embed exceeds the cap
+     */
+    public static void requireNoteEmbedCap(String noteBody) {
+        if (noteBody == null || noteBody.isEmpty()) {
+            return;
+        }
+        Matcher m = EMBED_TOKEN_IN_BODY.matcher(noteBody);
+        while (m.find()) {
+            List<Range> ranges;
+            try {
+                ranges = parseVToken(m.group(0));
+            } catch (IllegalArgumentException | NumberFormatException ex) {
+                continue;
+            }
+            int count = expandVerseIds(ranges).size();
+            if (count > EMBED_VERSE_CAP) {
+                throw new IllegalArgumentException(embedCapMessage(count));
+            }
+        }
+    }
+
     /** True if both normalize to the same range list. */
-    public static boolean equalRanges(List<Range> a, List<Range> b) {
         try {
             return normalizeRanges(a).equals(normalizeRanges(b));
         } catch (Exception e) {

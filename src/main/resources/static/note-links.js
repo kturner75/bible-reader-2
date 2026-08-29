@@ -230,6 +230,53 @@
             + `</blockquote>`;
     }
 
+    /**
+     * Split a line on [e=…] tokens so a mid-line paste can be promoted to its
+     * own quoted block. Does not drop the embed.
+     */
+    function splitLineByEmbeds(line) {
+        const re = /\[e=[^\]]+\]/gi;
+        const parts = [];
+        let last = 0;
+        let m;
+        const s = String(line == null ? '' : line);
+        while ((m = re.exec(s)) !== null) {
+            if (m.index > last) {
+                parts.push({ type: 'text', value: s.slice(last, m.index) });
+            }
+            parts.push({ type: 'embed', value: m[0] });
+            last = m.index + m[0].length;
+        }
+        if (last < s.length || parts.length === 0) {
+            parts.push({ type: 'text', value: s.slice(last) });
+        }
+        return parts;
+    }
+
+    /**
+     * Render a line that may contain mid-line [e=…] tokens. Surrounding text
+     * stays; each embed becomes a sibling blockquote — never nested in <p>
+     * (or in {@code textTag}, e.g. a heading).
+     */
+    function renderFlowWithEmbeds(line, renderInlineText, textTag) {
+        const renderText = typeof renderInlineText === 'function' ? renderInlineText : escapeHtml;
+        const tag = textTag || 'p';
+        const parts = splitLineByEmbeds(line);
+        let html = '';
+        for (const part of parts) {
+            if (part.type === 'embed') {
+                try {
+                    html += renderEmbedHtml(part.value);
+                } catch (_) {
+                    html += '<' + tag + '>' + renderText(part.value) + '</' + tag + '>';
+                }
+            } else if (part.value.trim()) {
+                html += '<' + tag + '>' + renderText(part.value.trim()) + '</' + tag + '>';
+            }
+        }
+        return html;
+    }
+
     function verseTextsHtml(verses) {
         if (!verses || !verses.length) return '';
         return verses.map(v => {
@@ -274,6 +321,8 @@
         refuseOversizedEmbeds,
         rangeLinkDisplayLabel,
         renderEmbedHtml,
+        splitLineByEmbeds,
+        renderFlowWithEmbeds,
         verseTextsHtml,
         applyEmbedHydration
     };

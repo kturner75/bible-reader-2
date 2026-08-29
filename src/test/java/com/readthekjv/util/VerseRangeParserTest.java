@@ -113,11 +113,25 @@ class VerseRangeParserTest {
 
     @Test
     void parseDoesNotTruncateEmbedOverTwelve() {
-        // Write-side cap lives in KjvNoteLinks (JS). The Java parser keeps the
-        // full range so a pasted token is not silently shortened.
+        // Parse keeps the full range so a pasted token is not silently shortened.
+        // Write-side refuse is requireNoteEmbedCap (and the JS twin).
         List<VerseRangeParser.Range> thirteen = VerseRangeParser.parseVToken("[e=1-13]");
         assertEquals(List.of(new VerseRangeParser.Range(1, 13)), thirteen);
         assertEquals(13, VerseRangeParser.expandVerseIds(thirteen).size());
         assertEquals("[e=1-13]", VerseRangeParser.serializeEToken(thirteen));
+    }
+
+    @Test
+    void requireNoteEmbedCapRefusesPastedEmbedOverTwelve() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.requireNoteEmbedCap("Notes\n[e=1-13]\nmore"));
+        assertTrue(ex.getMessage().contains("12"));
+        assertTrue(ex.getMessage().contains("13"));
+
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=1-12]"));
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[v=1-13]"));
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap(null));
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap(""));
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=not-a-range]"));
     }
 }
