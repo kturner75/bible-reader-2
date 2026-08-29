@@ -1496,23 +1496,37 @@ if (typeof document !== 'undefined') (async function () {
         });
     }
 
+    /**
+     * Stage a same-origin /notes return before a full-page jump into the reader.
+     * In-app ← Back / Esc reads this after the deep-link boot; browser Back
+     * still uses history and does not need it.
+     */
+    function stageNotesReturnForReader() {
+        if (window.KjvNotesReturn) {
+            window.KjvNotesReturn.stage(editingNoteId);
+        }
+    }
+
     // Verse / range / passage / collection links inside a rendered sermon note
     viewBody.addEventListener('click', async e => {
         const rangeLink = e.target.closest('.note-range-link');
         if (rangeLink) {
             e.preventDefault();
+            stageNotesReturnForReader();
             window.location.href = `/read/range?v=${encodeURIComponent(rangeLink.dataset.v)}`;
             return;
         }
         const passageLink = e.target.closest('.note-passage-link');
         if (passageLink) {
             e.preventDefault();
+            stageNotesReturnForReader();
             window.location.href = `/read/passage/${passageLink.dataset.passageId}`;
             return;
         }
         const collectionLink = e.target.closest('.note-collection-link');
         if (collectionLink) {
             e.preventDefault();
+            stageNotesReturnForReader();
             window.location.href = `/read/collection/${collectionLink.dataset.collectionId}`;
             return;
         }
@@ -1525,14 +1539,19 @@ if (typeof document !== 'undefined') (async function () {
                     const parsed = await res.json();
                     if (parsed.valid) {
                         if (parsed.v) {
+                            stageNotesReturnForReader();
                             window.location.href = `/read/range?v=${encodeURIComponent(parsed.v)}`;
                         } else if (Array.isArray(parsed.ranges) && parsed.ranges.length) {
                             const body = parsed.ranges.map(r =>
                                 r.from === r.to ? String(r.from) : `${r.from}-${r.to}`
                             ).join(',');
+                            stageNotesReturnForReader();
                             window.location.href = `/read/range?v=${encodeURIComponent(body)}`;
                         } else if (parsed.verseId) {
-                            window.location.href = `/read?vid=${parsed.verseId}`;
+                            // Same scoped session as [v=] — /read?vid= has no
+                            // in-app Back and would discard the staged return.
+                            stageNotesReturnForReader();
+                            window.location.href = `/read/range?v=${encodeURIComponent(String(parsed.verseId))}`;
                         }
                     }
                 }

@@ -107,7 +107,8 @@
         // { kind:'collection'|'passage'|'range', id, label, verses, ... }
         collection: null,
         // Where to return when leaving scoped mode (reading position + optional note)
-        // { verseId, note: null | { type:'verse', verseId } | { type:'chapter'|'book', ... }, historyPushed }
+        // { verseId, note, historyPushed, href? } — href is a same-origin /notes URL
+        // staged by the /notes page across a full-page deep-link boot.
         scopedReturn: null,
         // Auth
         currentUser: null                  // null = anonymous; object = { id, email, displayName }
@@ -1258,13 +1259,14 @@
     /**
      * Snapshot reading position (and any note return already staged) before
      * entering scoped mode.
-     * push=false on a fresh deep link clears return; push=false while already
-     * in scoped mode (popstate between scoped URLs) keeps the original return.
+     * push=false on a fresh deep link consumes a /notes sessionStorage return
+     * if the notes page staged one; otherwise it clears. push=false while
+     * already in scoped mode (popstate between scoped URLs) keeps the original.
      */
     function rememberScopedReturn(push) {
         if (!push) {
             if (!state.collection) {
-                state.scopedReturn = null;
+                state.scopedReturn = consumeStagedNotesReturn();
             }
             return;
         }
@@ -1310,10 +1312,20 @@
         }
     }
 
+    function consumeStagedNotesReturn() {
+        return window.KjvNotesReturn ? window.KjvNotesReturn.consume() : null;
+    }
+
     /**
      * Leave scoped reader; restore prior reading position and optional note.
      * When we entered via pushState, ← Back / Esc use history.back() so the
      * browser Back button and in-app Back share the same restore path.
+     * A /notes return pops the notes→reader entry when this document was
+     * opened from /notes (referrer, or fromNotes/historyPushed even if
+     * referrer is stripped). Otherwise it replaces once (never assign —
+     * that stacks the range under a second /notes; replace on a notes-pushed
+     * entry would stack notes,notes). Do not back() on a typed/reloaded
+     * deep link with no notes entry to unwind to.
      */
     async function exitCollectionMode({ push = true } = {}) {
         if (!state.collection) return;
@@ -1324,6 +1336,15 @@
         }
 
         const ret = state.scopedReturn;
+        if (ret && window.KjvNotesReturn) {
+            const navigated = window.KjvNotesReturn.returnToNotes(ret.href, {
+                referrer: document.referrer,
+                historyLength: history.length,
+                fromNotes: !!(ret.fromNotes || ret.historyPushed)
+            });
+            if (navigated) return;
+        }
+
         state.collection = null;
         state.scopedReturn = null;
         const verseId = (ret && ret.verseId) || state.currentVerseId;
@@ -7443,8 +7464,18 @@
                 enteredScoped = await enterPassageMode(passageMatch[1], { push: false });
             } else if (rangeV) {
                 enteredScoped = await enterRangeMode(rangeV, { push: false });
+            } else {
+                // /read?vid= from /notes stages a return; enter a one-verse
+                // range so in-app Back can use it. rememberScopedReturn consumes.
+                const vid = new URLSearchParams(window.location.search).get('vid');
+                if (vid && window.KjvNotesReturn && window.KjvNotesReturn.hasStaged()) {
+                    enteredScoped = await enterRangeMode(String(vid), { push: false });
+                }
             }
             if (!enteredScoped) {
+                // Leftover stage (failed scoped boot, or ?vid= with no return)
+                // must not attach to a later /read/range reload.
+                consumeStagedNotesReturn();
                 await goToVerse(state.currentVerseId);
             }
             state.initialPageLoaded = true;
