@@ -21,6 +21,7 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -116,6 +117,18 @@ class TtsServiceTest {
         configure("xai", "sk-openai", "xai-key", "rex", "tts-1-hd");
         assertEquals("rex", service.resolvedVoice());
         assertEquals("rex", MAPPER.readTree(service.buildTtsRequestBody("hi")).path("voice_id").asText());
+    }
+
+    @Test
+    void xaiVoiceIdIsCaseInsensitiveAndNotAnAllowlist() throws Exception {
+        configure("xai", "sk-openai", "xai-key", "ARA", "tts-1-hd");
+        assertEquals("ara", service.resolvedVoice());
+        assertEquals("ara", MAPPER.readTree(service.buildTtsRequestBody("hi")).path("voice_id").asText());
+        assertEquals("audio/xai/ara/verses/0/1.mp3", service.getVerseKey(1));
+
+        configure("xai", "sk-openai", "xai-key", "Eve", "tts-1-hd");
+        assertEquals("eve", service.resolvedVoice());
+        assertEquals("audio/xai/eve/verses/0/1.mp3", service.getVerseKey(1));
     }
 
     @Test
@@ -259,11 +272,37 @@ class TtsServiceTest {
     }
 
     @Test
-    void customXaiVoiceIsAcceptedAsAnyString() {
+    void anyXaiVoiceIdIsAcceptedWithoutAnEnum() {
         configure("xai", "sk-openai", "xai-key", "nlbqfwie", "tts-1-hd");
         assertEquals("nlbqfwie", service.resolvedVoice());
         assertEquals("audio/xai/nlbqfwie/verses/0/1.mp3", service.getVerseKey(1));
         assertEquals(List.of("audio/xai/nlbqfwie/verses/0/1.mp3"), service.verseCacheKeys(1));
+    }
+
+    @Test
+    void flippingXaiVoiceChangesCacheKey() {
+        configure("xai", "sk-openai", "xai-key", "ara", "tts-1-hd");
+        assertEquals("audio/xai/ara/verses/0/1.mp3", service.getVerseKey(1));
+        assertEquals("audio/xai/ara/chapters/Genesis_1.mp3", service.getChapterKey("Genesis", 1));
+
+        configure("xai", "sk-openai", "xai-key", "rex", "tts-1-hd");
+        assertEquals("audio/xai/rex/verses/0/1.mp3", service.getVerseKey(1));
+        assertFalse(service.verseCacheKeys(1).contains("audio/xai/ara/verses/0/1.mp3"));
+        assertFalse(service.verseCacheKeys(1).contains("audio/xai/eve/verses/0/1.mp3"));
+    }
+
+    @Test
+    void unknownXaiVoice404SkipsPersistAndDoesNotThrow() throws Exception {
+        configure("xai", "sk-openai", "xai-key", "not-a-voice", "tts-1-hd");
+        stubCacheMiss();
+        stubHttp(404, "{\"error\":\"unknown voice_id\"}".getBytes());
+        when(bibleService.getVerse(1)).thenReturn(Optional.of(
+                new Verse(1, "Genesis", 1, 1, 1, "In the beginning")));
+
+        Optional<String> url = assertDoesNotThrow(() -> service.getAudioUrlForVerse(1));
+
+        assertTrue(url.isEmpty());
+        verify(s3Client, never()).putObject(any(PutObjectRequest.class), any(RequestBody.class));
     }
 
     @Test

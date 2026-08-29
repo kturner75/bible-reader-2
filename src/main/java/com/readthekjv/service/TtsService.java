@@ -24,6 +24,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,7 +35,9 @@ import java.util.concurrent.Semaphore;
  * Stores audio files in Digital Ocean Spaces with CDN delivery.
  *
  * <p>Set {@code TTS_PROVIDER=xai} and {@code XAI_API_KEY} to switch providers.
- * {@code TTS_VOICE} overrides the provider default ({@code onyx} / {@code eve}).
+ * {@code TTS_VOICE} is passed through as the xAI {@code voice_id} (case-insensitive);
+ * there is no closed voice enum. Unset defaults to {@code onyx} / {@code eve}.
+ * An unknown xAI id 404s that generate and is not written to Spaces.
  * An unset {@code tts.provider} defaults to openai; any other value that is not
  * {@code openai} or {@code xai} fails closed (no spend).
  *
@@ -344,9 +347,15 @@ public class TtsService {
         return isXai() ? xaiKey : apiKey;
     }
 
+    /**
+     * Configured voice, or the provider default when {@code TTS_VOICE} is unset.
+     * xAI ids are case-insensitive ({@code ARA} → {@code ara}); any string is
+     * accepted — no allowlist. Unknown ids fail at generate time (xAI 404).
+     */
     String resolvedVoice() {
         if (voice != null && !voice.isBlank()) {
-            return voice.trim();
+            String trimmed = voice.trim();
+            return isXai() ? trimmed.toLowerCase(Locale.ROOT) : trimmed;
         }
         return isXai() ? XAI_DEFAULT_VOICE : OPENAI_DEFAULT_VOICE;
     }
@@ -522,7 +531,12 @@ public class TtsService {
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
 
             if (response.statusCode() != 200) {
-                log.error("TTS API error: {} - {}", response.statusCode(), new String(response.body()));
+                if (response.statusCode() == 404) {
+                    log.warn("TTS API 404 for voice '{}' — skipping generate, not persisting",
+                            resolvedVoice());
+                } else {
+                    log.error("TTS API error: {} - {}", response.statusCode(), new String(response.body()));
+                }
                 return null;
             }
 
