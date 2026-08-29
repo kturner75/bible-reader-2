@@ -66,8 +66,9 @@ import java.util.function.Supplier;
  * <p>A rolling deploy that changes {@code XAI_OAUTH_REFRESH_TOKEN} can leave
  * an old and a new container on the same {@code /data} file with different
  * seeds. Persist records a bounded {@code supersededSeeds} list (oldest
- * dropped) plus SHA-256 digests of every superseded seed so a pruned
- * generation cannot reclaim the file after A→B→C and further takeovers.
+ * dropped), a fixed-size tombstone, and a monotonic {@code generation}
+ * so a pruned generation cannot reclaim the file after A→B→C and further
+ * takeovers without growing the durable file.
  * If persist fails after the token endpoint rotated the refresh token,
  * this class does not cache or return that access token — callers fall
  * back to {@code XAI_API_KEY} rather than serving a rotation that a
@@ -95,6 +96,9 @@ public class XaiOAuthTokenManager {
     private static final Duration FAILURE_COOLDOWN = Duration.ofMinutes(1);
     /** Oldest seeds are dropped first so the durable file cannot grow without bound. */
     static final int MAX_SUPERSEDED_SEEDS = 16;
+    static final int SUPERSEDED_TOMBSTONE_BYTES = 256;
+    static final int SUPERSEDED_TOMBSTONE_HEX_LENGTH = SUPERSEDED_TOMBSTONE_BYTES * 2;
+    private static final int TOMBSTONE_HASHES = 4;
 
     /**
      * Production default: absolute path on the durable {@code /data} volume,
@@ -115,23 +119,25 @@ public class XaiOAuthTokenManager {
             String seedToken,
             String currentToken,
             List<String> supersededSeeds,
-            List<String> supersededDigests) {
+            String supersededTombstone,
+            int generation) {
         PersistedState {
             supersededSeeds = boundSupersededSeeds(supersededSeeds);
-            supersededDigests = supersededDigests == null ? List.of() : List.copyOf(supersededDigests);
+            supersededTombstone = normalizeTombstone(supersededTombstone);
         }
 
         boolean supersedes(String seed) {
             if (seed == null) {
                 return false;
             }
-            return supersededSeeds.contains(seed) || supersededDigests.contains(seedDigest(seed));
+            return supersededSeeds.contains(seed) || tombstoneContains(supersededTombstone, seed);
         }
     }
 
     private HttpClient httpClient;
     private final AtomicReference<String> refreshToken = new AtomicReference<>();
     private final String seedRefreshToken;
+    private final int persistGenerationAtStart;
     private final Path refreshTokenFile;
     private final boolean enabled;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -191,6 +197,7 @@ public class XaiOAuthTokenManager {
 
         String initialToken = refreshToken;
         PersistedState persisted = readPersistedState();
+        this.persistGenerationAtStart = persisted != null ? persisted.generation() : 0;
         if (persisted != null && Objects.equals(persisted.seedToken(), refreshToken)) {
             initialToken = persisted.currentToken();
             log.info("event=xai_oauth_refresh_token_loaded_from_file");
@@ -418,7 +425,8 @@ public class XaiOAuthTokenManager {
             if (current == null || current.isBlank()) {
                 return null;
             }
-            return new PersistedState(seed, current, readSupersededSeeds(node), readSupersededDigests(node));
+            return new PersistedState(
+                    seed, current, readSupersededSeeds(node), readTombstone(node), node.path("generation").asInt(0));
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_file_read_failed error={}", e.getMessage());
             return null;
@@ -475,13 +483,15 @@ public class XaiOAuthTokenManager {
     private PersistedState stateToPersist(String token) {
         PersistedState existing = readPersistedState();
         if (existing == null) {
-            return new PersistedState(seedRefreshToken, token, List.of(), List.of());
+            return new PersistedState(seedRefreshToken, token, List.of(), emptyTombstone(), 1);
         }
         if (Objects.equals(existing.seedToken(), seedRefreshToken)) {
             return new PersistedState(
-                    seedRefreshToken, token, existing.supersededSeeds(), existing.supersededDigests());
+                    seedRefreshToken, token, existing.supersededSeeds(),
+                    existing.supersededTombstone(), existing.generation());
         }
-        if (existing.supersedes(seedRefreshToken)) {
+        if (existing.supersedes(seedRefreshToken)
+                || (persistGenerationAtStart > 0 && persistGenerationAtStart < existing.generation())) {
             log.info("event=xai_oauth_refresh_token_persist_skipped_foreign_seed");
             return null;
         }
@@ -490,7 +500,8 @@ public class XaiOAuthTokenManager {
                 && !superseded.contains(existing.seedToken())) {
             superseded.add(existing.seedToken());
         }
-        return new PersistedState(seedRefreshToken, token, superseded, lineageDigests(existing));
+        return new PersistedState(
+                seedRefreshToken, token, superseded, lineageTombstone(existing), existing.generation() + 1);
     }
 
     private static List<String> readSupersededSeeds(JsonNode node) {
@@ -511,50 +522,123 @@ public class XaiOAuthTokenManager {
         return superseded;
     }
 
-    private static List<String> readSupersededDigests(JsonNode node) {
-        List<String> digests = new ArrayList<>();
+    private static String readTombstone(JsonNode node) {
+        byte[] bits = decodeTombstone(node.path("supersededTombstone").asText(null));
         JsonNode arr = node.get("supersededDigests");
         if (arr == null || !arr.isArray()) {
             arr = node.get("supersededSeedDigests");
         }
         if (arr != null && arr.isArray()) {
             for (JsonNode item : arr) {
-                String value = item.asText(null);
-                if (value != null && !value.isBlank() && !digests.contains(value)) {
-                    digests.add(value);
-                }
+                tombstoneAddHashHex(bits, item.asText(null));
             }
         }
         for (String seed : readSupersededSeeds(node)) {
-            addDigest(digests, seed);
+            tombstoneAddSeed(bits, seed);
         }
-        return digests;
+        return encodeTombstone(bits);
     }
 
-    private static List<String> lineageDigests(PersistedState existing) {
-        List<String> digests = new ArrayList<>(existing.supersededDigests());
+    private static String lineageTombstone(PersistedState existing) {
+        byte[] bits = decodeTombstone(existing.supersededTombstone());
         for (String seed : existing.supersededSeeds()) {
-            addDigest(digests, seed);
+            tombstoneAddSeed(bits, seed);
         }
-        addDigest(digests, existing.seedToken());
-        return digests;
+        tombstoneAddSeed(bits, existing.seedToken());
+        return encodeTombstone(bits);
     }
 
-    private static void addDigest(List<String> digests, String seed) {
+    private static String emptyTombstone() {
+        return encodeTombstone(new byte[SUPERSEDED_TOMBSTONE_BYTES]);
+    }
+
+    private static String normalizeTombstone(String hex) {
+        return encodeTombstone(decodeTombstone(hex));
+    }
+
+    private static byte[] decodeTombstone(String hex) {
+        if (hex != null && !hex.isBlank()) {
+            try {
+                byte[] raw = HexFormat.of().parseHex(hex);
+                if (raw.length == SUPERSEDED_TOMBSTONE_BYTES) {
+                    return raw;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // fall through to empty tombstone
+            }
+        }
+        return new byte[SUPERSEDED_TOMBSTONE_BYTES];
+    }
+
+    private static String encodeTombstone(byte[] bits) {
+        return HexFormat.of().formatHex(bits);
+    }
+
+    private static boolean tombstoneContains(String hex, String seed) {
+        if (seed == null || seed.isBlank()) {
+            return false;
+        }
+        byte[] bits = decodeTombstone(hex);
+        for (int index : tombstoneIndexes(sha256(seed))) {
+            if ((bits[index >>> 3] & (1 << (index & 7))) == 0) {
+                return false;
+            }
+        }
+        return !isZeroTombstone(bits);
+    }
+
+    private static void tombstoneAddSeed(byte[] bits, String seed) {
         if (seed == null || seed.isBlank()) {
             return;
         }
-        String digest = seedDigest(seed);
-        if (!digests.contains(digest)) {
-            digests.add(digest);
+        tombstoneAddHash(bits, sha256(seed));
+    }
+
+    private static void tombstoneAddHashHex(byte[] bits, String digestHex) {
+        if (digestHex == null || digestHex.isBlank()) {
+            return;
+        }
+        try {
+            byte[] hash = HexFormat.of().parseHex(digestHex);
+            if (hash.length == 32) {
+                tombstoneAddHash(bits, hash);
+            }
+        } catch (IllegalArgumentException ignored) {
+            // ignore malformed legacy digest
         }
     }
 
-    private static String seedDigest(String seed) {
+    private static void tombstoneAddHash(byte[] bits, byte[] hash) {
+        for (int index : tombstoneIndexes(hash)) {
+            bits[index >>> 3] |= (byte) (1 << (index & 7));
+        }
+    }
+
+    private static int[] tombstoneIndexes(byte[] hash) {
+        int[] indexes = new int[TOMBSTONE_HASHES];
+        for (int i = 0; i < TOMBSTONE_HASHES; i++) {
+            int offset = i * 4;
+            int value = ((hash[offset] & 0xff) << 24)
+                    | ((hash[offset + 1] & 0xff) << 16)
+                    | ((hash[offset + 2] & 0xff) << 8)
+                    | (hash[offset + 3] & 0xff);
+            indexes[i] = Math.floorMod(value, SUPERSEDED_TOMBSTONE_BYTES * 8);
+        }
+        return indexes;
+    }
+
+    private static boolean isZeroTombstone(byte[] bits) {
+        for (byte b : bits) {
+            if (b != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static byte[] sha256(String seed) {
         try {
-            byte[] hash = MessageDigest.getInstance("SHA-256")
-                    .digest(seed.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
+            return MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 required for superseded-seed tombstones", e);
         }

@@ -552,6 +552,7 @@ class XaiOAuthTokenManagerTest {
         assertEquals("seed-next", readPersistedSeed(tokenFile));
         assertEquals("next-rot", readPersistedCurrentToken(tokenFile));
         assertFalse(readPersistedSuperseded(tokenFile).contains("seed-0"));
+        assertTombstoneBounded(tokenFile);
     }
 
     @Test
@@ -578,6 +579,7 @@ class XaiOAuthTokenManagerTest {
         assertEquals(lastSeed, readPersistedSeed(tokenFile));
         assertFalse(readPersistedSuperseded(tokenFile).contains("seed-a"));
         assertEquals(XaiOAuthTokenManager.MAX_SUPERSEDED_SEEDS, readPersistedSuperseded(tokenFile).size());
+        assertTombstoneBounded(tokenFile);
     }
 
     @Test
@@ -635,6 +637,16 @@ class XaiOAuthTokenManagerTest {
 
     private String readPersistedSeed(Path tokenFile) throws Exception {
         return readPersistedField(tokenFile, "seedToken");
+    }
+
+    private void assertTombstoneBounded(Path tokenFile) throws Exception {
+        com.fasterxml.jackson.databind.JsonNode node =
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(Files.readString(tokenFile));
+        assertEquals(
+                XaiOAuthTokenManager.SUPERSEDED_TOMBSTONE_HEX_LENGTH,
+                node.path("supersededTombstone").asText("").length());
+        com.fasterxml.jackson.databind.JsonNode digests = node.get("supersededDigests");
+        assertTrue(digests == null || !digests.isArray() || digests.isEmpty(), "unbounded digest list");
     }
 
     private List<String> readPersistedSuperseded(Path tokenFile) throws Exception {
