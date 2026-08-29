@@ -63,13 +63,25 @@ test('Print is disabled until embeds are ready', () => {
     assert.equal(notInView.disabled, true);
 });
 
-test('document.title restores in finally after print, not only afterprint', () => {
-    const doc = { title: 'Notes — KJV Bible Reader' };
-    let seenDuringPrint = '';
+test('document.title stays the note title after print() returns; restore on afterprint', () => {
+    const listeners = [];
+    const doc = {
+        title: 'Notes — KJV Bible Reader',
+        defaultView: {
+            addEventListener(type, fn) { listeners.push({ type, fn }); },
+            removeEventListener(type, fn) {
+                const i = listeners.findIndex(l => l.type === type && l.fn === fn);
+                if (i >= 0) listeners.splice(i, 1);
+            }
+        }
+    };
     notes.runPrintWithTitle(doc, 'The New Birth', () => {
-        seenDuringPrint = doc.title;
+        assert.equal(doc.title, 'The New Birth');
     });
-    assert.equal(seenDuringPrint, 'The New Birth');
+    assert.equal(doc.title, 'The New Birth', 'Safari Save-as-PDF still needs the note title');
+    const after = listeners.find(l => l.type === 'afterprint');
+    assert.ok(after, 'afterprint listener registered');
+    after.fn();
     assert.equal(doc.title, 'Notes — KJV Bible Reader');
 
     const throwing = { title: 'Notes — KJV Bible Reader' };
@@ -95,4 +107,45 @@ test('failed ranges does not leave Print still-loading forever', () => {
         mockEmbed({ ready: false, text: '' })
     ]));
     assert.equal(stillEmpty, true, 'unready shells stay pending so print CSS can hide them');
+});
+
+test('Edit during pending hydrate then save-same-note does not enable Print until current body is ready', () => {
+    let liveRun = 0;
+    liveRun = notes.startHydrationRun(liveRun);
+    const firstOpen = liveRun;
+    assert.equal(notes.isLiveHydrationRun(firstOpen, liveRun), true);
+
+    // Same note: Edit does not bump openNoteGen; save replaces the view body
+    // and starts a second hydrate.
+    liveRun = notes.startHydrationRun(liveRun);
+    const afterSave = liveRun;
+    assert.equal(notes.isLiveHydrationRun(firstOpen, liveRun), false);
+    assert.equal(notes.isLiveHydrationRun(afterSave, liveRun), true);
+
+    const staleFinish = notes.printStateAfterHydrationFinish({
+        startedRun: firstOpen,
+        liveRun,
+        inView: true,
+        currentEmbedsPending: true,
+        alreadyDone: false
+    });
+    assert.equal(staleFinish.disabled, true);
+    assert.equal(staleFinish.title, notes.TITLE_LOADING);
+
+    const liveInFlight = notes.printButtonState({
+        inView: true,
+        hydrationDone: false,
+        embedsPending: true
+    });
+    assert.equal(liveInFlight.disabled, true);
+
+    const liveReady = notes.printStateAfterHydrationFinish({
+        startedRun: afterSave,
+        liveRun,
+        inView: true,
+        currentEmbedsPending: false,
+        alreadyDone: false
+    });
+    assert.equal(liveReady.disabled, false);
+    assert.equal(liveReady.title, notes.TITLE_PRINT);
 });

@@ -34,17 +34,69 @@
         };
     }
 
-    /** Set document.title for Save-as-PDF, restore in finally (Safari afterprint can miss). */
+    function printHost(doc) {
+        if (doc && doc.defaultView) return doc.defaultView;
+        if (typeof window !== 'undefined') return window;
+        return null;
+    }
+
+    /**
+     * Set document.title for Save-as-PDF. Safari reads the title after
+     * print() returns, so restore on afterprint — not in a finally.
+     */
     function runPrintWithTitle(doc, noteTitle, printFn) {
         if (!doc) return;
         const previousTitle = doc.title;
         const next = String(noteTitle || '').trim();
         if (next) doc.title = next;
+
+        let restored = false;
+        const restore = () => {
+            if (restored) return;
+            restored = true;
+            doc.title = previousTitle;
+            const host = printHost(doc);
+            if (host && host.removeEventListener) {
+                host.removeEventListener('afterprint', restore);
+            }
+        };
+
+        const host = printHost(doc);
+        if (host && host.addEventListener) {
+            host.addEventListener('afterprint', restore);
+        }
+
         try {
             printFn();
-        } finally {
-            doc.title = previousTitle;
+        } catch (err) {
+            restore();
+            throw err;
         }
+        return restore;
+    }
+
+    function startHydrationRun(live) {
+        return (live || 0) + 1;
+    }
+
+    function isLiveHydrationRun(started, live) {
+        return started === live;
+    }
+
+    /** Stale hydrate finishes must not mark the current body done. */
+    function printStateAfterHydrationFinish({
+        startedRun,
+        liveRun,
+        inView,
+        currentEmbedsPending,
+        alreadyDone
+    }) {
+        const live = isLiveHydrationRun(startedRun, liveRun);
+        return printButtonState({
+            inView,
+            hydrationDone: live ? true : !!alreadyDone,
+            embedsPending: currentEmbedsPending
+        });
     }
 
     const api = {
@@ -54,7 +106,10 @@
         embedIsReady,
         viewEmbedsPending,
         printButtonState,
-        runPrintWithTitle
+        runPrintWithTitle,
+        startHydrationRun,
+        isLiveHydrationRun,
+        printStateAfterHydrationFinish
     };
 
     if (typeof module !== 'undefined' && module.exports) {
@@ -109,6 +164,7 @@ if (typeof document !== 'undefined') (async function () {
     let allowUnload = false;
     let embedMode = false; // one flag per open note editor; Insert checkbox is this flag
     let embedHydration = 'idle'; // 'idle' | 'pending' | 'done' — Print enablement
+    let viewHydrateRun = 0; // each view-body hydrate; stale runs must not mark done
 
     function isEditorDirty() {
         if (editorMode !== 'edit') return false;
@@ -362,6 +418,7 @@ if (typeof document !== 'undefined') (async function () {
         editingNoteId = null;
         embedMode = false;
         embedHydration = 'idle';
+        viewHydrateRun = window.KjvNotePrint.startHydrationRun(viewHydrateRun);
         savedTitle = '';
         savedNoteText = '';
         paneEmpty.hidden = false;
@@ -484,8 +541,11 @@ if (typeof document !== 'undefined') (async function () {
 
     async function hydrateRangeLinkLabels(root) {
         if (!root) return;
-        const gen = openNoteGen;
+        const noteGen = openNoteGen;
+        let run = 0;
         if (root === viewBody) {
+            viewHydrateRun = window.KjvNotePrint.startHydrationRun(viewHydrateRun);
+            run = viewHydrateRun;
             embedHydration = 'pending';
             syncPrintButton();
         }
@@ -524,7 +584,9 @@ if (typeof document !== 'undefined') (async function () {
                 link.dataset.labelReady = '1';
             } catch (_) { /* ignore */ }
         }
-        if (root === viewBody && gen === openNoteGen) {
+        if (root === viewBody
+            && noteGen === openNoteGen
+            && window.KjvNotePrint.isLiveHydrationRun(run, viewHydrateRun)) {
             embedHydration = 'done';
             syncPrintButton();
         }
