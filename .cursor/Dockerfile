@@ -18,15 +18,19 @@ RUN apt-get update \
         tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-# ubuntu:24.04 ships a non-root `ubuntu` user (uid 1000). Grant it passwordless
-# sudo so the per-boot bootstrap can start and provision the local PostgreSQL
-# cluster (which is owned by the `postgres` system user).
-RUN echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/ubuntu \
+# ubuntu:24.04 ships a non-root `ubuntu` user (uid 1000). Grant only the
+# passwordless sudo start.sh needs: pg_ctlcluster as root, pg_isready/psql as
+# the postgres OS user (Ubuntu 24.04 paths).
+RUN printf '%s\n' \
+      'ubuntu ALL=(root) NOPASSWD: /usr/bin/pg_ctlcluster' \
+      'ubuntu ALL=(postgres) NOPASSWD: /usr/bin/pg_isready, /usr/bin/psql' \
+      > /etc/sudoers.d/ubuntu \
     && chmod 0440 /etc/sudoers.d/ubuntu
 
 # Local-only development database credentials — never used in production, where
-# these come from real secrets. They line up with the defaults consumed by
-# src/main/resources/application.properties.
+# these come from real secrets. application.properties defaults are username
+# kevinturner / empty password; this image OVERRIDES them to kjv/kjv for the
+# Cloud Agent role created by start.sh.
 ENV KJV_DB_HOST=localhost \
     KJV_DB_PORT=5432 \
     KJV_DB_NAME=readthekjv \
