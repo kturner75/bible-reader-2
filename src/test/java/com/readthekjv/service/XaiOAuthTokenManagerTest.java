@@ -8,6 +8,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,6 +17,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -215,19 +217,21 @@ class XaiOAuthTokenManagerTest {
         XaiOAuthTokenManager manager = manager(
                 "original-refresh-token", true, tokenFile.toString(),
                 countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
+        manager.fileMover = (tmp, dest, atomic) -> {
+            if (!atomic) {
+                throw new AssertionError("atomic path must not fall back");
+            }
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            try {
+                Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("rw-r--r--"));
+            } catch (UnsupportedOperationException ignored) {
+                // Non-POSIX — dest-0600 assertion below is a no-op.
+            }
+        };
 
         manager.getAccessToken();
 
-        if (!Files.exists(tokenFile)) {
-            // Non-POSIX: persist aborts rather than publishing without 0600.
-            return;
-        }
-        try {
-            var permissions = Files.getPosixFilePermissions(tokenFile);
-            assertEquals(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"), permissions);
-        } catch (UnsupportedOperationException e) {
-            // Non-POSIX filesystem (e.g. Windows CI) — nothing to verify.
-        }
+        assertOwnerOnlyPermissions(tokenFile);
     }
 
     @Test
@@ -255,13 +259,21 @@ class XaiOAuthTokenManagerTest {
                 atomicAttempts.incrementAndGet();
                 throw new AtomicMoveNotSupportedException(tmp.toString(), dest.toString(), "no atomic move");
             }
-            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
+            // EXDEV / copy+delete: dest is created at umask 0644, not tmp's 0600.
+            Files.copy(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.setPosixFilePermissions(dest, PosixFilePermissions.fromString("rw-r--r--"));
+            } catch (UnsupportedOperationException ignored) {
+                // Non-POSIX — dest-0600 assertion below is a no-op.
+            }
+            Files.delete(tmp);
         };
 
         manager.getAccessToken();
 
         assertEquals(1, atomicAttempts.get());
         assertEquals("rotated-refresh-token", readPersistedCurrentToken(tokenFile));
+        assertOwnerOnlyPermissions(tokenFile);
     }
 
     @Test
@@ -273,6 +285,28 @@ class XaiOAuthTokenManagerTest {
                 countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
         manager.permissionRestrictor = path -> {
             throw new UnsupportedOperationException("non-posix");
+        };
+
+        Optional<String> access = manager.getAccessToken();
+
+        assertEquals(Optional.of("access-token"), access);
+        assertEquals("rotated-refresh-token", manager.currentRefreshTokenForTesting());
+        assertFalse(Files.exists(tokenFile));
+        assertFalse(Files.exists(tmp));
+    }
+
+    @Test
+    void persist_destPermissionsFailure_deletesWorldReadableDest() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        Path tmp = tokenFile.resolveSibling(tokenFile.getFileName() + ".tmp");
+        XaiOAuthTokenManager manager = manager(
+                "original-refresh-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
+        manager.permissionRestrictor = path -> {
+            if (path.equals(tokenFile)) {
+                throw new IOException("cannot chmod dest");
+            }
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
         };
 
         Optional<String> access = manager.getAccessToken();
@@ -312,6 +346,18 @@ class XaiOAuthTokenManagerTest {
         XaiOAuthTokenManager manager = new XaiOAuthTokenManager(refreshToken, enabled, filePath);
         ReflectionTestUtils.setField(manager, "httpClient", httpClient);
         return manager;
+    }
+
+    private void assertOwnerOnlyPermissions(Path tokenFile) throws Exception {
+        if (!Files.exists(tokenFile)) {
+            // Non-POSIX: persist aborts rather than publishing without 0600.
+            return;
+        }
+        try {
+            assertEquals(PosixFilePermissions.fromString("rw-------"), Files.getPosixFilePermissions(tokenFile));
+        } catch (UnsupportedOperationException e) {
+            // Non-POSIX filesystem (e.g. Windows CI) — nothing to verify.
+        }
     }
 
     private void writePersistedState(Path tokenFile, String seedToken, String currentToken) throws Exception {

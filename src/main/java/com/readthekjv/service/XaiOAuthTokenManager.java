@@ -105,7 +105,8 @@ public class XaiOAuthTokenManager {
         if (atomic) {
             Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } else {
-            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
+            // COPY_ATTRIBUTES so EXDEV/copy+delete does not create dest at umask 0644.
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
         }
     };
 
@@ -310,19 +311,33 @@ public class XaiOAuthTokenManager {
             String json = objectMapper.writeValueAsString(new PersistedState(seedRefreshToken, token));
             tmp = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".tmp");
             Files.writeString(tmp, json, StandardCharsets.UTF_8);
-            // 0600 or abort: never movePersistedFile with inherited/default permissions.
-            // In-memory rotated token stays for this process; next restart uses seed/file.
-            try {
-                permissionRestrictor.restrictToOwnerOnly(tmp);
-            } catch (UnsupportedOperationException | IOException e) {
-                log.warn("event=xai_oauth_refresh_token_permissions_failed error={}", e.getMessage());
+            // 0600 or abort: never leave a world-readable token file. In-memory
+            // rotated token stays for this process; next restart uses seed/file.
+            if (!tryRestrictToOwnerOnly(tmp)) {
                 deleteQuietly(tmp);
                 return;
             }
             movePersistedFile(tmp, refreshTokenFile);
+            // Non-atomic fallback (EXDEV / some Docker mounts) can create dest
+            // at umask 0644 even with COPY_ATTRIBUTES — re-apply 0600 on dest.
+            if (!tryRestrictToOwnerOnly(refreshTokenFile)) {
+                deleteQuietly(refreshTokenFile);
+                deleteQuietly(tmp);
+                return;
+            }
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_persist_failed error={}", e.getMessage());
             deleteQuietly(tmp);
+        }
+    }
+
+    private boolean tryRestrictToOwnerOnly(Path path) {
+        try {
+            permissionRestrictor.restrictToOwnerOnly(path);
+            return true;
+        } catch (UnsupportedOperationException | IOException e) {
+            log.warn("event=xai_oauth_refresh_token_permissions_failed error={}", e.getMessage());
+            return false;
         }
     }
 
