@@ -53,17 +53,19 @@ DB_PASS="${KJV_DB_PASSWORD:-kjv}"
 # interpolated into SQL by the shell. CREATE ROLE / CREATE DATABASE have no
 # IF NOT EXISTS on PG 16 — use catalog guards + \gexec. ALTER ROLE still
 # sets the password when the role already exists so ENV matches Postgres.
+# Terminate every format() query with \gexec (not semicolon): a trailing
+# semicolon would run SELECT first and print PASSWORD SQL to agent logs.
 sudo -u postgres psql -p "${DB_PORT}" -v ON_ERROR_STOP=1 \
   --set=db_name="${DB_NAME}" \
   --set=db_user="${DB_USER}" \
   --set=db_pass="${DB_PASS}" <<'SQL'
 SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'db_user', :'db_pass')
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'db_user');
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'db_user')
 \gexec
-SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', :'db_user', :'db_pass');
+SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', :'db_user', :'db_pass')
 \gexec
 SELECT format('CREATE DATABASE %I OWNER %I', :'db_name', :'db_user')
-WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db_name');
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db_name')
 \gexec
 SQL
 
@@ -83,13 +85,13 @@ if [ -n "${PRIOR_OWNER}" ]; then
   sudo -u postgres psql -p "${DB_PORT}" -v ON_ERROR_STOP=1 \
     --set=db_name="${DB_NAME}" \
     --set=db_user="${DB_USER}" <<'SQL'
-SELECT format('ALTER DATABASE %I OWNER TO %I', :'db_name', :'db_user');
+SELECT format('ALTER DATABASE %I OWNER TO %I', :'db_name', :'db_user')
 \gexec
 SQL
   sudo -u postgres psql -p "${DB_PORT}" -d "${DB_NAME}" -v ON_ERROR_STOP=1 \
     --set=old_user="${PRIOR_OWNER}" \
     --set=db_user="${DB_USER}" <<'SQL'
-SELECT format('REASSIGN OWNED BY %I TO %I', :'old_user', :'db_user');
+SELECT format('REASSIGN OWNED BY %I TO %I', :'old_user', :'db_user')
 \gexec
 SQL
 fi
