@@ -51,6 +51,14 @@
         return merged;
     }
 
+    function parseVerseId(raw) {
+        const s = String(raw == null ? '' : raw).trim();
+        if (!/^\d+$/.test(s)) throw new Error('bad id');
+        const v = Number(s);
+        if (!Number.isSafeInteger(v)) throw new Error('bad id');
+        return v;
+    }
+
     function parseRangeBody(body) {
         const s = String(body || '').trim();
         if (!s) throw new Error('Range body must not be blank');
@@ -60,13 +68,11 @@
             if (!p) throw new Error('Empty range segment');
             if (p.includes('-')) {
                 const bounds = p.split('-', 2);
-                const a = parseInt(bounds[0].trim(), 10);
-                const b = parseInt(bounds[1].trim(), 10);
-                if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('bad range');
+                const a = parseVerseId(bounds[0]);
+                const b = parseVerseId(bounds[1]);
                 ranges.push({ from: Math.min(a, b), to: Math.max(a, b) });
             } else {
-                const v = parseInt(p, 10);
-                if (!Number.isFinite(v)) throw new Error('bad id');
+                const v = parseVerseId(p);
                 ranges.push({ from: v, to: v });
             }
         }
