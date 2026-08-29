@@ -2772,10 +2772,27 @@
         if (!root) return;
         const links = [...root.querySelectorAll('.note-range-link[data-v]')];
         for (const link of links) {
+            const embedCite = !!link.closest('.note-scripture-embed');
             const body = link.dataset.v;
+            if (embedCite) {
+                // Embed cite stays a verse reference — never a Passage title.
+                if (link.dataset.labelReady) continue;
+                try {
+                    const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                        embedCite: true, reference: data.reference, body
+                    });
+                    link.dataset.labelReady = '1';
+                } catch (_) { /* leave body as label */ }
+                continue;
+            }
             const p = findPassageByVBody(body);
             if (p) {
-                link.textContent = passageDisplayLabel(p);
+                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                    embedCite: false, passageTitle: passageDisplayLabel(p), body
+                });
                 continue;
             }
             if (link.dataset.labelReady) continue;
@@ -2783,7 +2800,9 @@
                 const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
                 if (!res.ok) continue;
                 const data = await res.json();
-                link.textContent = data.reference || body;
+                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                    embedCite: false, reference: data.reference, body
+                });
                 link.dataset.labelReady = '1';
             } catch (_) { /* leave body as label */ }
         }
@@ -3164,71 +3183,22 @@
         return segs.join(',');
     }
 
-    // ── Portable [v=…] helpers (mirrors VerseRangeParser) ──
+    // ── Portable [v=…]/[e=…] — one parser (note-links.js / KjvNoteLinks) ──
 
     function parseVToken(raw) {
-        let s = String(raw).trim();
-        const m = s.match(/^\[?[ve]=(.+)\]?$/i);
-        if (m) s = m[1].trim();
-        const ranges = [];
-        for (const part of s.split(',')) {
-            const p = part.trim();
-            if (!p) throw new Error('empty segment');
-            if (p.includes('-')) {
-                const [a, b] = p.split('-', 2).map(x => parseInt(x.trim(), 10));
-                if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('bad range');
-                ranges.push({ from: Math.min(a, b), to: Math.max(a, b) });
-            } else {
-                const v = parseInt(p, 10);
-                if (!Number.isFinite(v)) throw new Error('bad id');
-                ranges.push({ from: v, to: v });
-            }
-        }
-        return normalizeVRanges(ranges);
+        return window.KjvNoteLinks.parseToken(raw).ranges;
     }
-
     function normalizeVRanges(ranges) {
-        const sorted = ranges
-            .map(r => ({ from: Math.min(r.from, r.to), to: Math.max(r.from, r.to) }))
-            .sort((a, b) => a.from - b.from || a.to - b.to);
-        const merged = [];
-        let cur = sorted[0];
-        for (let i = 1; i < sorted.length; i++) {
-            const next = sorted[i];
-            if (next.from <= cur.to + 1) {
-                cur = { from: cur.from, to: Math.max(cur.to, next.to) };
-            } else {
-                merged.push(cur);
-                cur = next;
-            }
-        }
-        merged.push(cur);
-        return merged;
+        return window.KjvNoteLinks.normalizeRanges(ranges);
     }
-
     function serializeVBody(ranges) {
-        return normalizeVRanges(ranges).map(r =>
-            r.from === r.to ? String(r.from) : `${r.from}-${r.to}`
-        ).join(',');
+        return window.KjvNoteLinks.serializeRangeBody(ranges);
     }
-
     function serializeVToken(ranges) {
-        return `[v=${serializeVBody(ranges)}]`;
+        return window.KjvNoteLinks.serializeVToken(ranges);
     }
-
     function rangesFromNaturalKey(naturalKey) {
-        const ranges = [];
-        for (const part of String(naturalKey).split(',')) {
-            const p = part.trim();
-            if (p.includes(':')) {
-                const [a, b] = p.split(':', 2).map(x => parseInt(x.trim(), 10));
-                ranges.push({ from: a, to: b });
-            } else {
-                const v = parseInt(p, 10);
-                ranges.push({ from: v, to: v });
-            }
-        }
-        return normalizeVRanges(ranges);
+        return window.KjvNoteLinks.rangesFromNaturalKey(naturalKey);
     }
 
     function findPassageByVBody(vBody) {
@@ -3266,6 +3236,8 @@
      */
     async function normalizeNoteLinksOnSave(text, ctx, embed) {
         if (!text) return { text, error: null };
+        const pasted = window.KjvNoteLinks.refuseOversizedEmbeds(text);
+        if (!pasted.ok) return { text, error: pasted.error };
         const re = /\[([^\]]+)\]/g;
         const parts = [];
         let last = 0;
@@ -4250,19 +4222,13 @@
         }
         const start = ta.selectionStart ?? ta.value.length;
         const end = ta.selectionEnd ?? start;
-        const before = ta.value.slice(0, start);
-        const after = ta.value.slice(end);
-        const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
-        const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
-        const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
-        const next = before + insert + after;
+        const { next, caret } = window.KjvNoteLinks.applyTokenInsert(ta.value, start, end, token);
         const maxLen = parseInt(ta.getAttribute('maxlength'), 10);
         if (Number.isFinite(maxLen) && next.length > maxLen) {
             showToast(`Not enough room for that link (${maxLen} char limit)`);
             return false;
         }
         ta.value = next;
-        const caret = before.length + insert.length;
         ta.focus();
         ta.setSelectionRange(caret, caret);
         ta.dispatchEvent(new Event('input'));

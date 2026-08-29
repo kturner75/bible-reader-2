@@ -152,42 +152,11 @@
         return title || p.reference || 'Passage';
     }
 
-    function rangesFromNaturalKey(naturalKey) {
-        const ranges = [];
-        for (const part of String(naturalKey).split(',')) {
-            const p = part.trim();
-            if (p.includes(':')) {
-                const [a, b] = p.split(':', 2).map(x => parseInt(x.trim(), 10));
-                ranges.push({ from: Math.min(a, b), to: Math.max(a, b) });
-            } else {
-                const v = parseInt(p, 10);
-                ranges.push({ from: v, to: v });
-            }
-        }
-        ranges.sort((a, b) => a.from - b.from);
-        const merged = [];
-        let cur = ranges[0];
-        for (let i = 1; i < ranges.length; i++) {
-            const next = ranges[i];
-            if (next.from <= cur.to + 1) cur = { from: cur.from, to: Math.max(cur.to, next.to) };
-            else { merged.push(cur); cur = next; }
-        }
-        if (cur) merged.push(cur);
-        return merged;
-    }
-
-    function serializeVBody(ranges) {
-        return ranges.map(r => r.from === r.to ? String(r.from) : `${r.from}-${r.to}`).join(',');
-    }
-
-    function serializeVToken(ranges) {
-        return `[v=${serializeVBody(ranges)}]`;
-    }
-
     function findPassageByVBody(body) {
         return passages.find(p => {
             try {
-                return serializeVBody(rangesFromNaturalKey(p.naturalKey)) === body;
+                return window.KjvNoteLinks.serializeRangeBody(
+                    window.KjvNoteLinks.rangesFromNaturalKey(p.naturalKey)) === body;
             } catch { return false; }
         });
     }
@@ -334,14 +303,13 @@
     }
 
     function emitNormalizedToken(ranges) {
-        if (window.KjvNoteLinks) {
-            return window.KjvNoteLinks.tokenFromRanges(ranges, embedMode);
-        }
-        return { ok: true, token: serializeVToken(ranges) };
+        return window.KjvNoteLinks.tokenFromRanges(ranges, embedMode);
     }
 
     async function normalizeNoteLinksOnSave(text) {
         if (!text) return { text, error: null };
+        const pasted = window.KjvNoteLinks.refuseOversizedEmbeds(text);
+        if (!pasted.ok) return { text, error: pasted.error };
         const re = /\[([^\]]+)\]/g;
         const parts = [];
         let last = 0;
@@ -414,15 +382,36 @@
         if (!root) return;
         await hydrateNoteEmbeds(root);
         for (const link of root.querySelectorAll('.note-range-link[data-v]')) {
+            const embedCite = !!link.closest('.note-scripture-embed');
             const body = link.dataset.v;
+            if (embedCite) {
+                if (link.dataset.labelReady) continue;
+                try {
+                    const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                        embedCite: true, reference: data.reference, body
+                    });
+                    link.dataset.labelReady = '1';
+                } catch (_) { /* ignore */ }
+                continue;
+            }
             const p = findPassageByVBody(body);
-            if (p) { link.textContent = passageDisplayLabel(p); continue; }
+            if (p) {
+                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                    embedCite: false, passageTitle: passageDisplayLabel(p), body
+                });
+                continue;
+            }
             if (link.dataset.labelReady) continue;
             try {
                 const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
                 if (!res.ok) continue;
                 const data = await res.json();
-                link.textContent = data.reference || body;
+                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                    embedCite: false, reference: data.reference, body
+                });
                 link.dataset.labelReady = '1';
             } catch (_) { /* ignore */ }
         }
@@ -770,16 +759,12 @@
         }
         let token;
         try {
-            if (window.KjvNoteLinks) {
-                const emitted = window.KjvNoteLinks.tokenFromNaturalKey(naturalKey, embedMode);
-                if (!emitted.ok) {
-                    showToast(emitted.error);
-                    return false;
-                }
-                token = emitted.token;
-            } else {
-                token = serializeVToken(rangesFromNaturalKey(naturalKey));
+            const emitted = window.KjvNoteLinks.tokenFromNaturalKey(naturalKey, embedMode);
+            if (!emitted.ok) {
+                showToast(emitted.error);
+                return false;
             }
+            token = emitted.token;
         } catch (err) {
             console.error(err);
             showToast('Could not insert scripture link');
@@ -787,19 +772,14 @@
         }
         const start = textarea.selectionStart ?? textarea.value.length;
         const end = textarea.selectionEnd ?? start;
-        const before = textarea.value.slice(0, start);
-        const after = textarea.value.slice(end);
-        const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
-        const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
-        const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
-        const next = before + insert + after;
+        const { next, caret } = window.KjvNoteLinks.applyTokenInsert(
+            textarea.value, start, end, token);
         const maxLen = parseInt(textarea.getAttribute('maxlength'), 10);
         if (Number.isFinite(maxLen) && next.length > maxLen) {
             showToast(`Not enough room for that link (${maxLen} char limit)`);
             return false;
         }
         textarea.value = next;
-        const caret = before.length + insert.length;
         textarea.focus();
         textarea.setSelectionRange(caret, caret);
         updateCharCount();

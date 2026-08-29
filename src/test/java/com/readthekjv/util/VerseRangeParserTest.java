@@ -100,8 +100,6 @@ class VerseRangeParserTest {
         List<VerseRangeParser.Range> ranges = VerseRangeParser.parseVToken(token);
         assertEquals(token, VerseRangeParser.serializeEToken(ranges));
         assertEquals("[v=1-3,5,10-12]", VerseRangeParser.serializeVToken(ranges));
-        assertEquals(token, VerseRangeParser.serializeToken(ranges, true));
-        assertEquals("[v=1-3,5,10-12]", VerseRangeParser.serializeToken(ranges, false));
     }
 
     @Test
@@ -114,18 +112,12 @@ class VerseRangeParserTest {
     }
 
     @Test
-    void embedCapRefusesOverTwelveDoesNotTruncate() {
-        List<VerseRangeParser.Range> twelve = VerseRangeParser.parseVToken("[e=1-12]");
-        assertEquals(12, VerseRangeParser.verseCount(twelve));
-        assertDoesNotThrow(() -> VerseRangeParser.requireEmbedCap(twelve));
-
+    void parseDoesNotTruncateEmbedOverTwelve() {
+        // Write-side cap lives in KjvNoteLinks (JS). The Java parser keeps the
+        // full range so a pasted token is not silently shortened.
         List<VerseRangeParser.Range> thirteen = VerseRangeParser.parseVToken("[e=1-13]");
-        assertEquals(13, VerseRangeParser.verseCount(thirteen));
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> VerseRangeParser.requireEmbedCap(thirteen));
-        assertTrue(ex.getMessage().contains("12"));
-        assertTrue(ex.getMessage().contains("13"));
-        // Parser still returns the full range — cap is write-side, not silent truncate.
         assertEquals(List.of(new VerseRangeParser.Range(1, 13)), thirteen);
+        assertEquals(13, VerseRangeParser.expandVerseIds(thirteen).size());
+        assertEquals("[e=1-13]", VerseRangeParser.serializeEToken(thirteen));
     }
 }

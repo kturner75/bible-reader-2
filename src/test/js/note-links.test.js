@@ -74,6 +74,58 @@ test('12-verse cap refuses embed and does not truncate', () => {
     assert.equal(links.tokenFromRanges(thirteen, false).token, '[v=1-13]');
 });
 
+test('whole-line insert: [e=] sits alone on its line with no surrounding spaces', () => {
+    const empty = links.applyTokenInsert('', 0, 0, '[e=26137]');
+    assert.equal(empty.next, '[e=26137]');
+
+    const afterText = links.applyTokenInsert('Intro', 5, 5, '[e=26137]');
+    assert.equal(afterText.next, 'Intro\n[e=26137]');
+    assert.doesNotMatch(afterText.next, / \[/);
+
+    const midLine = links.applyTokenInsert('hello world', 5, 5, '[e=26137]');
+    assert.equal(midLine.next, 'hello\n[e=26137]\nworld');
+
+    const alreadyLined = links.applyTokenInsert('a\n', 2, 2, '[e=26137]');
+    assert.equal(alreadyLined.next, 'a\n[e=26137]');
+
+    // [v=] still space-pads inline
+    const vInline = links.applyTokenInsert('see', 3, 3, '[v=26137]');
+    assert.equal(vInline.next, 'see [v=26137]');
+});
+
+test('pasted [e=] over 12 verses is refused and not truncated', () => {
+    const pasted = 'Notes\n[e=1-13]\nmore';
+    const refused = links.refuseOversizedEmbeds(pasted);
+    assert.equal(refused.ok, false);
+    assert.match(refused.error, /12/);
+    assert.match(refused.error, /13/);
+    assert.equal(pasted, 'Notes\n[e=1-13]\nmore');
+
+    const okTwelve = links.refuseOversizedEmbeds('[e=1-12]');
+    assert.equal(okTwelve.ok, true);
+    const vUncapped = links.refuseOversizedEmbeds('[v=1-13]');
+    assert.equal(vUncapped.ok, true);
+});
+
+test('hydrate does not Passage-title an [e=] cite', () => {
+    const embedLabel = links.rangeLinkDisplayLabel({
+        embedCite: true,
+        passageTitle: 'The New Birth',
+        reference: 'John 3:16',
+        body: '26137'
+    });
+    assert.equal(embedLabel, 'John 3:16');
+    assert.doesNotMatch(embedLabel, /The New Birth/);
+
+    const vLabel = links.rangeLinkDisplayLabel({
+        embedCite: false,
+        passageTitle: 'The New Birth',
+        reference: 'John 3:16',
+        body: '26137'
+    });
+    assert.equal(vLabel, 'The New Birth');
+});
+
 test('hydrate fills verse text from the API payload, not from the stored token', () => {
     const html = links.renderEmbedHtml('[e=26136]');
     assert.doesNotMatch(html, /For God so loved the world/);

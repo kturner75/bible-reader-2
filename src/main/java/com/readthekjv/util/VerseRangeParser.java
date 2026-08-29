@@ -25,9 +25,6 @@ public final class VerseRangeParser {
     public static final int MIN_VERSE_ID = 1;
     public static final int MAX_VERSE_ID = 31102;
 
-    /** First-cut cap for {@code [e=…]} insert / save-normalize. Do not silently truncate. */
-    public static final int EMBED_VERSE_CAP = 12;
-
     /** Inclusive verse id range. */
     public record Range(int from, int to) {
         public Range {
@@ -172,36 +169,6 @@ public final class VerseRangeParser {
     /** Canonical embed token: {@code [e=1-3,5]}. Same ranges as {@link #serializeVToken}. */
     public static String serializeEToken(List<Range> ranges) {
         return "[e=" + serializeRangeBody(ranges) + "]";
-    }
-
-    /** {@code [e=…]} when {@code embed} is true, otherwise {@code [v=…]}. */
-    public static String serializeToken(List<Range> ranges, boolean embed) {
-        return embed ? serializeEToken(ranges) : serializeVToken(ranges);
-    }
-
-    /** Inclusive verse count after normalize/merge. */
-    public static int verseCount(List<Range> ranges) {
-        int n = 0;
-        for (Range r : normalizeRanges(ranges)) {
-            n += r.length();
-        }
-        return n;
-    }
-
-    /**
-     * Write-side guard for embed tokens. Throws rather than truncating when the
-     * range exceeds {@link #EMBED_VERSE_CAP}.
-     */
-    public static void requireEmbedCap(List<Range> ranges) {
-        int n = verseCount(ranges);
-        if (n > EMBED_VERSE_CAP) {
-            throw new IllegalArgumentException(embedCapMessage(n));
-        }
-    }
-
-    public static String embedCapMessage(int verseCount) {
-        return "Quoted scripture is limited to " + EMBED_VERSE_CAP
-                + " verses (this reference is " + verseCount + ").";
     }
 
     public static boolean isValidVToken(String raw) {

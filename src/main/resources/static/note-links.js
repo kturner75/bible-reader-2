@@ -165,6 +165,57 @@
     }
 
     /**
+     * Place a token into a textarea body. [e=…] sits alone on its line with no
+     * surrounding spaces so markdown-lite treats it as a whole-line blockquote.
+     * [v=…] keeps the existing inline space-padding.
+     * @returns {{ next: string, caret: number }}
+     */
+    function applyTokenInsert(text, start, end, token) {
+        const before = String(text).slice(0, start);
+        const after = String(text).slice(end);
+        if (isEmbedToken(token)) {
+            let left = before.replace(/[ \t]+$/, '');
+            let right = after.replace(/^[ \t]+/, '');
+            if (left.length && !left.endsWith('\n')) left += '\n';
+            if (right.length && !right.startsWith('\n')) right = '\n' + right;
+            const next = left + token + right;
+            return { next, caret: left.length + token.length };
+        }
+        const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
+        const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
+        const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
+        return { next: before + insert + after, caret: before.length + insert.length };
+    }
+
+    /**
+     * Write-side recap for already-stored / pasted [e=…] tokens.
+     * Refuses (does not truncate) any embed over EMBED_VERSE_CAP.
+     */
+    function refuseOversizedEmbeds(text) {
+        if (!text) return { ok: true };
+        const re = /\[e=([^\]]+)\]/gi;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            try {
+                const n = verseCount(parseToken(m[0]).ranges);
+                if (n > EMBED_VERSE_CAP) {
+                    return { ok: false, error: embedCapMessage(n) };
+                }
+            } catch (_) { /* leave malformed tokens for other handling */ }
+        }
+        return { ok: true };
+    }
+
+    /**
+     * Cite label for a .note-range-link. Embed cites stay a verse reference —
+     * never a Passage title.
+     */
+    function rangeLinkDisplayLabel({ embedCite, passageTitle, reference, body }) {
+        if (embedCite) return reference || body || '';
+        return passageTitle || reference || body || '';
+    }
+
+    /**
      * Quoted-block markup. Verse text is NOT included — hydrate from /api/ranges.
      * The cite is a .note-range-link so the same click opens /read/range?v=….
      */
@@ -219,6 +270,9 @@
         tokenFromRanges,
         rangesFromNaturalKey,
         tokenFromNaturalKey,
+        applyTokenInsert,
+        refuseOversizedEmbeds,
+        rangeLinkDisplayLabel,
         renderEmbedHtml,
         verseTextsHtml,
         applyEmbedHydration
