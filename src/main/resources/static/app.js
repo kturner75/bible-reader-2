@@ -907,6 +907,12 @@
      */
     function createVerseWithHeaderHTML(verse, isCurrent, prevVerse) {
         let html = '';
+
+        // Same skip/suppress rules as the scoped column path. Linear reading
+        // passes collection=null (consecutive ids, no gap). If this header
+        // path ever sees a collection member start, the passage heading is
+        // the cue — do not emit "Omitted verses."
+        html += window.KjvVerseRangeGap.omissionGapHtml(prevVerse, verse, state.collection);
         
         // Add chapter header if this is the first verse of a chapter
         // (verse number is 1, or this is a different chapter than the previous verse)
@@ -974,11 +980,18 @@
      * Render collection verses with passage sub-headings before each verse that
      * starts a passage. Used for both measurement (markCurrent=false) and
      * display so pagination is exact. No chapter headers in this mode.
+     * Skips in a flattened range (notes [v=]/[e=], /read/range) get a
+     * column-local gap from verse ids, not from passageStarts. The prior
+     * collection verse is carried when a later page starts mid-list.
      */
     function renderCollectionVersesWithHeaders(verses, markCurrent = false) {
         const col = state.collection;
+        const gap = window.KjvVerseRangeGap;
         let html = '';
-        for (const verse of verses) {
+        for (let i = 0; i < verses.length; i++) {
+            const verse = verses[i];
+            const prev = gap.predecessorForRender(col, verses, i);
+            html += gap.omissionGapHtml(prev, verse, col);
             if (col.passageRefs[verse._ci] !== undefined) {
                 html += createPassageHeaderHTML(col.passageRefs[verse._ci]);
             }
