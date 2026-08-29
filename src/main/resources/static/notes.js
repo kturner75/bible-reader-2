@@ -42,6 +42,7 @@
     let savingNote = false;
     let saveWriteDispatched = false; // true once POST/PUT has been sent
     let allowUnload = false;
+    let embedMode = false; // one flag per open note editor; Insert checkbox is this flag
 
     function isEditorDirty() {
         if (editorMode !== 'edit') return false;
@@ -197,6 +198,14 @@
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
+            const eTok = trimmed.match(/^e=(.+)$/i);
+            if (eTok && window.KjvNoteLinks) {
+                try {
+                    return window.KjvNoteLinks.renderEmbedHtml(trimmed);
+                } catch {
+                    return match;
+                }
+            }
             const vTok = trimmed.match(/^v=(.+)$/i);
             if (vTok) {
                 const body = vTok[1].replace(/\s/g, '');
@@ -250,6 +259,10 @@
             if (!line) {
                 flushParagraph();
                 closeList();
+            } else if (/^\[e=[^\]]+\]$/i.test(line)) {
+                flushParagraph();
+                closeList();
+                out.push(renderNoteInline(line));
             } else if (heading) {
                 flushParagraph();
                 closeList();
@@ -306,6 +319,7 @@
         openNoteGen++;
         editorMode = null;
         editingNoteId = null;
+        embedMode = false;
         savedTitle = '';
         savedNoteText = '';
         paneEmpty.hidden = false;
@@ -319,17 +333,27 @@
         charCurrent.textContent = textarea.value.length;
     }
 
+    function emitNormalizedToken(ranges) {
+        if (window.KjvNoteLinks) {
+            return window.KjvNoteLinks.tokenFromRanges(ranges, embedMode);
+        }
+        return { ok: true, token: serializeVToken(ranges) };
+    }
+
     async function normalizeNoteLinksOnSave(text) {
-        if (!text) return text;
+        if (!text) return { text, error: null };
         const re = /\[([^\]]+)\]/g;
         const parts = [];
         let last = 0;
         let m;
+        let error = null;
         while ((m = re.exec(text)) !== null) {
             parts.push(text.slice(last, m.index));
             const inner = m[1].trim();
             last = m.index + m[0].length;
-            if (/^v=/i.test(inner) || /^pid=\d+$/i.test(inner)
+            if ((window.KjvNoteLinks && window.KjvNoteLinks.isStoredPointerInner(inner))
+                || /^v=/i.test(inner) || /^e=/i.test(inner)
+                || /^pid=\d+$/i.test(inner)
                 || /^passage=[0-9a-f-]{36}$/i.test(inner) || /^\d+$/.test(inner)) {
                 parts.push(m[0]);
                 continue;
@@ -340,17 +364,27 @@
                     const parsed = await res.json();
                     if (parsed.valid) {
                         if (Array.isArray(parsed.ranges) && parsed.ranges.length) {
-                            parts.push(serializeVToken(parsed.ranges.map(r => ({
+                            const emitted = emitNormalizedToken(parsed.ranges.map(r => ({
                                 from: r.from, to: r.to
-                            }))));
+                            })));
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                         if (parsed.v) {
-                            parts.push(`[v=${parsed.v}]`);
+                            const emitted = emitNormalizedToken(
+                                window.KjvNoteLinks
+                                    ? window.KjvNoteLinks.parseToken(parsed.v).ranges
+                                    : [{ from: parseInt(parsed.v, 10), to: parseInt(parsed.v, 10) }]);
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                         if (parsed.verseId) {
-                            parts.push(serializeVToken([{ from: parsed.verseId, to: parsed.verseId }]));
+                            const emitted = emitNormalizedToken(
+                                [{ from: parsed.verseId, to: parsed.verseId }]);
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                     }
@@ -359,11 +393,26 @@
             parts.push(m[0]);
         }
         parts.push(text.slice(last));
-        return parts.join('');
+        return { text: parts.join(''), error };
+    }
+
+    async function hydrateNoteEmbeds(root) {
+        if (!root || !window.KjvNoteLinks) return;
+        for (const el of root.querySelectorAll('.note-scripture-embed[data-v]')) {
+            if (el.dataset.embedReady) continue;
+            try {
+                const res = await fetch(`/api/ranges?v=${encodeURIComponent(el.dataset.v)}`);
+                if (!res.ok) continue;
+                const data = await res.json();
+                window.KjvNoteLinks.applyEmbedHydration(el, data);
+                el.dataset.embedReady = '1';
+            } catch (_) { /* leave placeholder */ }
+        }
     }
 
     async function hydrateRangeLinkLabels(root) {
         if (!root) return;
+        await hydrateNoteEmbeds(root);
         for (const link of root.querySelectorAll('.note-range-link[data-v]')) {
             const body = link.dataset.v;
             const p = findPassageByVBody(body);
@@ -434,6 +483,7 @@
             const note = await res.json();
             if (gen !== openNoteGen) return;
             editingNoteId = note.id;
+            embedMode = false;
             savedTitle = note.title;
             savedNoteText = note.note;
             modalTitle.textContent = 'Edit Note';
@@ -453,6 +503,7 @@
         openNoteGen++; // invalidate any in-flight open/save
         if (savingNote) unlockEditorInputs();
         editingNoteId = null;
+        embedMode = false;
         savedTitle = '';
         savedNoteText = '';
         modalTitle.textContent = 'New Note';
@@ -529,8 +580,13 @@
             insertOverlayEl.hidden = true;
         }
         try {
-            note = await normalizeNoteLinksOnSave(note);
+            const normalized = await normalizeNoteLinksOnSave(note);
             if (saveGen !== openNoteGen) return; // user switched notes mid-save
+            if (normalized.error) {
+                showToast(normalized.error);
+                return;
+            }
+            note = normalized.text;
             textarea.value = note;
             updateCharCount();
             const maxLen = parseInt(textarea.getAttribute('maxlength'), 10) || 20000;
@@ -647,6 +703,7 @@
     const insertChapters = document.getElementById('passage-insert-chapters');
     const insertSave = document.getElementById('passage-insert-save');
     const insertSaveCb = document.getElementById('passage-insert-save-cb');
+    const insertEmbedCb = document.getElementById('passage-insert-embed-cb');
     const insertTitle = document.getElementById('passage-insert-title');
     const insertConfirm = document.getElementById('passage-insert-confirm');
     const insertBtn = document.getElementById('sermon-note-insert-passage-btn');
@@ -713,7 +770,16 @@
         }
         let token;
         try {
-            token = serializeVToken(rangesFromNaturalKey(naturalKey));
+            if (window.KjvNoteLinks) {
+                const emitted = window.KjvNoteLinks.tokenFromNaturalKey(naturalKey, embedMode);
+                if (!emitted.ok) {
+                    showToast(emitted.error);
+                    return false;
+                }
+                token = emitted.token;
+            } else {
+                token = serializeVToken(rangesFromNaturalKey(naturalKey));
+            }
         } catch (err) {
             console.error(err);
             showToast('Could not insert scripture link');
@@ -1003,9 +1069,15 @@
             count === 0 ? '0 verses selected' :
             count === 1 ? '1 verse selected' :
             `${count} verses selected`;
-        insertConfirm.disabled = count === 0 || count > INSERT_MAX_VERSES;
+        const embedCap = window.KjvNoteLinks ? window.KjvNoteLinks.EMBED_VERSE_CAP : 12;
+        const embedOver = embedMode && count > embedCap;
+        insertConfirm.disabled = count === 0 || count > INSERT_MAX_VERSES || embedOver;
         if (count > INSERT_MAX_VERSES) {
             insertExpandCount.textContent = `Too many verses (max ${INSERT_MAX_VERSES})`;
+        } else if (embedOver) {
+            insertExpandCount.textContent = window.KjvNoteLinks
+                ? window.KjvNoteLinks.embedCapMessage(count)
+                : `Quoted scripture is limited to ${embedCap} verses (this reference is ${count}).`;
         }
         syncInsertSaveAvailability(checked);
     }
@@ -1098,6 +1170,7 @@
             insertTab = 'verses';
             insertMode = 'browse';
             insertSearch.value = '';
+            if (insertEmbedCb) insertEmbedCb.checked = embedMode;
             syncInsertTabs();
             showInsertBrowse();
             renderInsertBrowse();
@@ -1129,6 +1202,12 @@
         }
         if (insertSaveCb) {
             insertSaveCb.addEventListener('change', syncInsertSaveTitleEnabled);
+        }
+        if (insertEmbedCb) {
+            insertEmbedCb.addEventListener('change', () => {
+                embedMode = insertEmbedCb.checked;
+                if (insertMode === 'expand') updateInsertExpandSelection();
+            });
         }
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape' || insertOverlay.hidden) return;

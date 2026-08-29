@@ -10,7 +10,8 @@ import java.util.regex.Pattern;
  * Portable verse-range links for note bodies and focused reading.
  *
  * Canonical stored form: {@code [v=26136]}, {@code [v=26136-26138]},
- * {@code [v=26136-26138,26140]}.
+ * {@code [v=26136-26138,26140]}. Embed-quoted twins use the same range
+ * grammar with an {@code e=} prefix: {@code [e=14625]}, {@code [e=14625-14627]}.
  *
  * Normalization sorts segments, swaps reversed bounds, merges overlaps/adjacents,
  * and validates ids in {@code 1…31102}. Equality of two pointers is equality of
@@ -23,6 +24,9 @@ public final class VerseRangeParser {
 
     public static final int MIN_VERSE_ID = 1;
     public static final int MAX_VERSE_ID = 31102;
+
+    /** First-cut cap for {@code [e=…]} insert / save-normalize. Do not silently truncate. */
+    public static final int EMBED_VERSE_CAP = 12;
 
     /** Inclusive verse id range. */
     public record Range(int from, int to) {
@@ -39,25 +43,26 @@ public final class VerseRangeParser {
         }
     }
 
-    private static final Pattern V_TOKEN =
-            Pattern.compile("^\\[?v=([^\\]]+)\\]?$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TOKEN =
+            Pattern.compile("^\\[?([ve])=([^\\]]+)\\]?$", Pattern.CASE_INSENSITIVE);
     private static final Pattern INNER =
-            Pattern.compile("^v=(.+)$", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("^[ve]=(.+)$", Pattern.CASE_INSENSITIVE);
 
     private VerseRangeParser() {}
 
     /**
-     * Parses a full token like {@code [v=1-3,5]} or bare {@code v=1-3,5} or
-     * just the body {@code 1-3,5}.
+     * Parses a full token like {@code [v=1-3,5]} / {@code [e=1-3,5]} or bare
+     * {@code v=1-3,5} / {@code e=1-3,5} or just the body {@code 1-3,5}.
+     * Prefix is a render-mode flag; the range grammar is the same.
      */
     public static List<Range> parseVToken(String raw) {
         if (raw == null || raw.isBlank()) {
             throw new IllegalArgumentException("v-token must not be blank");
         }
         String s = raw.trim();
-        Matcher bracketed = V_TOKEN.matcher(s);
+        Matcher bracketed = TOKEN.matcher(s);
         if (bracketed.matches()) {
-            s = bracketed.group(1).trim();
+            s = bracketed.group(2).trim();
         } else {
             Matcher inner = INNER.matcher(s);
             if (inner.matches()) {
@@ -65,6 +70,21 @@ public final class VerseRangeParser {
             }
         }
         return parseRangeBody(s);
+    }
+
+    /** True when {@code raw} is an {@code [e=…]} / {@code e=…} token. */
+    public static boolean isEmbedToken(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        String s = raw.trim();
+        Matcher bracketed = TOKEN.matcher(s);
+        if (bracketed.matches()) {
+            return bracketed.group(1).equalsIgnoreCase("e");
+        }
+        return s.length() >= 2
+                && (s.charAt(0) == 'e' || s.charAt(0) == 'E')
+                && s.charAt(1) == '=';
     }
 
     /** Parses the comma-separated body after {@code v=} (no brackets). */
@@ -147,6 +167,41 @@ public final class VerseRangeParser {
     /** Canonical note token: {@code [v=1-3,5]}. */
     public static String serializeVToken(List<Range> ranges) {
         return "[v=" + serializeRangeBody(ranges) + "]";
+    }
+
+    /** Canonical embed token: {@code [e=1-3,5]}. Same ranges as {@link #serializeVToken}. */
+    public static String serializeEToken(List<Range> ranges) {
+        return "[e=" + serializeRangeBody(ranges) + "]";
+    }
+
+    /** {@code [e=…]} when {@code embed} is true, otherwise {@code [v=…]}. */
+    public static String serializeToken(List<Range> ranges, boolean embed) {
+        return embed ? serializeEToken(ranges) : serializeVToken(ranges);
+    }
+
+    /** Inclusive verse count after normalize/merge. */
+    public static int verseCount(List<Range> ranges) {
+        int n = 0;
+        for (Range r : normalizeRanges(ranges)) {
+            n += r.length();
+        }
+        return n;
+    }
+
+    /**
+     * Write-side guard for embed tokens. Throws rather than truncating when the
+     * range exceeds {@link #EMBED_VERSE_CAP}.
+     */
+    public static void requireEmbedCap(List<Range> ranges) {
+        int n = verseCount(ranges);
+        if (n > EMBED_VERSE_CAP) {
+            throw new IllegalArgumentException(embedCapMessage(n));
+        }
+    }
+
+    public static String embedCapMessage(int verseCount) {
+        return "Quoted scripture is limited to " + EMBED_VERSE_CAP
+                + " verses (this reference is " + verseCount + ").";
     }
 
     public static boolean isValidVToken(String raw) {

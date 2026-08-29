@@ -98,6 +98,10 @@ Examples:
 [v=26136-26138,26140-26142]
 ```
 
+### 4.1b Embed-quoted twin
+
+`[e=<verse-range-list>]` is a **render-mode twin** of `[v=…]`. Same range grammar and identity (portable verse ids). The note body stores ids only — never pasted KJV text. Render as a quoted block plus a human reference that still opens `/read/range?v=…`. Write-side cap: 12 verses; refuse (do not truncate) an embed over the cap. No Passage UUID and no new Passage row required.
+
 ### 4.2 Normalization rules (on write)
 
 - Integer verse ids only  

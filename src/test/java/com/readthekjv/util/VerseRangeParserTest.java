@@ -79,4 +79,53 @@ class VerseRangeParserTest {
         assertEquals(VerseRangeParser.parseVToken("[v=2]"),
                 VerseRangeParser.parseRangeBody("2"));
     }
+
+    @Test
+    void parseEmbedTokenSameGrammarAsV() {
+        assertEquals(List.of(new VerseRangeParser.Range(14625, 14625)),
+                VerseRangeParser.parseVToken("[e=14625]"));
+        assertEquals(List.of(
+                        new VerseRangeParser.Range(14625, 14627),
+                        new VerseRangeParser.Range(14630, 14630)),
+                VerseRangeParser.parseVToken("[e=14625-14627,14630]"));
+        assertEquals(VerseRangeParser.parseVToken("[v=14625-14627]"),
+                VerseRangeParser.parseVToken("[e=14625-14627]"));
+        assertEquals(VerseRangeParser.parseVToken("[e=14625]"),
+                VerseRangeParser.parseVToken("e=14625"));
+    }
+
+    @Test
+    void serializeETokenRoundTrip() {
+        String token = "[e=1-3,5,10-12]";
+        List<VerseRangeParser.Range> ranges = VerseRangeParser.parseVToken(token);
+        assertEquals(token, VerseRangeParser.serializeEToken(ranges));
+        assertEquals("[v=1-3,5,10-12]", VerseRangeParser.serializeVToken(ranges));
+        assertEquals(token, VerseRangeParser.serializeToken(ranges, true));
+        assertEquals("[v=1-3,5,10-12]", VerseRangeParser.serializeToken(ranges, false));
+    }
+
+    @Test
+    void isEmbedTokenDetectsPrefixOnly() {
+        assertTrue(VerseRangeParser.isEmbedToken("[e=14625]"));
+        assertTrue(VerseRangeParser.isEmbedToken("e=14625-14627"));
+        assertFalse(VerseRangeParser.isEmbedToken("[v=14625]"));
+        assertFalse(VerseRangeParser.isEmbedToken("14625"));
+        assertFalse(VerseRangeParser.isEmbedToken(null));
+    }
+
+    @Test
+    void embedCapRefusesOverTwelveDoesNotTruncate() {
+        List<VerseRangeParser.Range> twelve = VerseRangeParser.parseVToken("[e=1-12]");
+        assertEquals(12, VerseRangeParser.verseCount(twelve));
+        assertDoesNotThrow(() -> VerseRangeParser.requireEmbedCap(twelve));
+
+        List<VerseRangeParser.Range> thirteen = VerseRangeParser.parseVToken("[e=1-13]");
+        assertEquals(13, VerseRangeParser.verseCount(thirteen));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.requireEmbedCap(thirteen));
+        assertTrue(ex.getMessage().contains("12"));
+        assertTrue(ex.getMessage().contains("13"));
+        // Parser still returns the full range — cap is write-side, not silent truncate.
+        assertEquals(List.of(new VerseRangeParser.Range(1, 13)), thirteen);
+    }
 }

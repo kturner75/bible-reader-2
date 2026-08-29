@@ -67,6 +67,7 @@ public class SecurityConfig {
                     "/style.css", "/app.js",
                     "/date-utils.js",                      // shared by the public reader — a 302 here breaks it
                     "/view-prefs.js",                      // ditto — window.KjvViewPrefs must exist for signed-out readers
+                    "/note-links.js",                      // portable [v=]/[e=] helpers — public reader + notes dock
                     "/csrf-utils.js",                      // ditto — CSRF helper for public login/register/reader
                     "/error",                              // Spring Boot error controller — must be public
                     "/api/verses", "/api/books/**", "/api/search",

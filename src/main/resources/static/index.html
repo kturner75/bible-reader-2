@@ -387,6 +387,12 @@
                 <button type="button" class="passage-insert-tab" data-tab="passages" role="tab"
                     aria-selected="false">My Passages</button>
             </div>
+            <div class="passage-insert-embed" id="passage-insert-embed">
+                <label class="passage-insert-save-check">
+                    <input type="checkbox" id="passage-insert-embed-cb">
+                    Embed quoted scripture
+                </label>
+            </div>
             <div id="passage-insert-browse">
                 <div class="collections-count" id="passage-insert-count">Type to search verses</div>
                 <div class="collections-list" id="passage-insert-list"></div>
@@ -538,6 +544,7 @@
 
     <script src="/date-utils.js"></script>
     <script src="/view-prefs.js"></script>
+    <script src="/note-links.js"></script>
     <script src="/csrf-utils.js"></script>
     <script src="/app.js"></script>
 </body>
