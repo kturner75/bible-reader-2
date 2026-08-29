@@ -28,8 +28,13 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Generates a daily AI-selected Bible verse using OpenAI Chat Completions.
- * One verse per calendar day (UTC), stored in the verse_of_day table.
+ * Generates a daily AI-selected Bible verse using Chat Completions
+ * (OpenAI or xAI). One verse per calendar day (UTC), stored in the
+ * verse_of_day table.
+ *
+ * <p>Set {@code VOTD_PROVIDER=xai} and {@code XAI_API_KEY} to switch
+ * providers. {@code VOTD_MODEL} overrides the provider default
+ * ({@code gpt-4o-mini} / {@code grok-3-mini}).
  *
  * <p>Generation runs:
  * <ul>
@@ -37,8 +42,10 @@ import java.util.stream.Collectors;
  *   <li>Daily at midnight UTC via {@code @Scheduled} — pre-populates the new day's verse.</li>
  * </ul>
  *
- * <p>Graceful degradation: if the API key is missing or the OpenAI call fails,
- * the error is logged and suppressed — the frontend falls back to its curated list.
+ * <p>Graceful degradation: if the API key is missing, the provider is unknown,
+ * or the chat call fails, the error is logged and suppressed — the frontend
+ * falls back to its curated list. An unset {@code votd.provider} defaults to
+ * openai; any other value that is not {@code openai} or {@code xai} fails closed.
  */
 @Service
 public class VerseOfDayService {
@@ -46,19 +53,29 @@ public class VerseOfDayService {
     private static final Logger log = LoggerFactory.getLogger(VerseOfDayService.class);
 
     private static final String OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
+    private static final String XAI_CHAT_URL    = "https://api.x.ai/v1/chat/completions";
+    private static final String OPENAI_DEFAULT_MODEL = "gpt-4o-mini";
+    private static final String XAI_DEFAULT_MODEL    = "grok-3-mini";
 
     private final VerseOfDayRepository repository;
     private final BibleService bibleService;
-    private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    @Value("${tts.api-key:}")          // reuses ${OPENAI_API_KEY:} mapped by TtsService config
-    private String apiKey;
+    private HttpClient httpClient;
+
+    @Value("${tts.api-key:}")          // openai: reuses ${OPENAI_API_KEY:} mapped by TtsService config
+    private String openAiKey;
+
+    @Value("${XAI_API_KEY:}")
+    private String xaiKey;
 
     @Value("${votd.enabled:true}")
     private boolean enabled;
 
-    @Value("${votd.model:gpt-4o-mini}")
+    @Value("${votd.provider:openai}")
+    private String provider;
+
+    @Value("${votd.model:}")
     private String model;
 
     public VerseOfDayService(VerseOfDayRepository repository, BibleService bibleService) {
@@ -113,8 +130,15 @@ public class VerseOfDayService {
             log.debug("Verse of the day generation is disabled");
             return;
         }
+        if (!isKnownProvider()) {
+            log.warn("Unknown votd.provider '{}' — expected openai or xai; skipping verse of the day generation",
+                    provider);
+            return;
+        }
+        String apiKey = resolvedKey();
         if (apiKey == null || apiKey.isBlank()) {
-            log.debug("OPENAI_API_KEY not set — skipping verse of the day generation");
+            log.debug("{} not set — skipping verse of the day generation",
+                    isXai() ? "XAI_API_KEY" : "OPENAI_API_KEY");
             return;
         }
         if (repository.existsById(date)) {
@@ -132,17 +156,17 @@ public class VerseOfDayService {
                     .collect(Collectors.toList());
 
             String prompt = buildPrompt(date, recentRefs);
-            String responseBody = callOpenAiChat(prompt);
+            String responseBody = callChatCompletions(prompt);
             if (responseBody == null) return;
 
-            VotdResult result = parseOpenAiResponse(responseBody);
+            VotdResult result = parseChatResponse(responseBody);
             if (result == null) return;
 
             // Strip verse ranges (e.g. "4:6-7" → "4:6") — parser handles single verses only
             String ref = result.reference().replaceAll("-\\d+$", "").trim();
             Optional<Integer> verseId = bibleService.parseAndResolve(ref);
             if (verseId.isEmpty()) {
-                log.warn("Could not resolve KJV reference '{}' returned by OpenAI — skipping", result.reference());
+                log.warn("Could not resolve KJV reference '{}' returned by the model — skipping", result.reference());
                 return;
             }
 
@@ -187,27 +211,66 @@ public class VerseOfDayService {
         );
     }
 
-    // ── OpenAI HTTP call ──────────────────────────────────────────────────────
+    // ── Provider resolution (mirrors WhisperService) ──────────────────────────
 
-    private String callOpenAiChat(String userPrompt) throws Exception {
-        String requestBody = objectMapper.writeValueAsString(new java.util.HashMap<String, Object>() {{
-            put("model", model);
-            put("temperature", 0.7);
-            put("messages", new Object[]{
-                    new java.util.HashMap<String, String>() {{
-                        put("role", "system");
-                        put("content", "You are a devotional curator. Always respond with valid JSON only, no markdown, no code fences.");
-                    }},
-                    new java.util.HashMap<String, String>() {{
-                        put("role", "user");
-                        put("content", userPrompt);
-                    }}
-            });
-        }});
+    /**
+     * Unset (null) defaults to openai. Empty-after-trim or any value other than
+     * openai | xai is unknown and must not fall through to OpenAI.
+     */
+    boolean isKnownProvider() {
+        String p = normalizedProvider();
+        return p == null || "openai".equalsIgnoreCase(p) || "xai".equalsIgnoreCase(p);
+    }
+
+    boolean isXai() {
+        return "xai".equalsIgnoreCase(normalizedProvider());
+    }
+
+    private String normalizedProvider() {
+        return provider == null ? null : provider.trim();
+    }
+
+    String resolvedUrl() {
+        return isXai() ? XAI_CHAT_URL : OPENAI_CHAT_URL;
+    }
+
+    String resolvedModel() {
+        if (model != null && !model.isBlank()) {
+            return model;
+        }
+        return isXai() ? XAI_DEFAULT_MODEL : OPENAI_DEFAULT_MODEL;
+    }
+
+    String resolvedKey() {
+        return isXai() ? xaiKey : openAiKey;
+    }
+
+    // ── Chat Completions HTTP call ────────────────────────────────────────────
+
+    /**
+     * Chat Completions JSON body — same shape for OpenAI and xAI
+     * ({@code model}, {@code temperature}, {@code messages}). Not the Responses API.
+     */
+    String buildChatRequestBody(String userPrompt) throws Exception {
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("model", resolvedModel());
+        body.put("temperature", 0.7);
+        body.put("messages", java.util.List.of(
+                java.util.Map.of("role", "system",
+                        "content", "You are a devotional curator. Always respond with valid JSON only, no markdown, no code fences."),
+                java.util.Map.of("role", "user", "content", userPrompt)
+        ));
+        return objectMapper.writeValueAsString(body);
+    }
+
+    private String callChatCompletions(String userPrompt) throws Exception {
+        String requestBody = buildChatRequestBody(userPrompt);
+
+        log.debug("VOTD provider={} url={} model={}", provider, resolvedUrl(), resolvedModel());
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(OPENAI_CHAT_URL))
-                .header("Authorization", "Bearer " + apiKey)
+                .uri(URI.create(resolvedUrl()))
+                .header("Authorization", "Bearer " + resolvedKey())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .timeout(Duration.ofSeconds(60))
@@ -216,7 +279,7 @@ public class VerseOfDayService {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
-            log.error("OpenAI Chat API error {}: {}", response.statusCode(), response.body());
+            log.error("Chat Completions API error {}: {}", response.statusCode(), response.body());
             return null;
         }
 
@@ -225,7 +288,7 @@ public class VerseOfDayService {
 
     // ── Response parsing ──────────────────────────────────────────────────────
 
-    private VotdResult parseOpenAiResponse(String responseBody) {
+    private VotdResult parseChatResponse(String responseBody) {
         try {
             JsonNode root    = objectMapper.readTree(responseBody);
             String   content = root.path("choices").get(0)
@@ -241,14 +304,14 @@ public class VerseOfDayService {
             String   blurb     = votd.path("blurb").asText(null);
 
             if (reference == null || reference.isBlank()) {
-                log.warn("OpenAI returned no reference in: {}", content);
+                log.warn("Chat Completions returned no reference in: {}", content);
                 return null;
             }
 
             return new VotdResult(reference.trim(), blurb != null ? blurb.trim() : null);
 
         } catch (Exception e) {
-            log.warn("Failed to parse OpenAI response: {}", e.getMessage());
+            log.warn("Failed to parse Chat Completions response: {}", e.getMessage());
             return null;
         }
     }
