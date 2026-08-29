@@ -429,7 +429,7 @@ class XaiOAuthTokenManagerTest {
         assertEquals(Optional.of("new-access"), newer.getAccessToken());
         assertEquals("new-rotated-token", readPersistedCurrentToken(tokenFile));
         assertEquals("new-seed-token", readPersistedSeed(tokenFile));
-        assertEquals("old-seed-token", readPersistedSuperseded(tokenFile));
+        assertEquals(List.of("old-seed-token"), readPersistedSuperseded(tokenFile));
     }
 
     @Test
@@ -451,7 +451,7 @@ class XaiOAuthTokenManagerTest {
 
         assertEquals("new-rotated-token", readPersistedCurrentToken(tokenFile));
         assertEquals("new-seed-token", readPersistedSeed(tokenFile));
-        assertEquals("old-seed-token", readPersistedSuperseded(tokenFile));
+        assertEquals(List.of("old-seed-token"), readPersistedSuperseded(tokenFile));
         assertEquals("stale-rotated-token", stale.currentRefreshTokenForTesting());
     }
 
@@ -470,6 +470,30 @@ class XaiOAuthTokenManagerTest {
         assertEquals(Optional.of("stale-access"), staleRestart.getAccessToken());
         assertEquals("new-rotated-token", readPersistedCurrentToken(tokenFile));
         assertEquals("new-seed-token", readPersistedSeed(tokenFile));
+    }
+
+    @Test
+    void persist_generationA_doesNotOverwriteC_afterAToBToCOverlap() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        writePersistedState(tokenFile, "seed-a", "current-a");
+        XaiOAuthTokenManager generationA = manager(
+                "seed-a", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-a", 3600, "rot-a")));
+        XaiOAuthTokenManager generationB = manager(
+                "seed-b", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-b", 3600, "rot-b")));
+        XaiOAuthTokenManager generationC = manager(
+                "seed-c", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-c", 3600, "rot-c")));
+
+        assertEquals(Optional.of("access-b"), generationB.getAccessToken());
+        assertEquals(Optional.of("access-c"), generationC.getAccessToken());
+        generationA.invalidate();
+        assertEquals(Optional.of("access-a"), generationA.getAccessToken());
+
+        assertEquals("rot-c", readPersistedCurrentToken(tokenFile));
+        assertEquals("seed-c", readPersistedSeed(tokenFile));
+        assertEquals(List.of("seed-a", "seed-b"), readPersistedSuperseded(tokenFile));
     }
 
     @Test
@@ -529,8 +553,24 @@ class XaiOAuthTokenManagerTest {
         return readPersistedField(tokenFile, "seedToken");
     }
 
-    private String readPersistedSuperseded(Path tokenFile) throws Exception {
-        return readPersistedField(tokenFile, "supersededSeed");
+    private List<String> readPersistedSuperseded(Path tokenFile) throws Exception {
+        com.fasterxml.jackson.databind.JsonNode node =
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(Files.readString(tokenFile));
+        List<String> superseded = new ArrayList<>();
+        com.fasterxml.jackson.databind.JsonNode arr = node.get("supersededSeeds");
+        if (arr != null && arr.isArray()) {
+            arr.forEach(item -> {
+                String value = item.asText(null);
+                if (value != null && !value.isBlank()) {
+                    superseded.add(value);
+                }
+            });
+        }
+        String legacy = node.path("supersededSeed").asText(null);
+        if (legacy != null && !legacy.isBlank() && !superseded.contains(legacy)) {
+            superseded.add(legacy);
+        }
+        return superseded;
     }
 
     private String readPersistedField(Path tokenFile, String field) throws Exception {

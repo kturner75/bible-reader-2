@@ -26,6 +26,8 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,9 +62,8 @@ import java.util.function.Supplier;
  *
  * <p>A rolling deploy that changes {@code XAI_OAUTH_REFRESH_TOKEN} can leave
  * an old and a new container on the same {@code /data} file with different
- * seeds. Persist will take over a foreign seed once, recording it as
- * {@code supersededSeed}; an instance whose seed was superseded does not
- * write that file again.
+ * seeds. Persist records the full {@code supersededSeeds} set so older
+ * generations cannot reclaim the file after A→B→C overlap.
  *
  * <p>Callers must treat a missing token (empty Optional) as "fall back to
  * {@code XAI_API_KEY}" — this class never throws for an unconfigured or
@@ -100,7 +101,14 @@ public class XaiOAuthTokenManager {
     // simply by rotating XAI_OAUTH_REFRESH_TOKEN and redeploying — without this, a persisted
     // token that goes bad (revoked, corrupted, copied from another deployment) would be
     // stuck forever, since it always wins over the configured value.
-    private record PersistedState(String seedToken, String currentToken, String supersededSeed) {
+    private record PersistedState(String seedToken, String currentToken, List<String> supersededSeeds) {
+        PersistedState {
+            supersededSeeds = supersededSeeds == null ? List.of() : List.copyOf(supersededSeeds);
+        }
+
+        boolean supersedes(String seed) {
+            return seed != null && supersededSeeds.contains(seed);
+        }
     }
 
     private HttpClient httpClient;
@@ -384,11 +392,7 @@ public class XaiOAuthTokenManager {
             if (current == null || current.isBlank()) {
                 return null;
             }
-            String superseded = node.path("supersededSeed").asText(null);
-            if (superseded != null && superseded.isBlank()) {
-                superseded = null;
-            }
-            return new PersistedState(seed, current, superseded);
+            return new PersistedState(seed, current, readSupersededSeeds(node));
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_file_read_failed error={}", e.getMessage());
             return null;
@@ -438,16 +442,39 @@ public class XaiOAuthTokenManager {
     private PersistedState stateToPersist(String token) {
         PersistedState existing = readPersistedState();
         if (existing == null) {
-            return new PersistedState(seedRefreshToken, token, null);
+            return new PersistedState(seedRefreshToken, token, List.of());
         }
         if (Objects.equals(existing.seedToken(), seedRefreshToken)) {
-            return new PersistedState(seedRefreshToken, token, existing.supersededSeed());
+            return new PersistedState(seedRefreshToken, token, existing.supersededSeeds());
         }
-        if (Objects.equals(existing.supersededSeed(), seedRefreshToken)) {
+        if (existing.supersedes(seedRefreshToken)) {
             log.info("event=xai_oauth_refresh_token_persist_skipped_foreign_seed");
             return null;
         }
-        return new PersistedState(seedRefreshToken, token, existing.seedToken());
+        List<String> superseded = new ArrayList<>(existing.supersededSeeds());
+        if (existing.seedToken() != null && !existing.seedToken().isBlank()
+                && !superseded.contains(existing.seedToken())) {
+            superseded.add(existing.seedToken());
+        }
+        return new PersistedState(seedRefreshToken, token, superseded);
+    }
+
+    private static List<String> readSupersededSeeds(JsonNode node) {
+        List<String> superseded = new ArrayList<>();
+        JsonNode arr = node.get("supersededSeeds");
+        if (arr != null && arr.isArray()) {
+            for (JsonNode item : arr) {
+                String value = item.asText(null);
+                if (value != null && !value.isBlank() && !superseded.contains(value)) {
+                    superseded.add(value);
+                }
+            }
+        }
+        String legacy = node.path("supersededSeed").asText(null);
+        if (legacy != null && !legacy.isBlank() && !superseded.contains(legacy)) {
+            superseded.add(legacy);
+        }
+        return superseded;
     }
 
     private boolean tryCreateOwnerOnly(Path path) {
