@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/notes.css">
+    <link rel="stylesheet" href="/note-embed.css">
 </head>
 <body>
 
@@ -84,6 +85,12 @@
                     <button type="button" class="passage-insert-tab" data-tab="passages" role="tab"
                         aria-selected="false">My Passages</button>
                 </div>
+                <div class="passage-insert-embed" id="passage-insert-embed">
+                    <label class="passage-insert-save-check">
+                        <input type="checkbox" id="passage-insert-embed-cb">
+                        Embed quoted scripture
+                    </label>
+                </div>
                 <div id="passage-insert-browse">
                     <div class="collections-count" id="passage-insert-count">Type to search verses</div>
                     <div class="collections-list" id="passage-insert-list"></div>
@@ -115,6 +122,7 @@
     </div>
 
     <script src="/csrf-utils.js"></script>
+    <script src="/note-links.js"></script>
     <script src="/notes.js"></script>
 </body>
 </html>

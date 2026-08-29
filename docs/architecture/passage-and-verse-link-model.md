@@ -98,6 +98,10 @@ Examples:
 [v=26136-26138,26140-26142]
 ```
 
+### 4.1b Embed-quoted twin
+
+`[e=<verse-range-list>]` is a **render-mode twin** of `[v=…]`. Same range grammar and identity (portable verse ids). The note body stores ids only — never pasted KJV text. Render as a quoted block plus a human reference that still opens `/read/range?v=…`. Write-side cap: 12 verses; refuse (do not truncate) an embed over the cap. No Passage UUID and no new Passage row required.
+
 ### 4.2 Normalization rules (on write)
 
 - Integer verse ids only  
@@ -216,19 +220,23 @@ Suggested framing in UI:
 
 - “Insert scripture” / “Insert passage” picker  
 - Search by reference or passage title (user + globals)  
-- On select: insert **`[v=normalized…]`** at cursor  
+- On select: insert **`[v=normalized…]`** at cursor (range link), or **`[e=normalized…]`** when embed mode is on  
+- Embed mode is the Insert dialog’s “Embed quoted scripture” checkbox — one flag per open editor, default off  
+- `[e=…]` uses the same grammar as `[v=…]`; the body stores verse ids only  
+- First-cut cap: 12 verses on `[e=…]`. Over that, refuse (do not insert, do not save-normalize, do not persist). Do not silently truncate.  
 - If user picked a titled passage, UI may show title in the picker; stored token remains verse ids  
 
 ### 7.2 Render UX
 
 - Parse `[v=…]` → ranges → derived label (+ title if matching passage found for current user)  
-- Click → focused reader for those verse ids  
+- Parse `[e=…]` → same ranges → quoted block + human verse-range citation (not a Passage title). The citation still opens `/read/range?v=…`  
+- Click `[v=…]` → focused reader for those verse ids  
 - Legacy `[pid=N]`: keep opening collection until migrated; no new inserts  
 - Keep `[John 3:16]` and scope-relative links for ad-hoc jumps  
 
 ### 7.3 Migration posture
 
-1. New inserts: `[v=…]` only for scripture pointers  
+1. New inserts: `[v=…]` (range link) or `[e=…]` (quoted embed) for scripture pointers  
 2. Existing `[pid=collectionId]`: still resolve to collection reader  
 3. Optional later: rewrite eligible legacy tokens where a collection member is a single contiguous passage → `[v=…]`  
 4. Do **not** migrate notes toward `[passage=uuid]`  
@@ -239,7 +247,7 @@ Suggested framing in UI:
 
 | Concern | Preference |
 |---------|------------|
-| Note body | `[v=…]` |
+| Note body | `[v=…]` (range link) or `[e=…]` (quoted embed — same grammar, verse ids in the body, quoted block + human ref) |
 | Collection membership | `passage_id` UUID FK |
 | Passage CRUD | UUID in paths OK |
 | Focused read by entity | `/read/passage/{uuid}` OK |

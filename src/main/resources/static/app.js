@@ -95,6 +95,8 @@
         passageInsertSearchTimer: null,
         passageInsertSearchGen: 0,
         passageInsertExpandGen: 0,
+        verseNoteEmbedMode: false,         // [e=…] vs [v=…] for the open verse-note editor
+        chapterNoteEmbedMode: false,       // same flag for the open chapter/book editor
         // Header search overlay tabs (verses always; passages only when catalog non-empty)
         searchResultTab: 'verses',         // 'verses' | 'passages' | future lanes
         lastSearchQuery: '',
@@ -248,6 +250,7 @@
         passageInsertChapters: document.getElementById('passage-insert-chapters'),
         passageInsertSave: document.getElementById('passage-insert-save'),
         passageInsertSaveCb: document.getElementById('passage-insert-save-cb'),
+        passageInsertEmbedCb: document.getElementById('passage-insert-embed-cb'),
         passageInsertTitle: document.getElementById('passage-insert-title'),
         passageInsertConfirm: document.getElementById('passage-insert-confirm'),
         noteInsertPassageBtn: document.getElementById('note-insert-passage-btn'),
@@ -2690,6 +2693,8 @@
         // Verse links — brackets are reserved for verse refs, not markdown URLs
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
+            // [e=…] is block-level — markdown promotes it; do not nest a quote in <p>
+            if (/^e=/i.test(trimmed)) return match;
             // [v=26136-26138] — portable scripture pointer
             const vTok = trimmed.match(/^v=(.+)$/i);
             if (vTok) {
@@ -2760,10 +2765,27 @@
         if (!root) return;
         const links = [...root.querySelectorAll('.note-range-link[data-v]')];
         for (const link of links) {
+            const embedCite = !!link.closest('.note-scripture-embed');
             const body = link.dataset.v;
+            if (embedCite) {
+                // Embed cite stays a verse reference — never a Passage title.
+                if (link.dataset.labelReady) continue;
+                try {
+                    const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                        embedCite: true, reference: data.reference, body
+                    });
+                    link.dataset.labelReady = '1';
+                } catch (_) { /* leave body as label */ }
+                continue;
+            }
             const p = findPassageByVBody(body);
             if (p) {
-                link.textContent = passageDisplayLabel(p);
+                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                    embedCite: false, passageTitle: passageDisplayLabel(p), body
+                });
                 continue;
             }
             if (link.dataset.labelReady) continue;
@@ -2771,7 +2793,9 @@
                 const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
                 if (!res.ok) continue;
                 const data = await res.json();
-                link.textContent = data.reference || body;
+                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                    embedCite: false, reference: data.reference, body
+                });
                 link.dataset.labelReady = '1';
             } catch (_) { /* leave body as label */ }
         }
@@ -2808,9 +2832,25 @@
         }
     }
 
+    /** Fill [e=…] quoted blocks from /api/ranges — text is never stored in the note. */
+    async function hydrateNoteEmbeds(root) {
+        if (!root || !window.KjvNoteLinks) return;
+        for (const el of root.querySelectorAll('.note-scripture-embed[data-v]')) {
+            if (el.dataset.embedReady) continue;
+            try {
+                const res = await fetch(`/api/ranges?v=${encodeURIComponent(el.dataset.v)}`);
+                if (!res.ok) continue;
+                const data = await res.json();
+                window.KjvNoteLinks.applyEmbedHydration(el, data);
+                el.dataset.embedReady = '1';
+            } catch (_) { /* leave placeholder */ }
+        }
+    }
+
     /** Hydrate portable + provisional book-relative links after note view paint. */
     async function hydrateNoteViewLinks(root) {
         await hydrateBookRelativeLinks(root);
+        await hydrateNoteEmbeds(root);
         await hydrateRangeLinkLabels(root);
     }
 
@@ -2850,7 +2890,13 @@
                 flushParagraph();
                 closeList();
                 const level = heading[1].length;
-                out.push(`<h${level + 3}>${renderNoteInline(heading[2], ctx)}</h${level + 3}>`);
+                const rest = heading[2];
+                if (window.KjvNoteLinks && /\[e=/i.test(rest)) {
+                    out.push(window.KjvNoteLinks.renderHeadingWithEmbeds(
+                        rest, frag => renderNoteInline(frag, ctx), 'h' + (level + 3)));
+                } else {
+                    out.push(`<h${level + 3}>${renderNoteInline(rest, ctx)}</h${level + 3}>`);
+                }
             } else if (bullet || numbered) {
                 flushParagraph();
                 const type = bullet ? 'ul' : 'ol';
@@ -2859,7 +2905,18 @@
                     out.push(`<${type}>`);
                     list = type;
                 }
-                out.push(`<li>${renderNoteInline((bullet || numbered)[1], ctx)}</li>`);
+                const item = (bullet || numbered)[1];
+                if (window.KjvNoteLinks && /\[e=/i.test(item)) {
+                    out.push(window.KjvNoteLinks.renderListItemWithEmbeds(
+                        item, frag => renderNoteInline(frag, ctx)));
+                } else {
+                    out.push(`<li>${renderNoteInline(item, ctx)}</li>`);
+                }
+            } else if (window.KjvNoteLinks && /\[e=/i.test(line)) {
+                flushParagraph();
+                closeList();
+                out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                    line, frag => renderNoteInline(frag, ctx)));
             } else {
                 closeList();
                 paragraph.push(renderNoteInline(line, ctx));
@@ -3132,71 +3189,22 @@
         return segs.join(',');
     }
 
-    // ── Portable [v=…] helpers (mirrors VerseRangeParser) ──
+    // ── Portable [v=…]/[e=…] — one parser (note-links.js / KjvNoteLinks) ──
 
     function parseVToken(raw) {
-        let s = String(raw).trim();
-        const m = s.match(/^\[?v=(.+)\]?$/i);
-        if (m) s = m[1].trim();
-        const ranges = [];
-        for (const part of s.split(',')) {
-            const p = part.trim();
-            if (!p) throw new Error('empty segment');
-            if (p.includes('-')) {
-                const [a, b] = p.split('-', 2).map(x => parseInt(x.trim(), 10));
-                if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('bad range');
-                ranges.push({ from: Math.min(a, b), to: Math.max(a, b) });
-            } else {
-                const v = parseInt(p, 10);
-                if (!Number.isFinite(v)) throw new Error('bad id');
-                ranges.push({ from: v, to: v });
-            }
-        }
-        return normalizeVRanges(ranges);
+        return window.KjvNoteLinks.parseToken(raw).ranges;
     }
-
     function normalizeVRanges(ranges) {
-        const sorted = ranges
-            .map(r => ({ from: Math.min(r.from, r.to), to: Math.max(r.from, r.to) }))
-            .sort((a, b) => a.from - b.from || a.to - b.to);
-        const merged = [];
-        let cur = sorted[0];
-        for (let i = 1; i < sorted.length; i++) {
-            const next = sorted[i];
-            if (next.from <= cur.to + 1) {
-                cur = { from: cur.from, to: Math.max(cur.to, next.to) };
-            } else {
-                merged.push(cur);
-                cur = next;
-            }
-        }
-        merged.push(cur);
-        return merged;
+        return window.KjvNoteLinks.normalizeRanges(ranges);
     }
-
     function serializeVBody(ranges) {
-        return normalizeVRanges(ranges).map(r =>
-            r.from === r.to ? String(r.from) : `${r.from}-${r.to}`
-        ).join(',');
+        return window.KjvNoteLinks.serializeRangeBody(ranges);
     }
-
     function serializeVToken(ranges) {
-        return `[v=${serializeVBody(ranges)}]`;
+        return window.KjvNoteLinks.serializeVToken(ranges);
     }
-
     function rangesFromNaturalKey(naturalKey) {
-        const ranges = [];
-        for (const part of String(naturalKey).split(',')) {
-            const p = part.trim();
-            if (p.includes(':')) {
-                const [a, b] = p.split(':', 2).map(x => parseInt(x.trim(), 10));
-                ranges.push({ from: a, to: b });
-            } else {
-                const v = parseInt(p, 10);
-                ranges.push({ from: v, to: v });
-            }
-        }
-        return normalizeVRanges(ranges);
+        return window.KjvNoteLinks.rangesFromNaturalKey(naturalKey);
     }
 
     function findPassageByVBody(vBody) {
@@ -3218,24 +3226,37 @@
         }
     }
 
+    function emitNormalizedToken(ranges, embed) {
+        if (window.KjvNoteLinks) {
+            return window.KjvNoteLinks.tokenFromRanges(ranges, !!embed);
+        }
+        return { ok: true, token: serializeVToken(ranges) };
+    }
+
     /**
-     * Rewrite typed scripture refs in a note body to portable [v=…] tokens.
-     * Leaves [v=…], [pid=…], [passage=…] and markdown alone.
+     * Rewrite typed scripture refs in a note body to portable [v=…] or [e=…] tokens.
+     * Leaves [v=…], [e=…], [pid=…], [passage=…] and markdown alone.
      * Scope-relative multi-verse: chapter [1-11] / [1,5,7]; book [1-2] / [3:1-11].
      * Absolute multi-verse: [John 3:16-18] / [John 3:1-11,15].
+     * @returns {{ text: string, error: string|null }}
      */
-    async function normalizeNoteLinksOnSave(text, ctx) {
-        if (!text) return text;
+    async function normalizeNoteLinksOnSave(text, ctx, embed) {
+        if (!text) return { text, error: null };
+        const pasted = window.KjvNoteLinks.refuseOversizedEmbeds(text);
+        if (!pasted.ok) return { text, error: pasted.error };
         const re = /\[([^\]]+)\]/g;
         const parts = [];
         let last = 0;
         let m;
+        let error = null;
         while ((m = re.exec(text)) !== null) {
             parts.push(text.slice(last, m.index));
             const inner = m[1].trim();
             last = m.index + m[0].length;
 
-            if (/^v=/i.test(inner) || /^pid=\d+$/i.test(inner)
+            if ((window.KjvNoteLinks && window.KjvNoteLinks.isStoredPointerInner(inner))
+                || /^v=/i.test(inner) || /^e=/i.test(inner)
+                || /^pid=\d+$/i.test(inner)
                 || /^passage=[0-9a-f-]{36}$/i.test(inner)) {
                 parts.push(m[0]);
                 continue;
@@ -3247,7 +3268,9 @@
                     const chapters = await getChaptersForBook(ctx.bookId);
                     const ranges = resolveBookRelativeRanges(inner, chapters);
                     if (ranges) {
-                        parts.push(serializeVToken(ranges));
+                        const emitted = emitNormalizedToken(ranges, embed);
+                        if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                        parts.push(emitted.token);
                         continue;
                     }
                 }
@@ -3258,7 +3281,9 @@
                     const ranges = resolveChapterRelativeRanges(
                         inner, ctx.firstVerseId, ctx.verseCount);
                     if (ranges) {
-                        parts.push(serializeVToken(ranges));
+                        const emitted = emitNormalizedToken(ranges, embed);
+                        if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                        parts.push(emitted.token);
                         continue;
                     }
                 }
@@ -3274,17 +3299,25 @@
                     const parsed = await res.json();
                     if (parsed.valid) {
                         if (Array.isArray(parsed.ranges) && parsed.ranges.length) {
-                            parts.push(serializeVToken(parsed.ranges.map(r => ({
+                            const emitted = emitNormalizedToken(parsed.ranges.map(r => ({
                                 from: r.from, to: r.to
-                            }))));
+                            })), embed);
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                         if (parsed.v) {
-                            parts.push(`[v=${parsed.v}]`);
+                            const emitted = emitNormalizedToken(
+                                parseVToken(parsed.v), embed);
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                         if (parsed.verseId) {
-                            parts.push(serializeVToken([{ from: parsed.verseId, to: parsed.verseId }]));
+                            const emitted = emitNormalizedToken(
+                                [{ from: parsed.verseId, to: parsed.verseId }], embed);
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                     }
@@ -3295,7 +3328,7 @@
             }
         }
         parts.push(text.slice(last));
-        return parts.join('');
+        return { text: parts.join(''), error };
     }
 
     // ── Scope-relative note link grammar (mirrors ScopeRelativeLinkParser) ──
@@ -3721,8 +3754,26 @@
         } else {
             state.passages = [];
         }
+        syncPassageInsertEmbedCb();
         renderPassageInsertBrowse();
         elements.passageInsertSearch.focus();
+    }
+
+    function embedModeForTextarea(ta) {
+        if (ta === elements.noteTextarea) return !!state.verseNoteEmbedMode;
+        if (ta === elements.chapterNoteTextarea) return !!state.chapterNoteEmbedMode;
+        return false;
+    }
+
+    function setEmbedModeForTextarea(ta, on) {
+        if (ta === elements.noteTextarea) state.verseNoteEmbedMode = !!on;
+        else if (ta === elements.chapterNoteTextarea) state.chapterNoteEmbedMode = !!on;
+    }
+
+    function syncPassageInsertEmbedCb() {
+        if (elements.passageInsertEmbedCb) {
+            elements.passageInsertEmbedCb.checked = embedModeForTextarea(state.passageInsertTarget);
+        }
     }
 
     function closePassageInsertPicker() {
@@ -4068,10 +4119,19 @@
             count === 0 ? '0 verses selected' :
             count === 1 ? '1 verse selected' :
             `${count} verses selected`;
-        elements.passageInsertConfirm.disabled = count === 0 || count > PASSAGE_INSERT_MAX_VERSES;
+        const embedCap = window.KjvNoteLinks ? window.KjvNoteLinks.EMBED_VERSE_CAP : 12;
+        const embedOver = embedModeForTextarea(state.passageInsertTarget)
+            && count > embedCap;
+        elements.passageInsertConfirm.disabled =
+            count === 0 || count > PASSAGE_INSERT_MAX_VERSES || embedOver;
         if (count > PASSAGE_INSERT_MAX_VERSES) {
             elements.passageInsertExpandCount.textContent =
                 `Too many verses (max ${PASSAGE_INSERT_MAX_VERSES})`;
+        } else if (embedOver) {
+            elements.passageInsertExpandCount.textContent =
+                window.KjvNoteLinks
+                    ? window.KjvNoteLinks.embedCapMessage(count)
+                    : `Quoted scripture is limited to ${embedCap} verses (this reference is ${count}).`;
         }
         syncPassageInsertSaveAvailability(checked);
     }
@@ -4150,7 +4210,17 @@
         if (!ta) return false;
         let token;
         try {
-            token = serializeVToken(rangesFromNaturalKey(naturalKey));
+            if (window.KjvNoteLinks) {
+                const emitted = window.KjvNoteLinks.tokenFromNaturalKey(
+                    naturalKey, embedModeForTextarea(ta));
+                if (!emitted.ok) {
+                    showToast(emitted.error);
+                    return false;
+                }
+                token = emitted.token;
+            } else {
+                token = serializeVToken(rangesFromNaturalKey(naturalKey));
+            }
         } catch (err) {
             console.error(err);
             showToast('Could not insert scripture link');
@@ -4158,19 +4228,13 @@
         }
         const start = ta.selectionStart ?? ta.value.length;
         const end = ta.selectionEnd ?? start;
-        const before = ta.value.slice(0, start);
-        const after = ta.value.slice(end);
-        const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
-        const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
-        const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
-        const next = before + insert + after;
+        const { next, caret } = window.KjvNoteLinks.applyTokenInsert(ta.value, start, end, token);
         const maxLen = parseInt(ta.getAttribute('maxlength'), 10);
         if (Number.isFinite(maxLen) && next.length > maxLen) {
             showToast(`Not enough room for that link (${maxLen} char limit)`);
             return false;
         }
         ta.value = next;
-        const caret = before.length + insert.length;
         ta.focus();
         ta.setSelectionRange(caret, caret);
         ta.dispatchEvent(new Event('input'));
@@ -5635,6 +5699,7 @@
             }
             : null;
         state.noteEditorOpen = true;
+        state.verseNoteEmbedMode = false;
         showNoteDock('verse');
 
         // Set verse reference
@@ -5729,7 +5794,12 @@
         try {
             try {
                 const ctx = await getRenderCtxForVerse(verseId);
-                note = await normalizeNoteLinksOnSave(note, ctx);
+                const normalized = await normalizeNoteLinksOnSave(note, ctx, state.verseNoteEmbedMode);
+                if (normalized.error) {
+                    showToast(normalized.error);
+                    return;
+                }
+                note = normalized.text;
                 elements.noteTextarea.value = note;
                 updateNoteCharCount();
                 if (note.length > VERSE_NOTE_LIMIT) {
@@ -5933,6 +6003,7 @@
     function finishOpenChapterNoteEditor(ref) {
         state.chapterNoteEditorTarget = ref;
         state.chapterNoteEditorOpen = true;
+        state.chapterNoteEmbedMode = false;
         showNoteDock('chapter');
         elements.chapterNoteRef.textContent = ref.label;
 
@@ -6010,7 +6081,13 @@
         const limit = NOTE_LIMITS[ref.type] || NOTE_LIMITS.chapter;
         try {
             setChapterNoteDockBusy(true);
-            note = await normalizeNoteLinksOnSave(note, await resolveNormalizeCtx(ref));
+            const normalized = await normalizeNoteLinksOnSave(
+                note, await resolveNormalizeCtx(ref), state.chapterNoteEmbedMode);
+            if (normalized.error) {
+                showToast(normalized.error);
+                return;
+            }
+            note = normalized.text;
             elements.chapterNoteTextarea.value = note;
             updateChapterNoteCharCount();
             if (note.length > limit) {
@@ -6978,6 +7055,13 @@
             }
             if (elements.passageInsertSaveCb) {
                 elements.passageInsertSaveCb.addEventListener('change', syncPassageInsertSaveTitleEnabled);
+            }
+            if (elements.passageInsertEmbedCb) {
+                elements.passageInsertEmbedCb.addEventListener('change', () => {
+                    setEmbedModeForTextarea(
+                        state.passageInsertTarget, elements.passageInsertEmbedCb.checked);
+                    if (state.passageInsertMode === 'expand') updatePassageInsertExpandSelection();
+                });
             }
         }
 

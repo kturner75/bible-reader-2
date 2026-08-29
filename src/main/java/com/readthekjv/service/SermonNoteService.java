@@ -41,6 +41,7 @@ public class SermonNoteService {
         SermonNote n = new SermonNote();
         n.setUser(userRepository.getReferenceById(userId));
         n.setTitle(title.trim());
+        NoteEmbedCap.require(note);
         n.setNote(note.trim());
         return SermonNoteResponse.from(sermonNoteRepository.save(n));
     }
@@ -48,6 +49,7 @@ public class SermonNoteService {
     public SermonNoteResponse update(Long userId, UUID id, String title, String note) {
         SermonNote n = findOwned(userId, id);
         n.setTitle(title.trim());
+        NoteEmbedCap.require(note);
         n.setNote(note.trim());
         return SermonNoteResponse.from(sermonNoteRepository.save(n));
     }

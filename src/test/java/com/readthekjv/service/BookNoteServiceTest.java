@@ -80,6 +80,18 @@ class BookNoteServiceTest {
     }
 
     @Test
+    void upsertRefusesPastedEmbedOverTwelveAndDoesNotSave() {
+        when(bookNoteRepository.findByUserIdAndBookId(USER_ID, 1))
+            .thenReturn(Optional.empty());
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+            () -> service.upsertNote(USER_ID, 1, "See [e=1-13]"));
+        assertTrue(ex.getMessage().contains("12"));
+        assertTrue(ex.getMessage().contains("13"));
+        verify(bookNoteRepository, never()).save(any());
+    }
+
+    @Test
     void upsertRejectsInvalidBookId() {
         assertThrows(BadRequestException.class,
             () -> service.upsertNote(USER_ID, 99, "note"));

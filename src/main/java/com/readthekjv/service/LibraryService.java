@@ -81,6 +81,7 @@ public class LibraryService {
         SavedVerse sv = savedVerseRepository.findByUserIdAndVerseId(userId, verseId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Verse not in library"));
+        NoteEmbedCap.require(note);
         sv.setNote(note);
         savedVerseRepository.save(sv);
         sv.getSavedVerseTags().size(); // init lazy collection for response mapping

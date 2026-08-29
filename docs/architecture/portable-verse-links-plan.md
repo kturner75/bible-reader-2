@@ -114,6 +114,7 @@ Hints: links display as references; Insert persists portable form.
 5. ~~Acceptance tests / checklist~~  
 6. ~~Scope-relative multi-verse input (`[1-11]`, lists, book `[3:1-11]`) + `ScopeRelativeLinkParser`~~  
 7. ~~Absolute multi-verse typed refs (`[John 3:16-18]`)~~  
+8. ~~Embed quoted scripture `[e=…]` — same grammar, ids only, 12-verse write cap~~  
 
 ### Manual smoke checklist
 

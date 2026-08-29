@@ -1821,6 +1821,10 @@ body.note-dock-resizing {
     color: var(--color-text);
 }
 
+.passage-insert-embed {
+    margin: 0 1.5rem 0.65rem;
+}
+
 .passage-insert-tab.active {
     color: var(--color-text);
     border-bottom-color: var(--color-link);

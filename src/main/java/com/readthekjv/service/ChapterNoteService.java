@@ -46,6 +46,7 @@ public class ChapterNoteService {
                     n.setChapter(chapter);
                     return n;
                 });
+        NoteEmbedCap.require(note);
         entity.setNote(note.trim());
         return toResponse(chapterNoteRepository.save(entity));
     }

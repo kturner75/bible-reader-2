@@ -42,6 +42,7 @@
     let savingNote = false;
     let saveWriteDispatched = false; // true once POST/PUT has been sent
     let allowUnload = false;
+    let embedMode = false; // one flag per open note editor; Insert checkbox is this flag
 
     function isEditorDirty() {
         if (editorMode !== 'edit') return false;
@@ -151,42 +152,11 @@
         return title || p.reference || 'Passage';
     }
 
-    function rangesFromNaturalKey(naturalKey) {
-        const ranges = [];
-        for (const part of String(naturalKey).split(',')) {
-            const p = part.trim();
-            if (p.includes(':')) {
-                const [a, b] = p.split(':', 2).map(x => parseInt(x.trim(), 10));
-                ranges.push({ from: Math.min(a, b), to: Math.max(a, b) });
-            } else {
-                const v = parseInt(p, 10);
-                ranges.push({ from: v, to: v });
-            }
-        }
-        ranges.sort((a, b) => a.from - b.from);
-        const merged = [];
-        let cur = ranges[0];
-        for (let i = 1; i < ranges.length; i++) {
-            const next = ranges[i];
-            if (next.from <= cur.to + 1) cur = { from: cur.from, to: Math.max(cur.to, next.to) };
-            else { merged.push(cur); cur = next; }
-        }
-        if (cur) merged.push(cur);
-        return merged;
-    }
-
-    function serializeVBody(ranges) {
-        return ranges.map(r => r.from === r.to ? String(r.from) : `${r.from}-${r.to}`).join(',');
-    }
-
-    function serializeVToken(ranges) {
-        return `[v=${serializeVBody(ranges)}]`;
-    }
-
     function findPassageByVBody(body) {
         return passages.find(p => {
             try {
-                return serializeVBody(rangesFromNaturalKey(p.naturalKey)) === body;
+                return window.KjvNoteLinks.serializeRangeBody(
+                    window.KjvNoteLinks.rangesFromNaturalKey(p.naturalKey)) === body;
             } catch { return false; }
         });
     }
@@ -197,6 +167,7 @@
         html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
         html = html.replace(/\[([^\]]+)\]/g, (match, ref) => {
             const trimmed = ref.trim();
+            if (/^e=/i.test(trimmed)) return match;
             const vTok = trimmed.match(/^v=(.+)$/i);
             if (vTok) {
                 const body = vTok[1].replace(/\s/g, '');
@@ -254,7 +225,13 @@
                 flushParagraph();
                 closeList();
                 const level = heading[1].length;
-                out.push(`<h${level + 3}>${renderNoteInline(heading[2])}</h${level + 3}>`);
+                const rest = heading[2];
+                if (window.KjvNoteLinks && /\[e=/i.test(rest)) {
+                    out.push(window.KjvNoteLinks.renderHeadingWithEmbeds(
+                        rest, frag => renderNoteInline(frag), 'h' + (level + 3)));
+                } else {
+                    out.push(`<h${level + 3}>${renderNoteInline(rest)}</h${level + 3}>`);
+                }
             } else if (bullet || numbered) {
                 flushParagraph();
                 const type = bullet ? 'ul' : 'ol';
@@ -263,7 +240,18 @@
                     out.push(`<${type}>`);
                     list = type;
                 }
-                out.push(`<li>${renderNoteInline((bullet || numbered)[1])}</li>`);
+                const item = (bullet || numbered)[1];
+                if (window.KjvNoteLinks && /\[e=/i.test(item)) {
+                    out.push(window.KjvNoteLinks.renderListItemWithEmbeds(
+                        item, frag => renderNoteInline(frag)));
+                } else {
+                    out.push(`<li>${renderNoteInline(item)}</li>`);
+                }
+            } else if (window.KjvNoteLinks && /\[e=/i.test(line)) {
+                flushParagraph();
+                closeList();
+                out.push(window.KjvNoteLinks.renderFlowWithEmbeds(
+                    line, frag => renderNoteInline(frag)));
             } else {
                 closeList();
                 paragraph.push(renderNoteInline(line));
@@ -306,6 +294,7 @@
         openNoteGen++;
         editorMode = null;
         editingNoteId = null;
+        embedMode = false;
         savedTitle = '';
         savedNoteText = '';
         paneEmpty.hidden = false;
@@ -319,17 +308,26 @@
         charCurrent.textContent = textarea.value.length;
     }
 
+    function emitNormalizedToken(ranges) {
+        return window.KjvNoteLinks.tokenFromRanges(ranges, embedMode);
+    }
+
     async function normalizeNoteLinksOnSave(text) {
-        if (!text) return text;
+        if (!text) return { text, error: null };
+        const pasted = window.KjvNoteLinks.refuseOversizedEmbeds(text);
+        if (!pasted.ok) return { text, error: pasted.error };
         const re = /\[([^\]]+)\]/g;
         const parts = [];
         let last = 0;
         let m;
+        let error = null;
         while ((m = re.exec(text)) !== null) {
             parts.push(text.slice(last, m.index));
             const inner = m[1].trim();
             last = m.index + m[0].length;
-            if (/^v=/i.test(inner) || /^pid=\d+$/i.test(inner)
+            if ((window.KjvNoteLinks && window.KjvNoteLinks.isStoredPointerInner(inner))
+                || /^v=/i.test(inner) || /^e=/i.test(inner)
+                || /^pid=\d+$/i.test(inner)
                 || /^passage=[0-9a-f-]{36}$/i.test(inner) || /^\d+$/.test(inner)) {
                 parts.push(m[0]);
                 continue;
@@ -340,17 +338,27 @@
                     const parsed = await res.json();
                     if (parsed.valid) {
                         if (Array.isArray(parsed.ranges) && parsed.ranges.length) {
-                            parts.push(serializeVToken(parsed.ranges.map(r => ({
+                            const emitted = emitNormalizedToken(parsed.ranges.map(r => ({
                                 from: r.from, to: r.to
-                            }))));
+                            })));
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                         if (parsed.v) {
-                            parts.push(`[v=${parsed.v}]`);
+                            const emitted = emitNormalizedToken(
+                                window.KjvNoteLinks
+                                    ? window.KjvNoteLinks.parseToken(parsed.v).ranges
+                                    : [{ from: parseInt(parsed.v, 10), to: parseInt(parsed.v, 10) }]);
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                         if (parsed.verseId) {
-                            parts.push(serializeVToken([{ from: parsed.verseId, to: parsed.verseId }]));
+                            const emitted = emitNormalizedToken(
+                                [{ from: parsed.verseId, to: parsed.verseId }]);
+                            if (!emitted.ok) { error = emitted.error; parts.push(m[0]); continue; }
+                            parts.push(emitted.token);
                             continue;
                         }
                     }
@@ -359,21 +367,57 @@
             parts.push(m[0]);
         }
         parts.push(text.slice(last));
-        return parts.join('');
+        return { text: parts.join(''), error };
+    }
+
+    async function hydrateNoteEmbeds(root) {
+        if (!root || !window.KjvNoteLinks) return;
+        for (const el of root.querySelectorAll('.note-scripture-embed[data-v]')) {
+            if (el.dataset.embedReady) continue;
+            try {
+                const res = await fetch(`/api/ranges?v=${encodeURIComponent(el.dataset.v)}`);
+                if (!res.ok) continue;
+                const data = await res.json();
+                window.KjvNoteLinks.applyEmbedHydration(el, data);
+                el.dataset.embedReady = '1';
+            } catch (_) { /* leave placeholder */ }
+        }
     }
 
     async function hydrateRangeLinkLabels(root) {
         if (!root) return;
+        await hydrateNoteEmbeds(root);
         for (const link of root.querySelectorAll('.note-range-link[data-v]')) {
+            const embedCite = !!link.closest('.note-scripture-embed');
             const body = link.dataset.v;
+            if (embedCite) {
+                if (link.dataset.labelReady) continue;
+                try {
+                    const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                        embedCite: true, reference: data.reference, body
+                    });
+                    link.dataset.labelReady = '1';
+                } catch (_) { /* ignore */ }
+                continue;
+            }
             const p = findPassageByVBody(body);
-            if (p) { link.textContent = passageDisplayLabel(p); continue; }
+            if (p) {
+                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                    embedCite: false, passageTitle: passageDisplayLabel(p), body
+                });
+                continue;
+            }
             if (link.dataset.labelReady) continue;
             try {
                 const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
                 if (!res.ok) continue;
                 const data = await res.json();
-                link.textContent = data.reference || body;
+                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
+                    embedCite: false, reference: data.reference, body
+                });
                 link.dataset.labelReady = '1';
             } catch (_) { /* ignore */ }
         }
@@ -434,6 +478,7 @@
             const note = await res.json();
             if (gen !== openNoteGen) return;
             editingNoteId = note.id;
+            embedMode = false;
             savedTitle = note.title;
             savedNoteText = note.note;
             modalTitle.textContent = 'Edit Note';
@@ -453,6 +498,7 @@
         openNoteGen++; // invalidate any in-flight open/save
         if (savingNote) unlockEditorInputs();
         editingNoteId = null;
+        embedMode = false;
         savedTitle = '';
         savedNoteText = '';
         modalTitle.textContent = 'New Note';
@@ -529,8 +575,13 @@
             insertOverlayEl.hidden = true;
         }
         try {
-            note = await normalizeNoteLinksOnSave(note);
+            const normalized = await normalizeNoteLinksOnSave(note);
             if (saveGen !== openNoteGen) return; // user switched notes mid-save
+            if (normalized.error) {
+                showToast(normalized.error);
+                return;
+            }
+            note = normalized.text;
             textarea.value = note;
             updateCharCount();
             const maxLen = parseInt(textarea.getAttribute('maxlength'), 10) || 20000;
@@ -647,6 +698,7 @@
     const insertChapters = document.getElementById('passage-insert-chapters');
     const insertSave = document.getElementById('passage-insert-save');
     const insertSaveCb = document.getElementById('passage-insert-save-cb');
+    const insertEmbedCb = document.getElementById('passage-insert-embed-cb');
     const insertTitle = document.getElementById('passage-insert-title');
     const insertConfirm = document.getElementById('passage-insert-confirm');
     const insertBtn = document.getElementById('sermon-note-insert-passage-btn');
@@ -713,7 +765,12 @@
         }
         let token;
         try {
-            token = serializeVToken(rangesFromNaturalKey(naturalKey));
+            const emitted = window.KjvNoteLinks.tokenFromNaturalKey(naturalKey, embedMode);
+            if (!emitted.ok) {
+                showToast(emitted.error);
+                return false;
+            }
+            token = emitted.token;
         } catch (err) {
             console.error(err);
             showToast('Could not insert scripture link');
@@ -721,19 +778,14 @@
         }
         const start = textarea.selectionStart ?? textarea.value.length;
         const end = textarea.selectionEnd ?? start;
-        const before = textarea.value.slice(0, start);
-        const after = textarea.value.slice(end);
-        const needsSpaceBefore = before.length > 0 && !/\s$/.test(before);
-        const needsSpaceAfter = after.length > 0 && !/^\s/.test(after);
-        const insert = (needsSpaceBefore ? ' ' : '') + token + (needsSpaceAfter ? ' ' : '');
-        const next = before + insert + after;
+        const { next, caret } = window.KjvNoteLinks.applyTokenInsert(
+            textarea.value, start, end, token);
         const maxLen = parseInt(textarea.getAttribute('maxlength'), 10);
         if (Number.isFinite(maxLen) && next.length > maxLen) {
             showToast(`Not enough room for that link (${maxLen} char limit)`);
             return false;
         }
         textarea.value = next;
-        const caret = before.length + insert.length;
         textarea.focus();
         textarea.setSelectionRange(caret, caret);
         updateCharCount();
@@ -1003,9 +1055,15 @@
             count === 0 ? '0 verses selected' :
             count === 1 ? '1 verse selected' :
             `${count} verses selected`;
-        insertConfirm.disabled = count === 0 || count > INSERT_MAX_VERSES;
+        const embedCap = window.KjvNoteLinks ? window.KjvNoteLinks.EMBED_VERSE_CAP : 12;
+        const embedOver = embedMode && count > embedCap;
+        insertConfirm.disabled = count === 0 || count > INSERT_MAX_VERSES || embedOver;
         if (count > INSERT_MAX_VERSES) {
             insertExpandCount.textContent = `Too many verses (max ${INSERT_MAX_VERSES})`;
+        } else if (embedOver) {
+            insertExpandCount.textContent = window.KjvNoteLinks
+                ? window.KjvNoteLinks.embedCapMessage(count)
+                : `Quoted scripture is limited to ${embedCap} verses (this reference is ${count}).`;
         }
         syncInsertSaveAvailability(checked);
     }
@@ -1098,6 +1156,7 @@
             insertTab = 'verses';
             insertMode = 'browse';
             insertSearch.value = '';
+            if (insertEmbedCb) insertEmbedCb.checked = embedMode;
             syncInsertTabs();
             showInsertBrowse();
             renderInsertBrowse();
@@ -1129,6 +1188,12 @@
         }
         if (insertSaveCb) {
             insertSaveCb.addEventListener('change', syncInsertSaveTitleEnabled);
+        }
+        if (insertEmbedCb) {
+            insertEmbedCb.addEventListener('change', () => {
+                embedMode = insertEmbedCb.checked;
+                if (insertMode === 'expand') updateInsertExpandSelection();
+            });
         }
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape' || insertOverlay.hidden) return;

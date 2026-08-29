@@ -44,6 +44,7 @@ public class BookNoteService {
                     n.setBookId(bookId);
                     return n;
                 });
+        NoteEmbedCap.require(note);
         entity.setNote(note.trim());
         return toResponse(bookNoteRepository.save(entity));
     }
