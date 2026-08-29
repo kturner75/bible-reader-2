@@ -247,7 +247,7 @@ Suggested framing in UI:
 
 | Concern | Preference |
 |---------|------------|
-| Note body | `[v=…]` |
+| Note body | `[v=…]` (range link) or `[e=…]` (quoted embed — same grammar, verse ids in the body, quoted block + human ref) |
 | Collection membership | `passage_id` UUID FK |
 | Passage CRUD | UUID in paths OK |
 | Focused read by entity | `/read/passage/{uuid}` OK |
