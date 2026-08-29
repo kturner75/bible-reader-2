@@ -48,12 +48,19 @@
         return true;
     }
 
+    /** Markup both the linear header path and the scoped column path emit. */
+    function omissionGapHtml(prevVerse, verse, col) {
+        if (!shouldInsertOmissionGap(prevVerse, verse, col)) return '';
+        return '<div class="verse-range-gap" role="separator" aria-label="Omitted verses"></div>';
+    }
+
     const api = {
         isVerseRangeSkip,
         isCollectionMemberStart,
         scopedPredecessor,
         predecessorForRender,
-        shouldInsertOmissionGap
+        shouldInsertOmissionGap,
+        omissionGapHtml
     };
 
     if (typeof module !== 'undefined' && module.exports) {

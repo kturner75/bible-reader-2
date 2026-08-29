@@ -103,3 +103,28 @@ test('range kind does not treat passageStarts[0] as a reason to drop later skips
     assert.equal(gap.isCollectionMemberStart(col, page[0]), false);
     assert.equal(gap.shouldInsertOmissionGap(prev, page[0], col), true);
 });
+
+const GAP_MARKUP = /class="verse-range-gap"[^>]*aria-label="Omitted verses"/;
+
+test('linear header path: skip emits the same omission markup as the column path', () => {
+    const linear = gap.omissionGapHtml(verse(29349), verse(29351), null);
+    const column = gap.omissionGapHtml(verse(29349), verse(29351), rangeCol([29349, 29351]));
+    assert.match(linear, GAP_MARKUP);
+    assert.equal(linear, column);
+    assert.equal(gap.omissionGapHtml(verse(100), verse(101), null), '');
+    assert.equal(gap.omissionGapHtml(null, verse(29348, 0), null), '');
+});
+
+test('linear header path: collection member start does not emit Omitted verses', () => {
+    const col = collectionCol([[10, 11], [50, 51]]);
+    const html = gap.omissionGapHtml(col.verses[1], col.verses[2], col);
+    assert.equal(html, '');
+    assert.equal(gap.shouldInsertOmissionGap(col.verses[1], col.verses[2], col), false);
+});
+
+test('linear header path: in-passage skip still emits Omitted verses', () => {
+    const col = collectionCol([[10, 11, 13, 14]]);
+    const html = gap.omissionGapHtml(col.verses[1], col.verses[2], col);
+    assert.match(html, GAP_MARKUP);
+    assert.equal(gap.shouldInsertOmissionGap(col.verses[1], col.verses[2], col), true);
+});

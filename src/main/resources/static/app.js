@@ -901,15 +901,6 @@
         `;
     }
 
-    /** Column-local omitted-verse cue. Empty visual; not a full-page rule. */
-    function createVerseRangeGapHTML() {
-        return '<div class="verse-range-gap" role="separator" aria-label="Omitted verses"></div>';
-    }
-
-    function isVerseRangeSkip(prevVerse, verse) {
-        return window.KjvVerseRangeGap.isVerseRangeSkip(prevVerse, verse);
-    }
-
     /**
      * Create HTML for a verse, optionally preceded by a chapter header.
      * Includes chapter header if the verse is the first verse of a chapter.
@@ -917,11 +908,11 @@
     function createVerseWithHeaderHTML(verse, isCurrent, prevVerse) {
         let html = '';
 
-        // First verse has no predecessor — never a gap. id+1 across a chapter
-        // is consecutive, so a chapter header stays the only cue.
-        if (isVerseRangeSkip(prevVerse, verse)) {
-            html += createVerseRangeGapHTML();
-        }
+        // Same skip/suppress rules as the scoped column path. Linear reading
+        // passes collection=null (consecutive ids, no gap). If this header
+        // path ever sees a collection member start, the passage heading is
+        // the cue — do not emit "Omitted verses."
+        html += window.KjvVerseRangeGap.omissionGapHtml(prevVerse, verse, state.collection);
         
         // Add chapter header if this is the first verse of a chapter
         // (verse number is 1, or this is a different chapter than the previous verse)
@@ -1000,9 +991,7 @@
         for (let i = 0; i < verses.length; i++) {
             const verse = verses[i];
             const prev = gap.predecessorForRender(col, verses, i);
-            if (gap.shouldInsertOmissionGap(prev, verse, col)) {
-                html += createVerseRangeGapHTML();
-            }
+            html += gap.omissionGapHtml(prev, verse, col);
             if (col.passageRefs[verse._ci] !== undefined) {
                 html += createPassageHeaderHTML(col.passageRefs[verse._ci]);
             }
