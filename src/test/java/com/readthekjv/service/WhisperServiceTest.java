@@ -15,6 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WhisperServiceTest {
@@ -92,6 +94,38 @@ class WhisperServiceTest {
         assertEquals("Bearer xai-key", capturedRequest().headers().firstValue("Authorization").orElseThrow());
     }
 
+    @Test
+    void transcribe_xai401_invalidatesAndRetriesWithRefreshedToken() throws Exception {
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("dead-oauth"))
+                .thenReturn(Optional.of("fresh-oauth"));
+        stubHttpSequence(401, "{\"error\":\"invalid token\"}", 200, "{\"text\":\"recovered\"}");
+
+        String text = service.transcribe("audio".getBytes(StandardCharsets.UTF_8), "audio/webm", "hint");
+
+        assertEquals("recovered", text);
+        verify(oauth).invalidate();
+        var sent = capturedRequests(2);
+        assertEquals("Bearer dead-oauth", sent.get(0).headers().firstValue("Authorization").orElseThrow());
+        assertEquals("Bearer fresh-oauth", sent.get(1).headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void transcribe_xai401_invalidatesAndRetriesWithApiKeyWhenRefreshEmpty() throws Exception {
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("dead-oauth"))
+                .thenReturn(Optional.empty());
+        stubHttpSequence(401, "{\"error\":\"invalid token\"}", 200, "{\"text\":\"recovered\"}");
+
+        String text = service.transcribe("audio".getBytes(StandardCharsets.UTF_8), "audio/webm", "hint");
+
+        assertEquals("recovered", text);
+        verify(oauth).invalidate();
+        var sent = capturedRequests(2);
+        assertEquals("Bearer dead-oauth", sent.get(0).headers().firstValue("Authorization").orElseThrow());
+        assertEquals("Bearer xai-key", sent.get(1).headers().firstValue("Authorization").orElseThrow());
+    }
+
     @SuppressWarnings("unchecked")
     private void stubHttp(int status, String body) throws Exception {
         HttpResponse<String> response = mock(HttpResponse.class);
@@ -101,9 +135,25 @@ class WhisperServiceTest {
                 .thenReturn(response);
     }
 
+    @SuppressWarnings("unchecked")
+    private void stubHttpSequence(int status1, String body1, int status2, String body2) throws Exception {
+        HttpResponse<String> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(status1);
+        when(first.body()).thenReturn(body1);
+        HttpResponse<String> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(status2);
+        when(second.body()).thenReturn(body2);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(first, second);
+    }
+
     private HttpRequest capturedRequest() throws Exception {
+        return capturedRequests(1).get(0);
+    }
+
+    private java.util.List<HttpRequest> capturedRequests(int expected) throws Exception {
         var cap = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
-        org.mockito.Mockito.verify(httpClient).send(cap.capture(), any());
-        return cap.getValue();
+        verify(httpClient, times(expected)).send(cap.capture(), any());
+        return cap.getAllValues();
     }
 }

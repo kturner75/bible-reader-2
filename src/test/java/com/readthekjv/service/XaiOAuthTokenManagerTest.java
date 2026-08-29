@@ -131,6 +131,22 @@ class XaiOAuthTokenManagerTest {
     }
 
     @Test
+    void defaultRefreshTokenFileIsOnDurableDataDir() throws Exception {
+        assertEquals("/data/xai-oauth-refresh-token", XaiOAuthTokenManager.DEFAULT_REFRESH_TOKEN_FILE);
+        Path defaultPath = Path.of(XaiOAuthTokenManager.DEFAULT_REFRESH_TOKEN_FILE);
+        assertTrue(defaultPath.isAbsolute(), defaultPath.toString());
+        assertEquals(Path.of("/data"), defaultPath.getParent());
+
+        var props = new java.util.Properties();
+        try (var in = getClass().getResourceAsStream("/application.properties")) {
+            props.load(in);
+        }
+        String configured = props.getProperty("ai.xai.oauth.refresh-token-file");
+        assertEquals(XaiOAuthTokenManager.DEFAULT_REFRESH_TOKEN_FILE, configured);
+        assertFalse(configured.startsWith("./"), configured);
+    }
+
+    @Test
     void getAccessToken_afterFailure_respectsCooldownBeforeRetrying() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         XaiOAuthTokenManager manager = manager("refresh-token", true, countingHttpClient(calls, 400, errorResponse()));

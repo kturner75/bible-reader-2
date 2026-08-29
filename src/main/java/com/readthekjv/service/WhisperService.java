@@ -110,6 +110,39 @@ public class WhisperService {
         return resolvedKey();
     }
 
+    private boolean wasOAuthBearer(String bearer) {
+        if (!isXai() || xaiOAuthTokenManager == null || bearer == null || bearer.isBlank()) {
+            return false;
+        }
+        String key = resolvedKey();
+        return key == null || key.isBlank() || !bearer.equals(key);
+    }
+
+    /** After invalidate(): a fresh access token if it differs, else the API key. */
+    private String retryXaiBearer(String rejectedBearer) {
+        var refreshed = xaiOAuthTokenManager.getAccessToken();
+        if (refreshed.isPresent() && !refreshed.get().isBlank() && !refreshed.get().equals(rejectedBearer)) {
+            return refreshed.get();
+        }
+        String key = resolvedKey();
+        if (key != null && !key.isBlank() && !key.equals(rejectedBearer)) {
+            return key;
+        }
+        return null;
+    }
+
+    private HttpResponse<String> sendStt(byte[] body, String boundary, String bearer)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(resolvedUrl()))
+                .header("Authorization", "Bearer " + bearer)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                .timeout(Duration.ofSeconds(120)) // STT is slower than TTS
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
     public String transcribe(byte[] audioBytes, String contentType, String hint)
             throws IOException, InterruptedException {
 
@@ -123,15 +156,15 @@ public class WhisperService {
 
         log.debug("STT provider={} url={}", provider, resolvedUrl());
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(resolvedUrl()))
-                .header("Authorization", "Bearer " + bearer)
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(body))
-                .timeout(Duration.ofSeconds(120)) // STT is slower than TTS
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = sendStt(body, boundary, bearer);
+        if (isXai() && response.statusCode() == 401 && wasOAuthBearer(bearer)) {
+            xaiOAuthTokenManager.invalidate();
+            String retryBearer = retryXaiBearer(bearer);
+            if (retryBearer != null) {
+                log.warn("event=xai_oauth_rejected retrying_stt");
+                response = sendStt(body, boundary, retryBearer);
+            }
+        }
 
         if (response.statusCode() != 200) {
             log.error("Whisper API error: {} — {}", response.statusCode(), response.body());

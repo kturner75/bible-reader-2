@@ -66,6 +66,13 @@ public class XaiOAuthTokenManager {
     // If a refresh attempt fails, don't hammer the endpoint on every subsequent call.
     private static final Duration FAILURE_COOLDOWN = Duration.ofMinutes(1);
 
+    /**
+     * Production default: absolute path on the durable {@code /data} volume,
+     * not {@code ./data} under the container working directory (that dies on
+     * redeploy after the seed refresh token has already been rotated).
+     */
+    public static final String DEFAULT_REFRESH_TOKEN_FILE = "/data/xai-oauth-refresh-token";
+
     private record CachedToken(String accessToken, Instant expiresAt) {
     }
 
@@ -90,7 +97,7 @@ public class XaiOAuthTokenManager {
     public XaiOAuthTokenManager(
             @Value("${ai.xai.oauth.refresh-token:}") String refreshToken,
             @Value("${ai.xai.oauth.enabled:true}") boolean enabled,
-            @Value("${ai.xai.oauth.refresh-token-file:./data/xai-oauth-refresh-token}") String refreshTokenFilePath) {
+            @Value("${ai.xai.oauth.refresh-token-file:" + DEFAULT_REFRESH_TOKEN_FILE + "}") String refreshTokenFilePath) {
         this.enabled = enabled;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))

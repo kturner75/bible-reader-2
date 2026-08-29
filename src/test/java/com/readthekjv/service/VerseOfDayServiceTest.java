@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -229,6 +230,50 @@ class VerseOfDayServiceTest {
         verify(repository, never()).save(any());
     }
 
+    @Test
+    void generateForDate_xai401_invalidatesAndRetriesWithRefreshedToken() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("dead-oauth"))
+                .thenReturn(Optional.of("fresh-oauth"));
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "xai-secret", "");
+        stubHttpSequence(401, "{\"error\":\"invalid token\"}",
+                200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        service.generateForDate(DATE);
+
+        verify(oauth).invalidate();
+        var sent = capturedRequests(2);
+        assertEquals("Bearer dead-oauth", sent.get(0).headers().firstValue("Authorization").orElseThrow());
+        assertEquals("Bearer fresh-oauth", sent.get(1).headers().firstValue("Authorization").orElseThrow());
+        verify(repository).save(any());
+    }
+
+    @Test
+    void generateForDate_xai401_invalidatesAndRetriesWithApiKeyWhenRefreshEmpty() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("dead-oauth"))
+                .thenReturn(Optional.empty());
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "xai-secret", "");
+        stubHttpSequence(401, "{\"error\":\"invalid token\"}",
+                200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        service.generateForDate(DATE);
+
+        verify(oauth).invalidate();
+        var sent = capturedRequests(2);
+        assertEquals("Bearer dead-oauth", sent.get(0).headers().firstValue("Authorization").orElseThrow());
+        assertEquals("Bearer xai-secret", sent.get(1).headers().firstValue("Authorization").orElseThrow());
+        verify(repository).save(any());
+    }
+
     // ── Junk / error paths skip persist ───────────────────────────────────────
 
     @ParameterizedTest
@@ -327,10 +372,26 @@ class VerseOfDayServiceTest {
                 .thenReturn(response);
     }
 
+    @SuppressWarnings("unchecked")
+    private void stubHttpSequence(int status1, String body1, int status2, String body2) throws Exception {
+        HttpResponse<String> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(status1);
+        when(first.body()).thenReturn(body1);
+        HttpResponse<String> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(status2);
+        when(second.body()).thenReturn(body2);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(first, second);
+    }
+
     private HttpRequest capturedRequest() throws Exception {
+        return capturedRequests(1).get(0);
+    }
+
+    private java.util.List<HttpRequest> capturedRequests(int expected) throws Exception {
         ArgumentCaptor<HttpRequest> cap = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(httpClient).send(cap.capture(), any());
-        return cap.getValue();
+        verify(httpClient, times(expected)).send(cap.capture(), any());
+        return cap.getAllValues();
     }
 
     private static String chatEnvelope(String contentJson) throws Exception {
