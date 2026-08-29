@@ -481,6 +481,14 @@ a:hover { text-decoration: underline; }
 }
 .note-actions button.danger:hover { background: #a03e3e; color: white; }
 
+.note-actions button:disabled,
+.note-actions button:disabled:hover {
+    opacity: 0.45;
+    cursor: default;
+    background: white;
+    color: var(--color-text);
+}
+
 /* Rendered markdown-lite note view (shared with reader's note-editor markup) */
 .note-markdown {
     max-height: 50vh;
@@ -986,5 +994,104 @@ a:hover { text-decoration: underline; }
     }
     .notes-pane {
         min-height: 60vh;
+    }
+}
+
+/* ── Print: sermon-note VIEW only (browser print / Save as PDF) ── */
+@media print {
+    :root {
+        --color-bg: #fff;
+        --color-text: #000;
+        --color-text-muted: #222;
+        --color-header-bg: #fff;
+        --color-border: #000;
+        --color-link: #000;
+        --color-accent: #000;
+        --color-accent-light: transparent;
+    }
+
+    html, body {
+        background: #fff !important;
+        color: #000 !important;
+        font-family: 'EB Garamond', Georgia, 'Times New Roman', serif;
+        font-size: 12pt;
+        line-height: 1.55;
+        min-height: 0;
+        height: auto !important;
+        overflow: visible !important;
+        color-scheme: light;
+    }
+
+    .dash-nav,
+    .notes-sidebar,
+    .notes-pane-empty,
+    #sermon-note-edit,
+    #sermon-note-view-actions,
+    .note-actions,
+    .note-editor-overlay,
+    .toast {
+        display: none !important;
+    }
+
+    .notes-workspace,
+    .notes-pane,
+    #notes-pane,
+    #sermon-note-view:not([hidden]) {
+        display: block !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0;
+        padding: 0;
+        background: #fff !important;
+        color: #000 !important;
+        border: none;
+    }
+
+    .notes-pane-header {
+        display: block;
+        margin: 0 0 1rem;
+    }
+
+    .sermon-note-view-title {
+        color: #000 !important;
+        font-size: 18pt;
+        font-weight: 600;
+    }
+
+    #sermon-note-view-body.note-markdown,
+    .notes-pane .note-markdown {
+        display: block;
+        width: 100%;
+        max-height: none !important;
+        overflow: visible !important;
+        color: #000 !important;
+        font-family: 'EB Garamond', Georgia, 'Times New Roman', serif;
+    }
+
+    .note-markdown h4,
+    .note-markdown h5,
+    .note-markdown h6,
+    .note-markdown p,
+    .note-markdown li,
+    .note-markdown strong,
+    .note-markdown em {
+        color: #000 !important;
+    }
+
+    .note-verse-link,
+    .note-collection-link,
+    .note-passage-link,
+    .note-range-link {
+        color: #000 !important;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+    /* Failed / unhydrated [v=] cites still carry the raw verse-id body. */
+    .note-range-link[data-v]:not([data-label-ready="1"]) {
+        display: none !important;
     }
 }

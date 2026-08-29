@@ -1,4 +1,205 @@
-(async function () {
+/**
+ * /notes sermon-note Print helpers.
+ * Exported so Node tests can require this file without booting the page IIFE.
+ */
+(function (global) {
+    'use strict';
+
+    const TITLE_PRINT = 'Print';
+    const TITLE_LOADING = 'Quoted scripture is still loading';
+    const TITLE_UNAVAILABLE = 'Some quoted scripture could not be loaded';
+
+    function embedIsReady(el) {
+        if (!el || el.dataset.embedReady !== '1') return false;
+        const textEl = el.querySelector && el.querySelector('.note-scripture-embed-text');
+        return !!(textEl && String(textEl.textContent || '').trim());
+    }
+
+    function viewEmbedsPending(root) {
+        if (!root || !root.querySelectorAll) return false;
+        return [...root.querySelectorAll('.note-scripture-embed[data-v]')]
+            .some(el => !embedIsReady(el));
+    }
+
+    function isEmbedCite(el) {
+        return !!(el && el.closest && el.closest('.note-scripture-embed'));
+    }
+
+    function rangeLabelIsReady(el) {
+        return !!(el && el.dataset && el.dataset.labelReady === '1');
+    }
+
+    /** Ordinary [v=] links still showing a verse-id body after a failed hydrate. */
+    function viewRangeLabelsUnresolved(root) {
+        if (!root || !root.querySelectorAll) return false;
+        return [...root.querySelectorAll('.note-range-link[data-v]')]
+            .filter(el => !isEmbedCite(el))
+            .some(el => !rangeLabelIsReady(el));
+    }
+
+    /**
+     * Resolve or fail a range-link label. Failure leaves on-screen text
+     * and data-v intact so the reader can still see and click the cite;
+     * print CSS hides unresolved labels from the PDF.
+     */
+    function applyRangeLabelHydration(el, result) {
+        if (!el || !el.dataset) return;
+        if (result && result.ok) {
+            if (result.label) el.textContent = result.label;
+            el.dataset.labelReady = '1';
+            delete el.dataset.labelFailed;
+            return;
+        }
+        el.dataset.labelFailed = '1';
+        delete el.dataset.labelReady;
+    }
+
+    /** Stale runs must not mutate labels that a newer hydrate already resolved. */
+    function applyRangeLabelHydrationIfLive(el, result, startedRun, liveRun) {
+        if (!isLiveHydrationRun(startedRun, liveRun)) return false;
+        applyRangeLabelHydration(el, result);
+        return true;
+    }
+
+    function printButtonState({ inView, hydrationDone, embedsPending }) {
+        if (!inView) {
+            return { disabled: true, title: TITLE_PRINT };
+        }
+        // Wait for the current hydrate run — [v=] labels as well as [e=] embeds.
+        if (!hydrationDone) {
+            return { disabled: true, title: TITLE_LOADING };
+        }
+        return {
+            disabled: false,
+            title: embedsPending ? TITLE_UNAVAILABLE : TITLE_PRINT
+        };
+    }
+
+    function printHost(doc) {
+        if (doc && doc.defaultView) return doc.defaultView;
+        if (typeof window !== 'undefined') return window;
+        return null;
+    }
+
+    /** True when the tab can accept a title restore — print dialog is gone. */
+    function windowLooksUsable(doc, host) {
+        if (doc && (doc.hidden === true
+            || (doc.visibilityState && doc.visibilityState !== 'visible'))) {
+            return false;
+        }
+        if (host && typeof host.hasFocus === 'function' && !host.hasFocus()) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Set document.title for Save-as-PDF. Safari reads the title after
+     * print() returns, so restore on afterprint — not in a finally, and
+     * not on a wall-clock timer that can beat a long print dialog.
+     * If afterprint never fires, restore on focus/visibility once the
+     * window is usable again.
+     */
+    function runPrintWithTitle(doc, noteTitle, printFn) {
+        if (!doc) return;
+        const previousTitle = doc.title;
+        const next = String(noteTitle || '').trim();
+        if (next) doc.title = next;
+
+        const host = printHost(doc);
+        const bindings = [];
+        let restored = false;
+
+        const unbind = () => {
+            for (const [target, type, fn] of bindings) {
+                if (target && target.removeEventListener) {
+                    target.removeEventListener(type, fn);
+                }
+            }
+            bindings.length = 0;
+        };
+
+        const bind = (target, type, fn) => {
+            if (!target || !target.addEventListener) return;
+            target.addEventListener(type, fn);
+            bindings.push([target, type, fn]);
+        };
+
+        const restore = () => {
+            if (restored) return;
+            restored = true;
+            doc.title = previousTitle;
+            unbind();
+        };
+
+        const restoreWhenUsable = () => {
+            if (windowLooksUsable(doc, host)) restore();
+        };
+
+        bind(host, 'afterprint', restore);
+        bind(host, 'focus', restoreWhenUsable);
+        bind(host, 'pageshow', restoreWhenUsable);
+        bind(host, 'visibilitychange', restoreWhenUsable);
+        bind(doc, 'visibilitychange', restoreWhenUsable);
+
+        try {
+            printFn();
+        } catch (err) {
+            restore();
+            throw err;
+        }
+        return restore;
+    }
+
+    function startHydrationRun(live) {
+        return (live || 0) + 1;
+    }
+
+    function isLiveHydrationRun(started, live) {
+        return started === live;
+    }
+
+    /** Stale hydrate finishes must not mark the current body done. */
+    function printStateAfterHydrationFinish({
+        startedRun,
+        liveRun,
+        inView,
+        currentEmbedsPending,
+        alreadyDone
+    }) {
+        const live = isLiveHydrationRun(startedRun, liveRun);
+        return printButtonState({
+            inView,
+            hydrationDone: live ? true : !!alreadyDone,
+            embedsPending: currentEmbedsPending
+        });
+    }
+
+    const api = {
+        TITLE_PRINT,
+        TITLE_LOADING,
+        TITLE_UNAVAILABLE,
+        windowLooksUsable,
+        embedIsReady,
+        viewEmbedsPending,
+        rangeLabelIsReady,
+        viewRangeLabelsUnresolved,
+        applyRangeLabelHydration,
+        applyRangeLabelHydrationIfLive,
+        printButtonState,
+        runPrintWithTitle,
+        startHydrationRun,
+        isLiveHydrationRun,
+        printStateAfterHydrationFinish
+    };
+
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = api;
+    }
+    global.KjvNotePrint = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+if (typeof document !== 'undefined') (async function () {
     'use strict';
 
     // ── Utilities ────────────────────────────────────────────────────────────
@@ -43,6 +244,8 @@
     let saveWriteDispatched = false; // true once POST/PUT has been sent
     let allowUnload = false;
     let embedMode = false; // one flag per open note editor; Insert checkbox is this flag
+    let embedHydration = 'idle'; // 'idle' | 'pending' | 'done' — Print enablement
+    let viewHydrateRun = 0; // each view-body hydrate; stale runs must not mark done
 
     function isEditorDirty() {
         if (editorMode !== 'edit') return false;
@@ -272,7 +475,7 @@
     const viewSection   = document.getElementById('sermon-note-view');
     const viewTitle     = document.getElementById('sermon-note-view-title-text');
     const viewBody      = document.getElementById('sermon-note-view-body');
-    const viewActions   = document.getElementById('sermon-note-view-actions');
+    const printBtn      = document.getElementById('sermon-note-print-btn');
     const editSection   = document.getElementById('sermon-note-edit');
     const modalTitle    = document.getElementById('sermon-note-modal-title');
     const titleInput    = document.getElementById('sermon-note-title-input');
@@ -295,6 +498,8 @@
         editorMode = null;
         editingNoteId = null;
         embedMode = false;
+        embedHydration = 'idle';
+        viewHydrateRun = window.KjvNotePrint.startHydrationRun(viewHydrateRun);
         savedTitle = '';
         savedNoteText = '';
         paneEmpty.hidden = false;
@@ -302,6 +507,38 @@
         editSection.hidden = true;
         syncUrl();
         renderSermonNotesList();
+        syncPrintButton();
+    }
+
+    function viewEmbedsPending() {
+        return window.KjvNotePrint.viewEmbedsPending(viewBody)
+            || window.KjvNotePrint.viewRangeLabelsUnresolved(viewBody);
+    }
+
+    function currentPrintState() {
+        return window.KjvNotePrint.printButtonState({
+            inView: editorMode === 'view' && !viewSection.hidden,
+            hydrationDone: embedHydration === 'done',
+            embedsPending: viewEmbedsPending()
+        });
+    }
+
+    function syncPrintButton() {
+        if (!printBtn) return;
+        const state = currentPrintState();
+        printBtn.disabled = state.disabled;
+        printBtn.title = state.title;
+    }
+
+    function printOpenNote() {
+        if (!printBtn || printBtn.disabled || editorMode !== 'view') return;
+        const state = currentPrintState();
+        if (state.disabled) return;
+        window.KjvNotePrint.runPrintWithTitle(
+            document,
+            (viewTitle.textContent || '').trim(),
+            () => window.print()
+        );
     }
 
     function updateCharCount() {
@@ -386,40 +623,86 @@
 
     async function hydrateRangeLinkLabels(root) {
         if (!root) return;
+        const noteGen = openNoteGen;
+        const tracking = root === viewBody;
+        let run = 0;
+        if (tracking) {
+            viewHydrateRun = window.KjvNotePrint.startHydrationRun(viewHydrateRun);
+            run = viewHydrateRun;
+            embedHydration = 'pending';
+            syncPrintButton();
+        }
+        // Capture this run's nodes before any await so a later innerHTML
+        // replace cannot hand us the next note's links.
+        const links = [...root.querySelectorAll('.note-range-link[data-v]')];
         await hydrateNoteEmbeds(root);
-        for (const link of root.querySelectorAll('.note-range-link[data-v]')) {
+
+        const apply = (link, result) => {
+            if (noteGen !== openNoteGen) return false;
+            if (tracking) {
+                return window.KjvNotePrint.applyRangeLabelHydrationIfLive(
+                    link, result, run, viewHydrateRun);
+            }
+            window.KjvNotePrint.applyRangeLabelHydration(link, result);
+            return true;
+        };
+
+        for (const link of links) {
             const embedCite = !!link.closest('.note-scripture-embed');
             const body = link.dataset.v;
             if (embedCite) {
                 if (link.dataset.labelReady) continue;
                 try {
                     const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
-                    if (!res.ok) continue;
+                    if (!res.ok) {
+                        apply(link, { ok: false });
+                        continue;
+                    }
                     const data = await res.json();
-                    link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
-                        embedCite: true, reference: data.reference, body
+                    apply(link, {
+                        ok: true,
+                        label: window.KjvNoteLinks.rangeLinkDisplayLabel({
+                            embedCite: true, reference: data.reference, body
+                        })
                     });
-                    link.dataset.labelReady = '1';
-                } catch (_) { /* ignore */ }
+                } catch (_) {
+                    apply(link, { ok: false });
+                }
                 continue;
             }
             const p = findPassageByVBody(body);
             if (p) {
-                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
-                    embedCite: false, passageTitle: passageDisplayLabel(p), body
+                apply(link, {
+                    ok: true,
+                    label: window.KjvNoteLinks.rangeLinkDisplayLabel({
+                        embedCite: false, passageTitle: passageDisplayLabel(p), body
+                    })
                 });
                 continue;
             }
             if (link.dataset.labelReady) continue;
             try {
                 const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
-                if (!res.ok) continue;
+                if (!res.ok) {
+                    apply(link, { ok: false });
+                    continue;
+                }
                 const data = await res.json();
-                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
-                    embedCite: false, reference: data.reference, body
+                apply(link, {
+                    ok: true,
+                    label: window.KjvNoteLinks.rangeLinkDisplayLabel({
+                        embedCite: false, reference: data.reference, body
+                    })
                 });
-                link.dataset.labelReady = '1';
-            } catch (_) { /* ignore */ }
+            } catch (_) {
+                apply(link, { ok: false });
+            }
+        }
+        if (tracking
+            && noteGen === openNoteGen
+            && window.KjvNotePrint.isLiveHydrationRun(run, viewHydrateRun)) {
+            embedHydration = 'done';
+            syncPrintButton();
         }
     }
 
@@ -429,10 +712,13 @@
         if (mode === 'view') {
             viewSection.hidden = false;
             editSection.hidden = true;
+            embedHydration = 'pending';
+            syncPrintButton();
             hydrateRangeLinkLabels(viewBody);
         } else {
             viewSection.hidden = true;
             editSection.hidden = false;
+            syncPrintButton();
             titleInput.focus();
         }
         syncUrl();
@@ -664,6 +950,9 @@
         if (savingNote) return;
         setMode('edit');
     });
+    if (printBtn) {
+        printBtn.addEventListener('click', printOpenNote);
+    }
     document.getElementById('sermon-note-save-btn').addEventListener('click', saveSermonNote);
     document.getElementById('sermon-note-delete-btn').addEventListener('click', deleteSermonNote);
     document.getElementById('sermon-note-cancel-btn').addEventListener('click', () => {

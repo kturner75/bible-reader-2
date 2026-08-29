@@ -30,3 +30,33 @@
     font-style: normal;
     font-size: 0.9em;
 }
+
+@media print {
+    /* Ctrl+P / browser print skips the JS Print-button guard.
+       Unhydrated shells still have data-v and a numeric cite — hide them. */
+    .note-scripture-embed:not([data-embed-ready="1"]) {
+        display: none !important;
+    }
+
+    .note-scripture-embed {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        border-left: 3px solid #000;
+        background: transparent;
+        color: #000;
+        font-style: italic;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .note-scripture-embed-text,
+    .note-scripture-embed-verse,
+    .note-scripture-embed cite,
+    .note-scripture-embed cite a {
+        color: #000 !important;
+    }
+
+    .note-scripture-embed-verse sup {
+        color: #222;
+    }
+}
