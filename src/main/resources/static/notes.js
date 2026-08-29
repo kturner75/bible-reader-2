@@ -54,6 +54,13 @@
         delete el.dataset.labelReady;
     }
 
+    /** Stale runs must not mutate labels that a newer hydrate already resolved. */
+    function applyRangeLabelHydrationIfLive(el, result, startedRun, liveRun) {
+        if (!isLiveHydrationRun(startedRun, liveRun)) return false;
+        applyRangeLabelHydration(el, result);
+        return true;
+    }
+
     function printButtonState({ inView, hydrationDone, embedsPending }) {
         if (!inView) {
             return { disabled: true, title: TITLE_PRINT };
@@ -178,6 +185,7 @@
         rangeLabelIsReady,
         viewRangeLabelsUnresolved,
         applyRangeLabelHydration,
+        applyRangeLabelHydrationIfLive,
         printButtonState,
         runPrintWithTitle,
         startHydrationRun,
@@ -616,15 +624,30 @@ if (typeof document !== 'undefined') (async function () {
     async function hydrateRangeLinkLabels(root) {
         if (!root) return;
         const noteGen = openNoteGen;
+        const tracking = root === viewBody;
         let run = 0;
-        if (root === viewBody) {
+        if (tracking) {
             viewHydrateRun = window.KjvNotePrint.startHydrationRun(viewHydrateRun);
             run = viewHydrateRun;
             embedHydration = 'pending';
             syncPrintButton();
         }
+        // Capture this run's nodes before any await so a later innerHTML
+        // replace cannot hand us the next note's links.
+        const links = [...root.querySelectorAll('.note-range-link[data-v]')];
         await hydrateNoteEmbeds(root);
-        for (const link of root.querySelectorAll('.note-range-link[data-v]')) {
+
+        const apply = (link, result) => {
+            if (noteGen !== openNoteGen) return false;
+            if (tracking) {
+                return window.KjvNotePrint.applyRangeLabelHydrationIfLive(
+                    link, result, run, viewHydrateRun);
+            }
+            window.KjvNotePrint.applyRangeLabelHydration(link, result);
+            return true;
+        };
+
+        for (const link of links) {
             const embedCite = !!link.closest('.note-scripture-embed');
             const body = link.dataset.v;
             if (embedCite) {
@@ -632,24 +655,24 @@ if (typeof document !== 'undefined') (async function () {
                 try {
                     const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
                     if (!res.ok) {
-                        window.KjvNotePrint.applyRangeLabelHydration(link, { ok: false });
+                        apply(link, { ok: false });
                         continue;
                     }
                     const data = await res.json();
-                    window.KjvNotePrint.applyRangeLabelHydration(link, {
+                    apply(link, {
                         ok: true,
                         label: window.KjvNoteLinks.rangeLinkDisplayLabel({
                             embedCite: true, reference: data.reference, body
                         })
                     });
                 } catch (_) {
-                    window.KjvNotePrint.applyRangeLabelHydration(link, { ok: false });
+                    apply(link, { ok: false });
                 }
                 continue;
             }
             const p = findPassageByVBody(body);
             if (p) {
-                window.KjvNotePrint.applyRangeLabelHydration(link, {
+                apply(link, {
                     ok: true,
                     label: window.KjvNoteLinks.rangeLinkDisplayLabel({
                         embedCite: false, passageTitle: passageDisplayLabel(p), body
@@ -661,21 +684,21 @@ if (typeof document !== 'undefined') (async function () {
             try {
                 const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
                 if (!res.ok) {
-                    window.KjvNotePrint.applyRangeLabelHydration(link, { ok: false });
+                    apply(link, { ok: false });
                     continue;
                 }
                 const data = await res.json();
-                window.KjvNotePrint.applyRangeLabelHydration(link, {
+                apply(link, {
                     ok: true,
                     label: window.KjvNoteLinks.rangeLinkDisplayLabel({
                         embedCite: false, reference: data.reference, body
                     })
                 });
             } catch (_) {
-                window.KjvNotePrint.applyRangeLabelHydration(link, { ok: false });
+                apply(link, { ok: false });
             }
         }
-        if (root === viewBody
+        if (tracking
             && noteGen === openNoteGen
             && window.KjvNotePrint.isLiveHydrationRun(run, viewHydrateRun)) {
             embedHydration = 'done';

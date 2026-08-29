@@ -217,6 +217,39 @@ test('failed ranges does not leave Print still-loading forever', () => {
     assert.equal(stillEmpty, true, 'unready shells stay pending so print CSS can hide them');
 });
 
+test('stale hydrate fail does not strip data-label-ready from a newer run', () => {
+    const link = mockRangeLink({
+        body: '26136-26138',
+        text: 'John 3:16–18',
+        ready: true
+    });
+    assert.equal(link.dataset.labelReady, '1');
+
+    let liveRun = 0;
+    liveRun = notes.startHydrationRun(liveRun);
+    const stale = liveRun;
+    liveRun = notes.startHydrationRun(liveRun);
+
+    assert.equal(
+        notes.applyRangeLabelHydrationIfLive(link, { ok: false }, stale, liveRun),
+        false
+    );
+    assert.equal(link.dataset.labelReady, '1');
+    assert.equal(link.textContent, 'John 3:16–18');
+    assert.equal(link.dataset.v, '26136-26138');
+
+    const liveFail = mockRangeLink({
+        body: '26136-26138',
+        text: '26136-26138'
+    });
+    assert.equal(
+        notes.applyRangeLabelHydrationIfLive(liveFail, { ok: false }, liveRun, liveRun),
+        true
+    );
+    assert.notEqual(liveFail.dataset.labelReady, '1');
+    assert.equal(liveFail.textContent, '26136-26138');
+});
+
 test('Edit during pending hydrate then save-same-note does not enable Print until current body is ready', () => {
     let liveRun = 0;
     liveRun = notes.startHydrationRun(liveRun);
