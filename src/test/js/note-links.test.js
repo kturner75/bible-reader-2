@@ -116,6 +116,24 @@ test('trailing junk on a bound is not a real range and does not render as an emb
     assert.equal(links.refuseOversizedEmbeds('[e=13junk]').ok, true);
 });
 
+test('extra hyphens after the upper bound are not a valid range', () => {
+    assert.throws(() => links.parseToken('[e=1-2-junk]'));
+    assert.throws(() => links.parseToken('[v=1-2-junk]'));
+    assert.throws(() => links.parseToken('[e=1-2-3]'));
+    assert.throws(() => links.parseRangeBody('1-2-junk'));
+    assert.throws(() => links.parseRangeBody('1-2-3'));
+    assert.throws(() => links.renderEmbedHtml('[e=1-2-junk]'));
+
+    const html = links.renderFlowWithEmbeds('See [e=1-2-junk] today', s => s);
+    assert.doesNotMatch(html, /note-scripture-embed/);
+    assert.match(html, /1-2-junk/);
+    assert.match(html, /See/);
+    assert.match(html, /today/);
+
+    // Fail-closed with Java: extra-hyphen junk is skipped, not treated as 1-2.
+    assert.equal(links.refuseOversizedEmbeds('[e=1-2-junk]').ok, true);
+});
+
 test('pasted [e=] over 12 verses is refused and not truncated', () => {
     const pasted = 'Notes\n[e=1-13]\nmore';
     const refused = links.refuseOversizedEmbeds(pasted);

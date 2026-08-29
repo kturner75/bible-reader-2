@@ -150,4 +150,22 @@ class VerseRangeParserTest {
         assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=1-13junk]"));
         assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=13junk]"));
     }
+
+    @Test
+    void extraHyphensAfterUpperBoundAreNotARealRange() {
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[e=1-2-junk]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[v=1-2-junk]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[e=1-2-3]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseRangeBody("1-2-junk"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseRangeBody("1-2-3"));
+
+        // Fail-closed with JS: extra-hyphen junk is skipped, not treated as 1-2.
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=1-2-junk]"));
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=1-2-3]"));
+    }
 }

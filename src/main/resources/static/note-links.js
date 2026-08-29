@@ -67,9 +67,10 @@
             const p = part.trim();
             if (!p) throw new Error('Empty range segment');
             if (p.includes('-')) {
-                const bounds = p.split('-', 2);
-                const a = parseVerseId(bounds[0]);
-                const b = parseVerseId(bounds[1]);
+                // JS split('-', 2) drops leftover hyphens; keep the rest so 1-2-junk fails like Java.
+                const dash = p.indexOf('-');
+                const a = parseVerseId(p.slice(0, dash));
+                const b = parseVerseId(p.slice(dash + 1));
                 ranges.push({ from: Math.min(a, b), to: Math.max(a, b) });
             } else {
                 const v = parseVerseId(p);
