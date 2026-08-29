@@ -32,6 +32,14 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 - **Notes workspace for sermon / lesson notes** *(done — PR #49)* — dedicated `/notes` page (list + editor pane) for longer sermon/lesson notes. Dashboard keeps a preview shortcut; editing moved off the modal. Builds on portable `[v=…]` + Insert Scripture; reader dock remains separate for verse/chapter/book notes.
   - **Preserve rkj constraints:** when linked from the reader, scripture stays no-scroll / two-column; desktop-first.
   - **Depends on / pairs with:** portable `[v=…]` links, Insert Scripture search, reader notes dock.
+- **Embed quoted scripture `[e=…]`** *(not started)* — render-mode twin of `[v=…]`. Same `VerseRangeParser` grammar; note body stores verse ids only (resolve KJV at render time); quoted block + human ref that still opens `/read/range?v=…`. See `docs/architecture/passage-and-verse-link-model.md` and `docs/architecture/portable-verse-links-plan.md`.
+  - **Token / grammar:** `[e=14625]`, `[e=14625-14627]`, `[e=14625-14627,14630]` — same ranges as `[v=…]`.
+  - **Storage:** do **not** paste KJV text into the saved body.
+  - **Insert Scripture:** an “Embed quoted scripture” checkbox (default **off**) writes `[e=…]` instead of `[v=…]` from the same picker/ranges. Reuse the existing save-as-passage checkbox pattern; do **not** add a second insert modal.
+  - **Surfaces:** every note surface that already renders `[v=…]` (sermon/lesson, verse/chapter/book), not sermon-only.
+  - **First-cut cap:** refuse or truncate embeds over ~12 verses so a whole psalm does not swallow the note. Exact cap TBD.
+  - **Typed refs:** still normalize on save; if the checkbox/embed mode is on, normalize to `[e=…]` instead of `[v=…]`.
+  - **Invariants:** portable verse ids, no Passage UUID, no new Passage row required. Not implemented.
 - **Character studies** — verses tagged to a person (Abraham, David, Paul…); auto-populated from a concordance or user-curated.
 - **Location studies** — same concept for places (Jerusalem, Egypt, Bethlehem…).
 
