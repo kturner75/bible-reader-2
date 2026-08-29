@@ -59,8 +59,9 @@ public class VerseOfDayService {
 
     private final VerseOfDayRepository repository;
     private final BibleService bibleService;
-    private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+
+    private HttpClient httpClient;
 
     @Value("${tts.api-key:}")          // openai: reuses ${OPENAI_API_KEY:} mapped by TtsService config
     private String openAiKey;
@@ -78,15 +79,11 @@ public class VerseOfDayService {
     private String model;
 
     public VerseOfDayService(VerseOfDayRepository repository, BibleService bibleService) {
-        this(repository, bibleService, HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .build());
-    }
-
-    VerseOfDayService(VerseOfDayRepository repository, BibleService bibleService, HttpClient httpClient) {
         this.repository   = repository;
         this.bibleService = bibleService;
-        this.httpClient   = httpClient;
+        this.httpClient   = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(30))
+                .build();
         this.objectMapper = new ObjectMapper();
     }
 

@@ -44,7 +44,8 @@ class VerseOfDayServiceTest {
         repository   = mock(VerseOfDayRepository.class);
         bibleService = mock(BibleService.class);
         httpClient   = mock(HttpClient.class);
-        service      = new VerseOfDayService(repository, bibleService, httpClient);
+        service      = new VerseOfDayService(repository, bibleService);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
         configure("openai", "sk-openai", "xai-key", "");
         when(repository.existsById(DATE)).thenReturn(false);
         when(repository.findTop365ByOrderByDateDesc()).thenReturn(List.of());
