@@ -42,8 +42,10 @@ import java.util.stream.Collectors;
  *   <li>Daily at midnight UTC via {@code @Scheduled} — pre-populates the new day's verse.</li>
  * </ul>
  *
- * <p>Graceful degradation: if the API key is missing or the chat call fails,
- * the error is logged and suppressed — the frontend falls back to its curated list.
+ * <p>Graceful degradation: if the API key is missing, the provider is unknown,
+ * or the chat call fails, the error is logged and suppressed — the frontend
+ * falls back to its curated list. An unset {@code votd.provider} defaults to
+ * openai; any other value that is not {@code openai} or {@code xai} fails closed.
  */
 @Service
 public class VerseOfDayService {
@@ -131,6 +133,11 @@ public class VerseOfDayService {
             log.debug("Verse of the day generation is disabled");
             return;
         }
+        if (!isKnownProvider()) {
+            log.warn("Unknown votd.provider '{}' — expected openai or xai; skipping verse of the day generation",
+                    provider);
+            return;
+        }
         String apiKey = resolvedKey();
         if (apiKey == null || apiKey.isBlank()) {
             log.debug("{} not set — skipping verse of the day generation",
@@ -209,8 +216,21 @@ public class VerseOfDayService {
 
     // ── Provider resolution (mirrors WhisperService) ──────────────────────────
 
+    /**
+     * Unset (null) defaults to openai. Empty-after-trim or any value other than
+     * openai | xai is unknown and must not fall through to OpenAI.
+     */
+    boolean isKnownProvider() {
+        String p = normalizedProvider();
+        return p == null || "openai".equalsIgnoreCase(p) || "xai".equalsIgnoreCase(p);
+    }
+
     boolean isXai() {
-        return "xai".equalsIgnoreCase(provider);
+        return "xai".equalsIgnoreCase(normalizedProvider());
+    }
+
+    private String normalizedProvider() {
+        return provider == null ? null : provider.trim();
     }
 
     String resolvedUrl() {

@@ -6,6 +6,8 @@ import com.readthekjv.model.entity.VerseOfDay;
 import com.readthekjv.repository.VerseOfDayRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -97,6 +99,15 @@ class VerseOfDayServiceTest {
     }
 
     @Test
+    void unsetProviderDefaultsToOpenAi() {
+        configure(null, "sk-openai", "xai-key", "");
+        assertTrue(service.isKnownProvider());
+        assertEquals("https://api.openai.com/v1/chat/completions", service.resolvedUrl());
+        assertEquals("sk-openai", service.resolvedKey());
+        assertEquals("gpt-4o-mini", service.resolvedModel());
+    }
+
+    @Test
     void votdModelOverridesProviderDefault() throws Exception {
         configure("xai", "sk-openai", "xai-key", "grok-3");
         assertEquals("grok-3", service.resolvedModel());
@@ -134,6 +145,18 @@ class VerseOfDayServiceTest {
     }
 
     // ── Junk / error paths skip persist ───────────────────────────────────────
+
+    @ParameterizedTest
+    @ValueSource(strings = {"anthropic", "opena", "openaii", "  ", ""})
+    void unknownProviderSkipsPersistAndDoesNotCallOpenAi(String provider) throws Exception {
+        configure(provider, "sk-openai", "xai-key", "");
+        stubHttp(200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        assertDoesNotThrow(() -> service.generateForDate(DATE));
+        verify(httpClient, never()).send(any(), any());
+        verify(repository, never()).save(any());
+    }
 
     @Test
     void missingOpenAiKeySkipsPersistAndDoesNotCallHttp() throws Exception {
