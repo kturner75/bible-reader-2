@@ -1548,8 +1548,10 @@ if (typeof document !== 'undefined') (async function () {
                             stageNotesReturnForReader();
                             window.location.href = `/read/range?v=${encodeURIComponent(body)}`;
                         } else if (parsed.verseId) {
+                            // Same scoped session as [v=] — /read?vid= has no
+                            // in-app Back and would discard the staged return.
                             stageNotesReturnForReader();
-                            window.location.href = `/read?vid=${parsed.verseId}`;
+                            window.location.href = `/read/range?v=${encodeURIComponent(String(parsed.verseId))}`;
                         }
                     }
                 }

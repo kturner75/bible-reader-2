@@ -1316,16 +1316,14 @@
         return window.KjvNotesReturn ? window.KjvNotesReturn.consume() : null;
     }
 
-    function notesReturnHref(href) {
-        return window.KjvNotesReturn ? window.KjvNotesReturn.parseHref(href) : null;
-    }
-
     /**
      * Leave scoped reader; restore prior reading position and optional note.
      * When we entered via pushState, ← Back / Esc use history.back() so the
      * browser Back button and in-app Back share the same restore path.
-     * A /notes deep-link return (historyPushed false) assigns that URL instead
-     * of landing on the range's first verse. Browser Back still uses history.
+     * A /notes return pops the notes→reader entry when this document was
+     * opened from /notes; otherwise it replaces (never assign — that stacks
+     * the range under a second /notes). Do not back() on a typed/reloaded
+     * deep link: there is no notes entry to unwind to.
      */
     async function exitCollectionMode({ push = true } = {}) {
         if (!state.collection) return;
@@ -1336,15 +1334,16 @@
         }
 
         const ret = state.scopedReturn;
-        state.collection = null;
-        state.scopedReturn = null;
-
-        const notesHref = ret && notesReturnHref(ret.href);
-        if (notesHref) {
-            window.location.assign(notesHref);
-            return;
+        if (ret && window.KjvNotesReturn) {
+            const navigated = window.KjvNotesReturn.returnToNotes(ret.href, {
+                referrer: document.referrer,
+                historyLength: history.length
+            });
+            if (navigated) return;
         }
 
+        state.collection = null;
+        state.scopedReturn = null;
         const verseId = (ret && ret.verseId) || state.currentVerseId;
 
         if (push) {
@@ -7462,10 +7461,17 @@
                 enteredScoped = await enterPassageMode(passageMatch[1], { push: false });
             } else if (rangeV) {
                 enteredScoped = await enterRangeMode(rangeV, { push: false });
+            } else {
+                // /read?vid= from /notes stages a return; enter a one-verse
+                // range so in-app Back can use it. rememberScopedReturn consumes.
+                const vid = new URLSearchParams(window.location.search).get('vid');
+                if (vid && window.KjvNotesReturn && window.KjvNotesReturn.hasStaged()) {
+                    enteredScoped = await enterRangeMode(String(vid), { push: false });
+                }
             }
             if (!enteredScoped) {
-                // /read?vid= also stages a notes return; discard so it cannot
-                // attach to a later /read/range reload.
+                // Leftover stage (failed scoped boot, or ?vid= with no return)
+                // must not attach to a later /read/range reload.
                 consumeStagedNotesReturn();
                 await goToVerse(state.currentVerseId);
             }
