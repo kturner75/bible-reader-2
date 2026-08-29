@@ -44,4 +44,39 @@ test.describe('range reader omitted-verse gap', () => {
     await expect(page.locator('#reading-area .verse').first()).toBeVisible();
     await expect(page.locator('#reading-area .verse-range-gap')).toHaveCount(0);
   });
+
+  test('later page that starts at a skipped span still shows the gap', async ({ page, request }) => {
+    const v10 = await verseIdFor(request, 'Ephesians 6:10');
+    const v11 = await verseIdFor(request, 'Ephesians 6:11');
+    const v13 = await verseIdFor(request, 'Ephesians 6:13');
+    const v18 = await verseIdFor(request, 'Ephesians 6:18');
+
+    await page.setViewportSize({ width: 900, height: 520 });
+    await page.goto(`/read/range?v=${v10}-${v11},${v13}-${v18}`);
+    await expect(page.locator('#reading-area .verse').first()).toBeVisible();
+
+    const verseNum = (n: string) =>
+      page.locator('#reading-area .verse').filter({ has: page.locator('.verse-number', { hasText: new RegExp(`^${n}$`) }) });
+
+    for (let i = 0; i < 12; i++) {
+      if (await verseNum('13').count() === 0 && await verseNum('11').count() > 0) break;
+      await page.locator('#font-increase').click();
+    }
+    await expect(verseNum('13')).toHaveCount(0);
+    await expect(verseNum('11')).toHaveCount(1);
+
+    await page.locator('#reading-area').click();
+    await page.keyboard.press('l');
+    await expect(verseNum('13')).toBeVisible();
+
+    const gapBefore13 = await page.locator('#reading-area').evaluate(() => {
+      const thirteen = [...document.querySelectorAll('#reading-area .verse')]
+        .find(v => v.querySelector('.verse-number')?.textContent === '13');
+      const rule = document.querySelector('#reading-area .verse-range-gap');
+      if (!thirteen || !rule) return false;
+      return !!(rule.compareDocumentPosition(thirteen) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(gapBefore13).toBe(true);
+    await expect(page.locator('#reading-area .verse-range-gap')).toHaveCount(1);
+  });
 });

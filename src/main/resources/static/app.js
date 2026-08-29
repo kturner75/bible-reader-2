@@ -901,18 +901,13 @@
         `;
     }
 
-    /**
-     * True when two adjacent rendered verses skip one or more ids.
-     * Detect from verse ids — range mode is one blob (passageStarts:[0]).
-     * Consecutive ids across a chapter boundary are not a skip.
-     */
-    function isVerseRangeSkip(prevVerse, verse) {
-        return !!(prevVerse && verse && prevVerse.id + 1 !== verse.id);
-    }
-
     /** Column-local omitted-verse cue. Empty visual; not a full-page rule. */
     function createVerseRangeGapHTML() {
         return '<div class="verse-range-gap" role="separator" aria-label="Omitted verses"></div>';
+    }
+
+    function isVerseRangeSkip(prevVerse, verse) {
+        return window.KjvVerseRangeGap.isVerseRangeSkip(prevVerse, verse);
     }
 
     /**
@@ -995,21 +990,23 @@
      * starts a passage. Used for both measurement (markCurrent=false) and
      * display so pagination is exact. No chapter headers in this mode.
      * Skips in a flattened range (notes [v=]/[e=], /read/range) get a
-     * column-local gap from verse ids, not from passageStarts.
+     * column-local gap from verse ids, not from passageStarts. The prior
+     * collection verse is carried when a later page starts mid-list.
      */
     function renderCollectionVersesWithHeaders(verses, markCurrent = false) {
         const col = state.collection;
+        const gap = window.KjvVerseRangeGap;
         let html = '';
-        let prevVerse = null;
-        for (const verse of verses) {
-            if (isVerseRangeSkip(prevVerse, verse)) {
+        for (let i = 0; i < verses.length; i++) {
+            const verse = verses[i];
+            const prev = gap.predecessorForRender(col, verses, i);
+            if (gap.shouldInsertOmissionGap(prev, verse, col)) {
                 html += createVerseRangeGapHTML();
             }
             if (col.passageRefs[verse._ci] !== undefined) {
                 html += createPassageHeaderHTML(col.passageRefs[verse._ci]);
             }
             html += createVerseHTML(verse, markCurrent && verse._ci === col.currentIndex);
-            prevVerse = verse;
         }
         return html;
     }
