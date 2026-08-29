@@ -29,13 +29,6 @@
         return !!(el && el.dataset && el.dataset.labelReady === '1');
     }
 
-    function looksLikeRawRangeBody(text, body) {
-        const t = String(text || '').replace(/\s/g, '');
-        const b = String(body || '').replace(/\s/g, '');
-        if (b && t === b) return true;
-        return /^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/.test(t);
-    }
-
     /** Ordinary [v=] links still showing a verse-id body after a failed hydrate. */
     function viewRangeLabelsUnresolved(root) {
         if (!root || !root.querySelectorAll) return false;
@@ -45,8 +38,9 @@
     }
 
     /**
-     * Resolve or fail a range-link label. Failure clears a raw numeric body
-     * so Print / Save-as-PDF cannot emit internal verse IDs.
+     * Resolve or fail a range-link label. Failure leaves on-screen text
+     * and data-v intact so the reader can still see and click the cite;
+     * print CSS hides unresolved labels from the PDF.
      */
     function applyRangeLabelHydration(el, result) {
         if (!el || !el.dataset) return;
@@ -58,9 +52,6 @@
         }
         el.dataset.labelFailed = '1';
         delete el.dataset.labelReady;
-        if (looksLikeRawRangeBody(el.textContent, el.dataset.v)) {
-            el.textContent = '';
-        }
     }
 
     function printButtonState({ inView, hydrationDone, embedsPending }) {

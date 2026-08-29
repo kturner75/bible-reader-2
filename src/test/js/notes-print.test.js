@@ -26,6 +26,7 @@ function mockRangeLink({ body, text, ready, embedCite }) {
     return {
         dataset: ready ? { v: body, labelReady: '1' } : { v: body },
         textContent: text,
+        href: '#',
         closest: (sel) => (embedCite && String(sel).includes('embed') ? {} : null)
     };
 }
@@ -172,8 +173,9 @@ test('failed /api/ranges keeps unresolved [v=] labels out of print', () => {
     notes.applyRangeLabelHydration(failedLink, { ok: false });
     assert.equal(failedLink.dataset.labelFailed, '1');
     assert.notEqual(failedLink.dataset.labelReady, '1');
-    assert.equal(failedLink.textContent, '');
-    assert.doesNotMatch(failedLink.textContent, /26136/);
+    assert.equal(failedLink.textContent, '26136-26138', 'on-screen [v=] text stays');
+    assert.equal(failedLink.dataset.v, '26136-26138', 'click still has the range body');
+    assert.equal(failedLink.href, '#');
     assert.equal(notes.viewRangeLabelsUnresolved(mockRoot([failedLink])), true);
 
     const readyLink = mockRangeLink({
