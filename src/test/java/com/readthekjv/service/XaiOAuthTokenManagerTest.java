@@ -218,6 +218,10 @@ class XaiOAuthTokenManagerTest {
 
         manager.getAccessToken();
 
+        if (!Files.exists(tokenFile)) {
+            // Non-POSIX: persist aborts rather than publishing without 0600.
+            return;
+        }
         try {
             var permissions = Files.getPosixFilePermissions(tokenFile);
             assertEquals(java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"), permissions);
@@ -258,6 +262,25 @@ class XaiOAuthTokenManagerTest {
 
         assertEquals(1, atomicAttempts.get());
         assertEquals("rotated-refresh-token", readPersistedCurrentToken(tokenFile));
+    }
+
+    @Test
+    void persist_permissionsFailure_doesNotPublishFile() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        Path tmp = tokenFile.resolveSibling(tokenFile.getFileName() + ".tmp");
+        XaiOAuthTokenManager manager = manager(
+                "original-refresh-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
+        manager.permissionRestrictor = path -> {
+            throw new UnsupportedOperationException("non-posix");
+        };
+
+        Optional<String> access = manager.getAccessToken();
+
+        assertEquals(Optional.of("access-token"), access);
+        assertEquals("rotated-refresh-token", manager.currentRefreshTokenForTesting());
+        assertFalse(Files.exists(tokenFile));
+        assertFalse(Files.exists(tmp));
     }
 
     private XaiOAuthTokenManager manager(String refreshToken, boolean enabled, HttpClient httpClient) {

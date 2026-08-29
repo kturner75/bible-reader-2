@@ -109,6 +109,15 @@ public class XaiOAuthTokenManager {
         }
     };
 
+    @FunctionalInterface
+    interface PermissionRestrictor {
+        void restrictToOwnerOnly(Path path) throws IOException;
+    }
+
+    // Test seam — not a second constructor. POSIX 0600 or throw (do not persist).
+    PermissionRestrictor permissionRestrictor = path ->
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+
     public XaiOAuthTokenManager(
             @Value("${ai.xai.oauth.refresh-token:}") String refreshToken,
             @Value("${ai.xai.oauth.enabled:true}") boolean enabled,
@@ -264,17 +273,27 @@ public class XaiOAuthTokenManager {
         if (refreshTokenFile == null) {
             return;
         }
+        Path tmp = null;
         try {
             if (refreshTokenFile.getParent() != null) {
                 Files.createDirectories(refreshTokenFile.getParent());
             }
             String json = objectMapper.writeValueAsString(new PersistedState(seedRefreshToken, token));
-            Path tmp = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".tmp");
+            tmp = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".tmp");
             Files.writeString(tmp, json, StandardCharsets.UTF_8);
-            restrictToOwnerOnly(tmp);
+            // 0600 or abort: never movePersistedFile with inherited/default permissions.
+            // In-memory rotated token stays for this process; next restart uses seed/file.
+            try {
+                permissionRestrictor.restrictToOwnerOnly(tmp);
+            } catch (UnsupportedOperationException | IOException e) {
+                log.warn("event=xai_oauth_refresh_token_permissions_failed error={}", e.getMessage());
+                deleteQuietly(tmp);
+                return;
+            }
             movePersistedFile(tmp, refreshTokenFile);
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_persist_failed error={}", e.getMessage());
+            deleteQuietly(tmp);
         }
     }
 
@@ -294,15 +313,14 @@ public class XaiOAuthTokenManager {
         }
     }
 
-    // This file holds a bearer credential equivalent to the one previously kept only in an
-    // env var — lock it down to the owner so other local users/processes can't read it.
-    private void restrictToOwnerOnly(Path path) {
+    private static void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
         try {
-            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
-        } catch (UnsupportedOperationException e) {
-            // Non-POSIX filesystem (e.g. Windows) — nothing to do.
+            Files.deleteIfExists(path);
         } catch (IOException e) {
-            log.warn("event=xai_oauth_refresh_token_permissions_failed error={}", e.getMessage());
+            log.warn("event=xai_oauth_refresh_token_tmp_delete_failed error={}", e.getMessage());
         }
     }
 }
