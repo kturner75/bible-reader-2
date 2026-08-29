@@ -11,7 +11,6 @@ import com.readthekjv.model.entity.User;
 import com.readthekjv.repository.SavedVerseRepository;
 import com.readthekjv.repository.TagRepository;
 import com.readthekjv.repository.UserRepository;
-import com.readthekjv.util.VerseRangeParser;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -82,11 +81,7 @@ public class LibraryService {
         SavedVerse sv = savedVerseRepository.findByUserIdAndVerseId(userId, verseId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Verse not in library"));
-        try {
-            VerseRangeParser.requireNoteEmbedCap(note);
-        } catch (IllegalArgumentException ex) {
-            throw new BadRequestException(ex.getMessage());
-        }
+        NoteEmbedCap.require(note);
         sv.setNote(note);
         savedVerseRepository.save(sv);
         sv.getSavedVerseTags().size(); // init lazy collection for response mapping

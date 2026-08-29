@@ -2,7 +2,6 @@ package com.readthekjv.service;
 
 import com.readthekjv.exception.BadRequestException;
 import com.readthekjv.model.Book;
-import com.readthekjv.util.VerseRangeParser;
 import com.readthekjv.model.dto.BookNoteResponse;
 import com.readthekjv.model.entity.BookNote;
 import com.readthekjv.repository.BookNoteRepository;
@@ -45,22 +44,14 @@ public class BookNoteService {
                     n.setBookId(bookId);
                     return n;
                 });
-        entity.setNote(prepareNote(note));
+        NoteEmbedCap.require(note);
+        entity.setNote(note.trim());
         return toResponse(bookNoteRepository.save(entity));
     }
 
     public void deleteNote(Long userId, int bookId) {
         bookNoteRepository.findByUserIdAndBookId(userId, bookId)
                 .ifPresent(bookNoteRepository::delete);
-    }
-
-    private static String prepareNote(String note) {
-        try {
-            VerseRangeParser.requireNoteEmbedCap(note);
-        } catch (IllegalArgumentException ex) {
-            throw new BadRequestException(ex.getMessage());
-        }
-        return note.trim();
     }
 
     private void validateBook(int bookId) {
