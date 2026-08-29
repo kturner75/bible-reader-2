@@ -8,18 +8,26 @@ import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -283,7 +291,7 @@ class XaiOAuthTokenManagerTest {
         XaiOAuthTokenManager manager = manager(
                 "original-refresh-token", true, tokenFile.toString(),
                 countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
-        manager.permissionRestrictor = path -> {
+        manager.restrictedFileCreator = path -> {
             throw new UnsupportedOperationException("non-posix");
         };
 
@@ -318,6 +326,82 @@ class XaiOAuthTokenManagerTest {
     }
 
     @Test
+    void persist_tempFileCreatedWithOwnerOnlyPermissions_notChmodAfterWrite() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        XaiOAuthTokenManager manager = manager(
+                "original-refresh-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
+        manager.fileMover = (tmp, dest, atomic) -> {
+            assertOwnerOnlyPermissions(tmp);
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        };
+        manager.permissionRestrictor = path -> {
+            assertFalse(path.getFileName().toString().endsWith(".tmp"),
+                    "tmp must be created 0600, not chmod after write");
+            Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+        };
+
+        manager.getAccessToken();
+
+        assertOwnerOnlyPermissions(tokenFile);
+    }
+
+    @Test
+    void refresh_invalidGrant_reloadsPersistedTokenRotatedByOtherInstance() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        AtomicInteger calls = new AtomicInteger();
+        List<String> forms = new ArrayList<>();
+        HttpClient http = httpClient(req -> {
+            String form = requestForm(req);
+            forms.add(form);
+            int n = calls.incrementAndGet();
+            if (n == 1) {
+                try {
+                    writePersistedState(tokenFile, "original-refresh-token", "rotated-by-other");
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                return httpResponse(400, errorResponse());
+            }
+            return httpResponse(200, tokenResponse("access-token", 3600, "rotated-again"));
+        });
+        XaiOAuthTokenManager manager = manager("original-refresh-token", true, tokenFile.toString(), http);
+
+        assertEquals(Optional.of("access-token"), manager.getAccessToken());
+        assertEquals(2, calls.get());
+        assertTrue(forms.get(0).contains("refresh_token=original-refresh-token"), forms.get(0));
+        assertTrue(forms.get(1).contains("refresh_token=rotated-by-other"), forms.get(1));
+        assertEquals("rotated-again", manager.currentRefreshTokenForTesting());
+    }
+
+    @Test
+    void refresh_reloadsPersistedTokenBeforeRequest_whenOtherInstanceAlreadyRotated() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        XaiOAuthTokenManager winner = manager(
+                "original-refresh-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200,
+                        tokenResponse("winner-access", 3600, "rotated-by-other")));
+        AtomicInteger loserCalls = new AtomicInteger();
+        List<String> forms = new ArrayList<>();
+        XaiOAuthTokenManager loser = manager(
+                "original-refresh-token", true, tokenFile.toString(),
+                httpClient(req -> {
+                    loserCalls.incrementAndGet();
+                    forms.add(requestForm(req));
+                    return httpResponse(200, tokenResponse("loser-access", 3600, "rotated-again"));
+                }));
+
+        assertEquals(Optional.of("winner-access"), winner.getAccessToken());
+        assertEquals("original-refresh-token", loser.currentRefreshTokenForTesting());
+
+        assertEquals(Optional.of("loser-access"), loser.getAccessToken());
+        assertEquals(1, loserCalls.get());
+        assertTrue(forms.get(0).contains("refresh_token=rotated-by-other"), forms.get(0));
+        assertFalse(forms.get(0).contains("refresh_token=original-refresh-token"), forms.get(0));
+        assertEquals("rotated-again", loser.currentRefreshTokenForTesting());
+    }
+
+    @Test
     void wasOAuthBearer_sharedHelper_treatsNonKeyAsOAuth() {
         assertTrue(XaiOAuthTokenManager.wasOAuthBearer("oauth-token", "xai-key"));
         assertTrue(XaiOAuthTokenManager.wasOAuthBearer("oauth-token", ""));
@@ -348,7 +432,7 @@ class XaiOAuthTokenManagerTest {
         return manager;
     }
 
-    private void assertOwnerOnlyPermissions(Path tokenFile) throws Exception {
+    private void assertOwnerOnlyPermissions(Path tokenFile) throws IOException {
         if (!Files.exists(tokenFile)) {
             // Non-POSIX: persist aborts rather than publishing without 0600.
             return;
@@ -392,6 +476,58 @@ class XaiOAuthTokenManagerTest {
             return response;
         });
         return http;
+    }
+
+    @SuppressWarnings("unchecked")
+    private HttpClient httpClient(Function<HttpRequest, HttpResponse<String>> handler) throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenAnswer(inv -> handler.apply(inv.getArgument(0)));
+        return http;
+    }
+
+    @SuppressWarnings("unchecked")
+    private HttpResponse<String> httpResponse(int status, String jsonBody) {
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(status);
+        when(response.body()).thenReturn(jsonBody);
+        return response;
+    }
+
+    private static String requestForm(HttpRequest request) {
+        return request.bodyPublisher()
+                .map(XaiOAuthTokenManagerTest::publisherToString)
+                .orElse("");
+    }
+
+    private static String publisherToString(HttpRequest.BodyPublisher publisher) {
+        CompletableFuture<String> done = new CompletableFuture<>();
+        publisher.subscribe(new Flow.Subscriber<>() {
+            private final ByteArrayOutputStream buf = new ByteArrayOutputStream();
+
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(ByteBuffer item) {
+                byte[] bytes = new byte[item.remaining()];
+                item.get(bytes);
+                buf.writeBytes(bytes);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                done.completeExceptionally(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                done.complete(buf.toString(StandardCharsets.UTF_8));
+            }
+        });
+        return done.join();
     }
 
     private String errorResponse() {

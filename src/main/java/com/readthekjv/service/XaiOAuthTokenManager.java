@@ -13,17 +13,23 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.FileLockInterruptionException;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Exchanges a long-lived xAI OAuth refresh token (obtained out-of-band via
@@ -45,6 +51,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * it to a local file so a rotated token survives process restarts — without
  * that, every restart would resend the original (already-invalidated) token
  * from the env var and permanently fail with {@code invalid_grant}.
+ *
+ * <p>Refresh is serialized with a sibling {@code .lock} (OS file lock) when a
+ * persist path is configured, so two containers sharing {@code /data} do not
+ * consume the same refresh token. After acquiring the lock — and again after
+ * a failed grant — this class reloads the persisted token so a loser adopts
+ * the winner's rotation instead of retrying a stale in-memory value.
  *
  * <p>Callers must treat a missing token (empty Optional) as "fall back to
  * {@code XAI_API_KEY}" — this class never throws for an unconfigured or
@@ -118,6 +130,18 @@ public class XaiOAuthTokenManager {
     // Test seam — not a second constructor. POSIX 0600 or throw (do not persist).
     PermissionRestrictor permissionRestrictor = path ->
             Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+
+    @FunctionalInterface
+    interface RestrictedFileCreator {
+        void createOwnerOnly(Path path) throws IOException;
+    }
+
+    // Test seam — not a second constructor. Create at POSIX 0600; do not chmod after write.
+    RestrictedFileCreator restrictedFileCreator = path -> {
+        Files.deleteIfExists(path);
+        Files.createFile(path, PosixFilePermissions.asFileAttribute(
+                PosixFilePermissions.fromString("rw-------")));
+    };
 
     public XaiOAuthTokenManager(
             @Value("${ai.xai.oauth.refresh-token:}") String refreshToken,
@@ -215,6 +239,67 @@ public class XaiOAuthTokenManager {
     }
 
     private Optional<String> refresh() {
+        if (refreshTokenFile == null) {
+            return exchangeRefreshToken();
+        }
+        return withRefreshStoreLock(this::refreshAgainstStore);
+    }
+
+    /**
+     * Sibling {@code .lock} serializes refresh across processes that share the
+     * persist volume. Same-JVM overlap (or a volume that cannot lock) falls
+     * through to reload-after-failure, not a second consensus layer.
+     */
+    private Optional<String> withRefreshStoreLock(Supplier<Optional<String>> action) {
+        Path lockPath = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".lock");
+        try {
+            if (lockPath.getParent() != null) {
+                Files.createDirectories(lockPath.getParent());
+            }
+            try (FileChannel channel = FileChannel.open(lockPath,
+                    StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                 FileLock lock = channel.lock()) {
+                return action.get();
+            }
+        } catch (FileLockInterruptionException e) {
+            Thread.currentThread().interrupt();
+            lastFailureAt = Instant.now();
+            cachedToken.set(null);
+            log.warn("event=xai_oauth_refresh_token_lock_failed error={}", e.getMessage());
+            return Optional.empty();
+        } catch (OverlappingFileLockException | IOException e) {
+            log.warn("event=xai_oauth_refresh_token_lock_failed error={}", e.getMessage());
+            return action.get();
+        }
+    }
+
+    private Optional<String> refreshAgainstStore() {
+        adoptPersistedRefreshToken();
+        Optional<String> result = exchangeRefreshToken();
+        if (result.isEmpty() && adoptPersistedRefreshToken()) {
+            result = exchangeRefreshToken();
+        }
+        return result;
+    }
+
+    /**
+     * @return true when in-memory refresh token was replaced from the persist file
+     */
+    private boolean adoptPersistedRefreshToken() {
+        PersistedState persisted = readPersistedState();
+        if (persisted == null || !Objects.equals(persisted.seedToken(), seedRefreshToken)) {
+            return false;
+        }
+        String fromFile = persisted.currentToken();
+        if (fromFile == null || fromFile.isBlank() || Objects.equals(fromFile, refreshToken.get())) {
+            return false;
+        }
+        refreshToken.set(fromFile);
+        log.info("event=xai_oauth_refresh_token_reloaded_from_file");
+        return true;
+    }
+
+    private Optional<String> exchangeRefreshToken() {
         String currentRefreshToken = refreshToken.get();
         String form = "grant_type=refresh_token"
                 + "&refresh_token=" + URLEncoder.encode(currentRefreshToken, StandardCharsets.UTF_8)
@@ -310,13 +395,13 @@ public class XaiOAuthTokenManager {
             }
             String json = objectMapper.writeValueAsString(new PersistedState(seedRefreshToken, token));
             tmp = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".tmp");
-            Files.writeString(tmp, json, StandardCharsets.UTF_8);
-            // 0600 or abort: never leave a world-readable token file. In-memory
-            // rotated token stays for this process; next restart uses seed/file.
-            if (!tryRestrictToOwnerOnly(tmp)) {
+            // Create at POSIX 0600 — never writeString-into-umask then chmod.
+            if (!tryCreateOwnerOnly(tmp)) {
                 deleteQuietly(tmp);
                 return;
             }
+            Files.writeString(tmp, json, StandardCharsets.UTF_8,
+                    StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
             movePersistedFile(tmp, refreshTokenFile);
             // Non-atomic fallback (EXDEV / some Docker mounts) can create dest
             // at umask 0644 even with COPY_ATTRIBUTES — re-apply 0600 on dest.
@@ -328,6 +413,16 @@ public class XaiOAuthTokenManager {
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_persist_failed error={}", e.getMessage());
             deleteQuietly(tmp);
+        }
+    }
+
+    private boolean tryCreateOwnerOnly(Path path) {
+        try {
+            restrictedFileCreator.createOwnerOnly(path);
+            return true;
+        } catch (UnsupportedOperationException | IOException e) {
+            log.warn("event=xai_oauth_refresh_token_permissions_failed error={}", e.getMessage());
+            return false;
         }
     }
 
