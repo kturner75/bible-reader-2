@@ -402,6 +402,77 @@ class XaiOAuthTokenManagerTest {
     }
 
     @Test
+    void persist_nonAtomicFallbackMove_doesNotUseCopyAttributes() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        XaiOAuthTokenManager manager = manager(
+                "original-refresh-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, null)));
+        Path tmp = tempDir.resolve("payload.tmp");
+        Path dest = tempDir.resolve("payload");
+        Files.writeString(tmp, "rotated-payload");
+
+        manager.fileMover.move(tmp, dest, false);
+
+        assertEquals("rotated-payload", Files.readString(dest));
+        assertFalse(Files.exists(tmp));
+    }
+
+    @Test
+    void persist_newSeed_takesOverFileOwnedByPreviousSeed() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        writePersistedState(tokenFile, "old-seed-token", "old-rotated-token");
+        XaiOAuthTokenManager newer = manager(
+                "new-seed-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200,
+                        tokenResponse("new-access", 3600, "new-rotated-token")));
+
+        assertEquals(Optional.of("new-access"), newer.getAccessToken());
+        assertEquals("new-rotated-token", readPersistedCurrentToken(tokenFile));
+        assertEquals("new-seed-token", readPersistedSeed(tokenFile));
+        assertEquals("old-seed-token", readPersistedSuperseded(tokenFile));
+    }
+
+    @Test
+    void persist_staleSeedInstance_doesNotOverwriteForeignSeed() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        writePersistedState(tokenFile, "old-seed-token", "old-rotated-token");
+        XaiOAuthTokenManager stale = manager(
+                "old-seed-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200,
+                        tokenResponse("stale-access", 3600, "stale-rotated-token")));
+        XaiOAuthTokenManager newer = manager(
+                "new-seed-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200,
+                        tokenResponse("new-access", 3600, "new-rotated-token")));
+
+        assertEquals(Optional.of("new-access"), newer.getAccessToken());
+        stale.invalidate();
+        assertEquals(Optional.of("stale-access"), stale.getAccessToken());
+
+        assertEquals("new-rotated-token", readPersistedCurrentToken(tokenFile));
+        assertEquals("new-seed-token", readPersistedSeed(tokenFile));
+        assertEquals("old-seed-token", readPersistedSuperseded(tokenFile));
+        assertEquals("stale-rotated-token", stale.currentRefreshTokenForTesting());
+    }
+
+    @Test
+    void persist_supersededSeedRestart_doesNotOverwriteForeignSeed() throws Exception {
+        Path tokenFile = tempDir.resolve("refresh-token");
+        Files.writeString(tokenFile, """
+                {"seedToken":"new-seed-token","currentToken":"new-rotated-token","supersededSeed":"old-seed-token"}
+                """);
+        XaiOAuthTokenManager staleRestart = manager(
+                "old-seed-token", true, tokenFile.toString(),
+                countingHttpClient(new AtomicInteger(), 200,
+                        tokenResponse("stale-access", 3600, "stale-rotated-token")));
+
+        assertEquals("old-seed-token", staleRestart.currentRefreshTokenForTesting());
+        assertEquals(Optional.of("stale-access"), staleRestart.getAccessToken());
+        assertEquals("new-rotated-token", readPersistedCurrentToken(tokenFile));
+        assertEquals("new-seed-token", readPersistedSeed(tokenFile));
+    }
+
+    @Test
     void wasOAuthBearer_sharedHelper_treatsNonKeyAsOAuth() {
         assertTrue(XaiOAuthTokenManager.wasOAuthBearer("oauth-token", "xai-key"));
         assertTrue(XaiOAuthTokenManager.wasOAuthBearer("oauth-token", ""));
@@ -451,9 +522,22 @@ class XaiOAuthTokenManagerTest {
     }
 
     private String readPersistedCurrentToken(Path tokenFile) throws Exception {
+        return readPersistedField(tokenFile, "currentToken");
+    }
+
+    private String readPersistedSeed(Path tokenFile) throws Exception {
+        return readPersistedField(tokenFile, "seedToken");
+    }
+
+    private String readPersistedSuperseded(Path tokenFile) throws Exception {
+        return readPersistedField(tokenFile, "supersededSeed");
+    }
+
+    private String readPersistedField(Path tokenFile, String field) throws Exception {
         com.fasterxml.jackson.databind.JsonNode node =
                 new com.fasterxml.jackson.databind.ObjectMapper().readTree(Files.readString(tokenFile));
-        return node.path("currentToken").asText(null);
+        String value = node.path(field).asText(null);
+        return (value != null && value.isBlank()) ? null : value;
     }
 
     private String tokenResponse(String accessToken, int expiresInSeconds, String rotatedRefreshToken) {

@@ -58,6 +58,12 @@ import java.util.function.Supplier;
  * a failed grant — this class reloads the persisted token so a loser adopts
  * the winner's rotation instead of retrying a stale in-memory value.
  *
+ * <p>A rolling deploy that changes {@code XAI_OAUTH_REFRESH_TOKEN} can leave
+ * an old and a new container on the same {@code /data} file with different
+ * seeds. Persist will take over a foreign seed once, recording it as
+ * {@code supersededSeed}; an instance whose seed was superseded does not
+ * write that file again.
+ *
  * <p>Callers must treat a missing token (empty Optional) as "fall back to
  * {@code XAI_API_KEY}" — this class never throws for an unconfigured or
  * dead refresh token. Protocol matches
@@ -94,7 +100,7 @@ public class XaiOAuthTokenManager {
     // simply by rotating XAI_OAUTH_REFRESH_TOKEN and redeploying — without this, a persisted
     // token that goes bad (revoked, corrupted, copied from another deployment) would be
     // stuck forever, since it always wins over the configured value.
-    private record PersistedState(String seedToken, String currentToken) {
+    private record PersistedState(String seedToken, String currentToken, String supersededSeed) {
     }
 
     private HttpClient httpClient;
@@ -117,8 +123,9 @@ public class XaiOAuthTokenManager {
         if (atomic) {
             Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } else {
-            // COPY_ATTRIBUTES so EXDEV/copy+delete does not create dest at umask 0644.
-            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+            // REPLACE_EXISTING only: COPY_ATTRIBUTES is a copy option and Unix
+            // Files.move rejects it with UnsupportedOperationException.
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
         }
     };
 
@@ -377,7 +384,11 @@ public class XaiOAuthTokenManager {
             if (current == null || current.isBlank()) {
                 return null;
             }
-            return new PersistedState(seed, current);
+            String superseded = node.path("supersededSeed").asText(null);
+            if (superseded != null && superseded.isBlank()) {
+                superseded = null;
+            }
+            return new PersistedState(seed, current, superseded);
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_file_read_failed error={}", e.getMessage());
             return null;
@@ -393,7 +404,11 @@ public class XaiOAuthTokenManager {
             if (refreshTokenFile.getParent() != null) {
                 Files.createDirectories(refreshTokenFile.getParent());
             }
-            String json = objectMapper.writeValueAsString(new PersistedState(seedRefreshToken, token));
+            PersistedState toWrite = stateToPersist(token);
+            if (toWrite == null) {
+                return;
+            }
+            String json = objectMapper.writeValueAsString(toWrite);
             tmp = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".tmp");
             // Create at POSIX 0600 — never writeString-into-umask then chmod.
             if (!tryCreateOwnerOnly(tmp)) {
@@ -404,7 +419,7 @@ public class XaiOAuthTokenManager {
                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
             movePersistedFile(tmp, refreshTokenFile);
             // Non-atomic fallback (EXDEV / some Docker mounts) can create dest
-            // at umask 0644 even with COPY_ATTRIBUTES — re-apply 0600 on dest.
+            // at umask 0644 — re-apply 0600 on dest.
             if (!tryRestrictToOwnerOnly(refreshTokenFile)) {
                 deleteQuietly(refreshTokenFile);
                 deleteQuietly(tmp);
@@ -414,6 +429,25 @@ public class XaiOAuthTokenManager {
             log.warn("event=xai_oauth_refresh_token_persist_failed error={}", e.getMessage());
             deleteQuietly(tmp);
         }
+    }
+
+    /**
+     * @return state to publish, or {@code null} to skip (file is owned by
+     * another seed that has already superseded ours)
+     */
+    private PersistedState stateToPersist(String token) {
+        PersistedState existing = readPersistedState();
+        if (existing == null) {
+            return new PersistedState(seedRefreshToken, token, null);
+        }
+        if (Objects.equals(existing.seedToken(), seedRefreshToken)) {
+            return new PersistedState(seedRefreshToken, token, existing.supersededSeed());
+        }
+        if (Objects.equals(existing.supersededSeed(), seedRefreshToken)) {
+            log.info("event=xai_oauth_refresh_token_persist_skipped_foreign_seed");
+            return null;
+        }
+        return new PersistedState(seedRefreshToken, token, existing.seedToken());
     }
 
     private boolean tryCreateOwnerOnly(Path path) {
