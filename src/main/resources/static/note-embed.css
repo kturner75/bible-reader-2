@@ -32,6 +32,12 @@
 }
 
 @media print {
+    /* Ctrl+P / browser print skips the JS Print-button guard.
+       Unhydrated shells still have data-v and a numeric cite — hide them. */
+    .note-scripture-embed:not([data-embed-ready="1"]) {
+        display: none !important;
+    }
+
     .note-scripture-embed {
         page-break-inside: avoid;
         break-inside: avoid;

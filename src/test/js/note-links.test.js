@@ -25,6 +25,7 @@ test('render stores ids only — no KJV text in the markup until hydrate', () =>
     assert.match(html, /note-scripture-embed/);
     assert.match(html, /note-range-link/);
     assert.match(html, /note-scripture-embed-text/);
+    assert.doesNotMatch(html, /data-embed-ready/);
     assert.doesNotMatch(html, /For God so loved/);
     assert.doesNotMatch(html, /In the beginning/);
     const emptyText = html.match(/note-scripture-embed-text"><\/div>/);
