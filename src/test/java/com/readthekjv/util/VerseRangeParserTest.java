@@ -134,4 +134,20 @@ class VerseRangeParserTest {
         assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap(""));
         assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=not-a-range]"));
     }
+
+    @Test
+    void trailingJunkOnABoundIsNotARealRange() {
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[e=1-13junk]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseVToken("[e=13junk]"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseRangeBody("1-13junk"));
+        assertThrows(IllegalArgumentException.class,
+                () -> VerseRangeParser.parseRangeBody("13junk"));
+
+        // Fail-closed with JS: junk is skipped, not treated as a 13-verse embed.
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=1-13junk]"));
+        assertDoesNotThrow(() -> VerseRangeParser.requireNoteEmbedCap("[e=13junk]"));
+    }
 }
