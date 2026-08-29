@@ -20,7 +20,9 @@ import java.time.Duration;
 
 /**
  * Speech-to-text transcription via a configurable provider (OpenAI or xAI).
- * Set STT_PROVIDER=xai and STT_API_KEY=&lt;your-xai-key&gt; to switch providers.
+ * Set {@code STT_PROVIDER=xai} to switch providers. xAI calls use a SuperGrok
+ * OAuth access token when {@link XaiOAuthTokenManager} has one, otherwise
+ * {@code XAI_API_KEY}.
  */
 @Service
 public class WhisperService {
@@ -45,17 +47,27 @@ public class WhisperService {
     @Value("${XAI_API_KEY:}")
     private String xaiKey;
 
-    private final HttpClient httpClient;
+    private final XaiOAuthTokenManager xaiOAuthTokenManager;
+    private HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public WhisperService() {
+    public WhisperService(XaiOAuthTokenManager xaiOAuthTokenManager) {
+        this.xaiOAuthTokenManager = xaiOAuthTokenManager;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
     }
 
     public boolean isEnabled() {
-        return enabled && resolvedKey() != null && !resolvedKey().isBlank();
+        if (!enabled) {
+            return false;
+        }
+        // isConfigured() is a local check — do not refresh a token just to report availability.
+        if (isXai() && xaiOAuthTokenManager != null && xaiOAuthTokenManager.isConfigured()) {
+            return true;
+        }
+        String key = resolvedKey();
+        return key != null && !key.isBlank();
     }
 
     /**
@@ -80,8 +92,34 @@ public class WhisperService {
         return isXai() ? null : OPENAI_MODEL;
     }
 
-    private String resolvedKey() {
+    String resolvedKey() {
         return isXai() ? xaiKey : openAiKey;
+    }
+
+    /**
+     * Bearer for the STT call: SuperGrok OAuth access token when xAI and
+     * present, otherwise the static provider API key.
+     */
+    String resolvedBearer() {
+        if (isXai() && xaiOAuthTokenManager != null) {
+            var oauth = xaiOAuthTokenManager.getAccessToken();
+            if (oauth.isPresent() && !oauth.get().isBlank()) {
+                return oauth.get();
+            }
+        }
+        return resolvedKey();
+    }
+
+    private HttpResponse<String> sendStt(byte[] body, String boundary, String bearer)
+            throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(resolvedUrl()))
+                .header("Authorization", "Bearer " + bearer)
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                .timeout(Duration.ofSeconds(120)) // STT is slower than TTS
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     public String transcribe(byte[] audioBytes, String contentType, String hint)
@@ -90,17 +128,24 @@ public class WhisperService {
         String boundary = "----WhisperBoundary" + System.nanoTime();
         byte[] body = buildMultipartBody(boundary, audioBytes, contentType, hint);
 
+        String bearer = resolvedBearer();
+        if (bearer == null || bearer.isBlank()) {
+            throw new IOException("STT unavailable: no OAuth access token and no API key configured");
+        }
+
         log.debug("STT provider={} url={}", provider, resolvedUrl());
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(resolvedUrl()))
-                .header("Authorization", "Bearer " + resolvedKey())
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(body))
-                .timeout(Duration.ofSeconds(120)) // STT is slower than TTS
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = sendStt(body, boundary, bearer);
+        if (isXai() && xaiOAuthTokenManager != null && response.statusCode() == 401
+                && XaiOAuthTokenManager.wasOAuthBearer(bearer, resolvedKey())) {
+            xaiOAuthTokenManager.invalidate();
+            String retryBearer = XaiOAuthTokenManager.retryXaiBearer(
+                    xaiOAuthTokenManager, bearer, resolvedKey());
+            if (retryBearer != null) {
+                log.warn("event=xai_oauth_rejected retrying_stt");
+                response = sendStt(body, boundary, retryBearer);
+            }
+        }
 
         if (response.statusCode() != 200) {
             log.error("Whisper API error: {} — {}", response.statusCode(), response.body());

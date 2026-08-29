@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,11 +45,15 @@ class VerseOfDayServiceTest {
         repository   = mock(VerseOfDayRepository.class);
         bibleService = mock(BibleService.class);
         httpClient   = mock(HttpClient.class);
-        service      = new VerseOfDayService(repository, bibleService);
+        service      = new VerseOfDayService(repository, bibleService, unconfiguredOAuth());
         ReflectionTestUtils.setField(service, "httpClient", httpClient);
         configure("openai", "sk-openai", "xai-key", "");
         when(repository.existsById(DATE)).thenReturn(false);
         when(repository.findTop365ByOrderByDateDesc()).thenReturn(List.of());
+    }
+
+    private static XaiOAuthTokenManager unconfiguredOAuth() {
+        return new XaiOAuthTokenManager("", true, null);
     }
 
     private void configure(String provider, String openAiKey, String xaiKey, String model) {
@@ -143,6 +148,130 @@ class VerseOfDayServiceTest {
         HttpRequest sent = capturedRequest();
         assertEquals("https://api.x.ai/v1/chat/completions", sent.uri().toString());
         assertEquals("Bearer xai-secret", sent.headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void generateForDatePostsToXaiUrlWithOAuthBearerWhenPresent() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken()).thenReturn(Optional.of("oauth-access-token"));
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "xai-secret", "");
+        stubHttp(200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        service.generateForDate(DATE);
+
+        HttpRequest sent = capturedRequest();
+        assertEquals("https://api.x.ai/v1/chat/completions", sent.uri().toString());
+        assertEquals("Bearer oauth-access-token", sent.headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void generateForDateFallsBackToXaiKeyWhenOAuthEmpty() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken()).thenReturn(Optional.empty());
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "xai-secret", "");
+        stubHttp(200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        service.generateForDate(DATE);
+
+        assertEquals("Bearer xai-secret", capturedRequest().headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void openaiProviderIgnoresXaiOAuthToken() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken()).thenReturn(Optional.of("oauth-access-token"));
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("openai", "sk-openai", "xai-secret", "");
+        stubHttp(200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        service.generateForDate(DATE);
+
+        assertEquals("Bearer sk-openai", capturedRequest().headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void xaiOAuthOnlyWithNoApiKeyStillCallsXai() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken()).thenReturn(Optional.of("oauth-access-token"));
+        when(oauth.isConfigured()).thenReturn(true);
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "", "");
+        stubHttp(200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        service.generateForDate(DATE);
+
+        assertEquals("Bearer oauth-access-token", capturedRequest().headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void existingVerseSkipsOAuthRefreshAndHttp() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.isConfigured()).thenReturn(true);
+        when(oauth.getAccessToken()).thenReturn(Optional.of("oauth-access-token"));
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "xai-secret", "");
+        when(repository.existsById(DATE)).thenReturn(true);
+
+        service.generateForDate(DATE);
+
+        verify(oauth, never()).getAccessToken();
+        verify(httpClient, never()).send(any(), any());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void generateForDate_xai401_invalidatesAndRetriesWithRefreshedToken() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("dead-oauth"))
+                .thenReturn(Optional.of("fresh-oauth"));
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "xai-secret", "");
+        stubHttpSequence(401, "{\"error\":\"invalid token\"}",
+                200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        service.generateForDate(DATE);
+
+        verify(oauth).invalidate();
+        var sent = capturedRequests(2);
+        assertEquals("Bearer dead-oauth", sent.get(0).headers().firstValue("Authorization").orElseThrow());
+        assertEquals("Bearer fresh-oauth", sent.get(1).headers().firstValue("Authorization").orElseThrow());
+        verify(repository).save(any());
+    }
+
+    @Test
+    void generateForDate_xai401_invalidatesAndRetriesWithApiKeyWhenRefreshEmpty() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("dead-oauth"))
+                .thenReturn(Optional.empty());
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "xai-secret", "");
+        stubHttpSequence(401, "{\"error\":\"invalid token\"}",
+                200, chatEnvelope("{\"reference\":\"John 3:16\",\"blurb\":\"Hope.\"}"));
+        when(bibleService.parseAndResolve("John 3:16")).thenReturn(Optional.of(26137));
+
+        service.generateForDate(DATE);
+
+        verify(oauth).invalidate();
+        var sent = capturedRequests(2);
+        assertEquals("Bearer dead-oauth", sent.get(0).headers().firstValue("Authorization").orElseThrow());
+        assertEquals("Bearer xai-secret", sent.get(1).headers().firstValue("Authorization").orElseThrow());
+        verify(repository).save(any());
     }
 
     // ── Junk / error paths skip persist ───────────────────────────────────────
@@ -243,10 +372,26 @@ class VerseOfDayServiceTest {
                 .thenReturn(response);
     }
 
+    @SuppressWarnings("unchecked")
+    private void stubHttpSequence(int status1, String body1, int status2, String body2) throws Exception {
+        HttpResponse<String> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(status1);
+        when(first.body()).thenReturn(body1);
+        HttpResponse<String> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(status2);
+        when(second.body()).thenReturn(body2);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(first, second);
+    }
+
     private HttpRequest capturedRequest() throws Exception {
+        return capturedRequests(1).get(0);
+    }
+
+    private java.util.List<HttpRequest> capturedRequests(int expected) throws Exception {
         ArgumentCaptor<HttpRequest> cap = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(httpClient).send(cap.capture(), any());
-        return cap.getValue();
+        verify(httpClient, times(expected)).send(cap.capture(), any());
+        return cap.getAllValues();
     }
 
     private static String chatEnvelope(String contentJson) throws Exception {

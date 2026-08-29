@@ -32,9 +32,10 @@ import java.util.stream.Collectors;
  * (OpenAI or xAI). One verse per calendar day (UTC), stored in the
  * verse_of_day table.
  *
- * <p>Set {@code VOTD_PROVIDER=xai} and {@code XAI_API_KEY} to switch
- * providers. {@code VOTD_MODEL} overrides the provider default
- * ({@code gpt-4o-mini} / {@code grok-3-mini}).
+ * <p>Set {@code VOTD_PROVIDER=xai} to switch providers. xAI calls use a
+ * SuperGrok OAuth access token when {@link XaiOAuthTokenManager} has one,
+ * otherwise {@code XAI_API_KEY}. {@code VOTD_MODEL} overrides the provider
+ * default ({@code gpt-4o-mini} / {@code grok-3-mini}).
  *
  * <p>Generation runs:
  * <ul>
@@ -59,6 +60,7 @@ public class VerseOfDayService {
 
     private final VerseOfDayRepository repository;
     private final BibleService bibleService;
+    private final XaiOAuthTokenManager xaiOAuthTokenManager;
     private final ObjectMapper objectMapper;
 
     private HttpClient httpClient;
@@ -78,9 +80,11 @@ public class VerseOfDayService {
     @Value("${votd.model:}")
     private String model;
 
-    public VerseOfDayService(VerseOfDayRepository repository, BibleService bibleService) {
+    public VerseOfDayService(VerseOfDayRepository repository, BibleService bibleService,
+                             XaiOAuthTokenManager xaiOAuthTokenManager) {
         this.repository   = repository;
         this.bibleService = bibleService;
+        this.xaiOAuthTokenManager = xaiOAuthTokenManager;
         this.httpClient   = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
@@ -135,14 +139,15 @@ public class VerseOfDayService {
                     provider);
             return;
         }
-        String apiKey = resolvedKey();
-        if (apiKey == null || apiKey.isBlank()) {
-            log.debug("{} not set — skipping verse of the day generation",
-                    isXai() ? "XAI_API_KEY" : "OPENAI_API_KEY");
-            return;
-        }
+        // existsById before any OAuth refresh: a row already present means we will not
+        // call xAI, so do not spend a refresh (xAI rotates the refresh token on every use).
         if (repository.existsById(date)) {
             log.debug("Verse of the day for {} already exists — skipping", date);
+            return;
+        }
+        if (!hasLocalAuth()) {
+            log.debug("{} not set — skipping verse of the day generation",
+                    isXai() ? "xAI OAuth / XAI_API_KEY" : "OPENAI_API_KEY");
             return;
         }
 
@@ -245,6 +250,33 @@ public class VerseOfDayService {
         return isXai() ? xaiKey : openAiKey;
     }
 
+    /**
+     * Local credential check — no token-endpoint call. OAuth refresh happens
+     * only in {@link #resolvedBearer()} when we are about to call xAI.
+     */
+    boolean hasLocalAuth() {
+        if (isXai()) {
+            boolean oauthReady = xaiOAuthTokenManager != null && xaiOAuthTokenManager.isConfigured();
+            String key = xaiKey;
+            return oauthReady || (key != null && !key.isBlank());
+        }
+        return openAiKey != null && !openAiKey.isBlank();
+    }
+
+    /**
+     * Bearer for the chat call: SuperGrok OAuth access token when xAI and
+     * present, otherwise the static provider API key.
+     */
+    String resolvedBearer() {
+        if (isXai() && xaiOAuthTokenManager != null) {
+            Optional<String> oauth = xaiOAuthTokenManager.getAccessToken();
+            if (oauth.isPresent() && !oauth.get().isBlank()) {
+                return oauth.get();
+            }
+        }
+        return resolvedKey();
+    }
+
     // ── Chat Completions HTTP call ────────────────────────────────────────────
 
     /**
@@ -268,15 +300,22 @@ public class VerseOfDayService {
 
         log.debug("VOTD provider={} url={} model={}", provider, resolvedUrl(), resolvedModel());
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(resolvedUrl()))
-                .header("Authorization", "Bearer " + resolvedKey())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .timeout(Duration.ofSeconds(60))
-                .build();
+        String bearer = resolvedBearer();
+        if (bearer == null || bearer.isBlank()) {
+            return null;
+        }
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = sendChat(requestBody, bearer);
+        if (isXai() && xaiOAuthTokenManager != null && response.statusCode() == 401
+                && XaiOAuthTokenManager.wasOAuthBearer(bearer, resolvedKey())) {
+            xaiOAuthTokenManager.invalidate();
+            String retryBearer = XaiOAuthTokenManager.retryXaiBearer(
+                    xaiOAuthTokenManager, bearer, resolvedKey());
+            if (retryBearer != null) {
+                log.warn("event=xai_oauth_rejected retrying_votd");
+                response = sendChat(requestBody, retryBearer);
+            }
+        }
 
         if (response.statusCode() != 200) {
             log.error("Chat Completions API error {}: {}", response.statusCode(), response.body());
@@ -284,6 +323,17 @@ public class VerseOfDayService {
         }
 
         return response.body();
+    }
+
+    private HttpResponse<String> sendChat(String requestBody, String bearer) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(resolvedUrl()))
+                .header("Authorization", "Bearer " + bearer)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .timeout(Duration.ofSeconds(60))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     // ── Response parsing ──────────────────────────────────────────────────────

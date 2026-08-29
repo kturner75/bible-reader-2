@@ -50,3 +50,6 @@ e2e/playwright/.cache/
 e2e/.auth/
 
 e2e/.env
+
+# Rotated xAI OAuth refresh token (operator-local persist; 0600)
+/data/
