@@ -8,6 +8,14 @@ set -euo pipefail
 exec 9>/tmp/kjv-pg-bootstrap.lock
 flock 9
 
+# Package cluster listens on 5432. Honor KJV_DB_PORT only when unset or 5432;
+# any other value is a configuration error (do not rewrite postgresql.conf).
+DB_PORT="${KJV_DB_PORT:-5432}"
+if [ "${DB_PORT}" != "5432" ]; then
+  echo "KJV_DB_PORT=${DB_PORT} is not supported: the package PostgreSQL cluster listens on 5432 (will not rewrite postgresql.conf)" >&2
+  exit 1
+fi
+
 # Start the cluster created by the postgresql package (idempotent — tolerates
 # an already-running server). Prefer the "main" cluster from pg_lsclusters;
 # fall back to 16 (Ubuntu 24.04 default).
@@ -18,7 +26,7 @@ sudo pg_ctlcluster "${cluster_ver}" main start || true
 # Wait until the server accepts connections before provisioning. Fail closed.
 ready=0
 for _ in $(seq 1 30); do
-  if sudo -u postgres pg_isready -q; then
+  if sudo -u postgres pg_isready -q -p "${DB_PORT}"; then
     ready=1
     break
   fi
@@ -37,7 +45,7 @@ DB_PASS="${KJV_DB_PASSWORD:-kjv}"
 # interpolated into SQL by the shell. CREATE ROLE / CREATE DATABASE have no
 # IF NOT EXISTS on PG 16 — use catalog guards + \gexec. ALTER ROLE still
 # sets the password when the role already exists so ENV matches Postgres.
-sudo -u postgres psql -v ON_ERROR_STOP=1 \
+sudo -u postgres psql -p "${DB_PORT}" -v ON_ERROR_STOP=1 \
   --set=db_name="${DB_NAME}" \
   --set=db_user="${DB_USER}" \
   --set=db_pass="${DB_PASS}" <<'SQL'
@@ -50,5 +58,32 @@ SELECT format('CREATE DATABASE %I OWNER %I', :'db_name', :'db_user')
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db_name');
 \gexec
 SQL
+
+# When KJV_DB_USERNAME changes across restarts, move datdba and Flyway
+# objects off the previous role. Capture prior owner before ALTER DATABASE.
+PRIOR_OWNER="$(sudo -u postgres psql -p "${DB_PORT}" -v ON_ERROR_STOP=1 -tA \
+  --set=db_name="${DB_NAME}" \
+  --set=db_user="${DB_USER}" <<'SQL'
+SELECT pg_get_userbyid(datdba)
+FROM pg_database
+WHERE datname = :'db_name'
+  AND pg_get_userbyid(datdba) IS DISTINCT FROM :'db_user';
+SQL
+)"
+
+if [ -n "${PRIOR_OWNER}" ]; then
+  sudo -u postgres psql -p "${DB_PORT}" -v ON_ERROR_STOP=1 \
+    --set=db_name="${DB_NAME}" \
+    --set=db_user="${DB_USER}" <<'SQL'
+SELECT format('ALTER DATABASE %I OWNER TO %I', :'db_name', :'db_user');
+\gexec
+SQL
+  sudo -u postgres psql -p "${DB_PORT}" -d "${DB_NAME}" -v ON_ERROR_STOP=1 \
+    --set=old_user="${PRIOR_OWNER}" \
+    --set=db_user="${DB_USER}" <<'SQL'
+SELECT format('REASSIGN OWNED BY %I TO %I', :'old_user', :'db_user');
+\gexec
+SQL
+fi
 
 echo "PostgreSQL ready — database '${DB_NAME}' present (owner '${DB_USER}')."
