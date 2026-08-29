@@ -2,6 +2,8 @@ package com.readthekjv.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -99,6 +101,16 @@ public class XaiOAuthTokenManager {
     static final int SUPERSEDED_TOMBSTONE_BYTES = 256;
     static final int SUPERSEDED_TOMBSTONE_HEX_LENGTH = SUPERSEDED_TOMBSTONE_BYTES * 2;
     private static final int TOMBSTONE_HASHES = 4;
+    // Persist and reload must share these keys. A write/read mismatch drops
+    // pruned-seed tombstones, and an old generation can reclaim the file.
+    static final String JSON_SEED_TOKEN = "seedToken";
+    static final String JSON_CURRENT_TOKEN = "currentToken";
+    static final String JSON_SUPERSEDED_SEEDS = "supersededSeeds";
+    static final String JSON_SUPERSEDED_TOMBSTONE = "supersededTombstone";
+    static final String JSON_GENERATION = "generation";
+    private static final String JSON_LEGACY_SUPERSEDED_SEED = "supersededSeed";
+    private static final String JSON_LEGACY_DIGESTS = "supersededDigests";
+    private static final String JSON_LEGACY_SEED_DIGESTS = "supersededSeedDigests";
 
     /**
      * Production default: absolute path on the durable {@code /data} volume,
@@ -420,13 +432,14 @@ public class XaiOAuthTokenManager {
                 return null;
             }
             JsonNode node = objectMapper.readTree(raw);
-            String seed = node.path("seedToken").asText(null);
-            String current = node.path("currentToken").asText(null);
+            String seed = node.path(JSON_SEED_TOKEN).asText(null);
+            String current = node.path(JSON_CURRENT_TOKEN).asText(null);
             if (current == null || current.isBlank()) {
                 return null;
             }
             return new PersistedState(
-                    seed, current, readSupersededSeeds(node), readTombstone(node), node.path("generation").asInt(0));
+                    seed, current, readSupersededSeeds(node), readTombstone(node),
+                    node.path(JSON_GENERATION).asInt(0));
         } catch (IOException e) {
             log.warn("event=xai_oauth_refresh_token_file_read_failed error={}", e.getMessage());
             return null;
@@ -451,7 +464,7 @@ public class XaiOAuthTokenManager {
             if (toWrite == null) {
                 return true;
             }
-            String json = objectMapper.writeValueAsString(toWrite);
+            String json = objectMapper.writeValueAsString(persistedStateJson(toWrite));
             tmp = refreshTokenFile.resolveSibling(refreshTokenFile.getFileName() + ".tmp");
             // Create at POSIX 0600 — never writeString-into-umask then chmod.
             if (!tryCreateOwnerOnly(tmp)) {
@@ -504,9 +517,22 @@ public class XaiOAuthTokenManager {
                 seedRefreshToken, token, superseded, lineageTombstone(existing), existing.generation() + 1);
     }
 
+    private ObjectNode persistedStateJson(PersistedState state) {
+        ObjectNode obj = objectMapper.createObjectNode();
+        obj.put(JSON_SEED_TOKEN, state.seedToken());
+        obj.put(JSON_CURRENT_TOKEN, state.currentToken());
+        ArrayNode seeds = obj.putArray(JSON_SUPERSEDED_SEEDS);
+        for (String seed : state.supersededSeeds()) {
+            seeds.add(seed);
+        }
+        obj.put(JSON_SUPERSEDED_TOMBSTONE, state.supersededTombstone());
+        obj.put(JSON_GENERATION, state.generation());
+        return obj;
+    }
+
     private static List<String> readSupersededSeeds(JsonNode node) {
         List<String> superseded = new ArrayList<>();
-        JsonNode arr = node.get("supersededSeeds");
+        JsonNode arr = node.get(JSON_SUPERSEDED_SEEDS);
         if (arr != null && arr.isArray()) {
             for (JsonNode item : arr) {
                 String value = item.asText(null);
@@ -515,7 +541,7 @@ public class XaiOAuthTokenManager {
                 }
             }
         }
-        String legacy = node.path("supersededSeed").asText(null);
+        String legacy = node.path(JSON_LEGACY_SUPERSEDED_SEED).asText(null);
         if (legacy != null && !legacy.isBlank() && !superseded.contains(legacy)) {
             superseded.add(legacy);
         }
@@ -523,10 +549,10 @@ public class XaiOAuthTokenManager {
     }
 
     private static String readTombstone(JsonNode node) {
-        byte[] bits = decodeTombstone(node.path("supersededTombstone").asText(null));
-        JsonNode arr = node.get("supersededDigests");
+        byte[] bits = decodeTombstone(node.path(JSON_SUPERSEDED_TOMBSTONE).asText(null));
+        JsonNode arr = node.get(JSON_LEGACY_DIGESTS);
         if (arr == null || !arr.isArray()) {
-            arr = node.get("supersededSeedDigests");
+            arr = node.get(JSON_LEGACY_SEED_DIGESTS);
         }
         if (arr != null && arr.isArray()) {
             for (JsonNode item : arr) {
