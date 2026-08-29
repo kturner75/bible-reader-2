@@ -8,7 +8,6 @@
     const TITLE_PRINT = 'Print';
     const TITLE_LOADING = 'Quoted scripture is still loading';
     const TITLE_UNAVAILABLE = 'Some quoted scripture could not be loaded';
-    const TITLE_RESTORE_FALLBACK_MS = 60000;
 
     function embedIsReady(el) {
         if (!el || el.dataset.embedReady !== '1') return false;
@@ -20,6 +19,48 @@
         if (!root || !root.querySelectorAll) return false;
         return [...root.querySelectorAll('.note-scripture-embed[data-v]')]
             .some(el => !embedIsReady(el));
+    }
+
+    function isEmbedCite(el) {
+        return !!(el && el.closest && el.closest('.note-scripture-embed'));
+    }
+
+    function rangeLabelIsReady(el) {
+        return !!(el && el.dataset && el.dataset.labelReady === '1');
+    }
+
+    function looksLikeRawRangeBody(text, body) {
+        const t = String(text || '').replace(/\s/g, '');
+        const b = String(body || '').replace(/\s/g, '');
+        if (b && t === b) return true;
+        return /^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/.test(t);
+    }
+
+    /** Ordinary [v=] links still showing a verse-id body after a failed hydrate. */
+    function viewRangeLabelsUnresolved(root) {
+        if (!root || !root.querySelectorAll) return false;
+        return [...root.querySelectorAll('.note-range-link[data-v]')]
+            .filter(el => !isEmbedCite(el))
+            .some(el => !rangeLabelIsReady(el));
+    }
+
+    /**
+     * Resolve or fail a range-link label. Failure clears a raw numeric body
+     * so Print / Save-as-PDF cannot emit internal verse IDs.
+     */
+    function applyRangeLabelHydration(el, result) {
+        if (!el || !el.dataset) return;
+        if (result && result.ok) {
+            if (result.label) el.textContent = result.label;
+            el.dataset.labelReady = '1';
+            delete el.dataset.labelFailed;
+            return;
+        }
+        el.dataset.labelFailed = '1';
+        delete el.dataset.labelReady;
+        if (looksLikeRawRangeBody(el.textContent, el.dataset.v)) {
+            el.textContent = '';
+        }
     }
 
     function printButtonState({ inView, hydrationDone, embedsPending }) {
@@ -42,44 +83,66 @@
         return null;
     }
 
+    /** True when the tab can accept a title restore — print dialog is gone. */
+    function windowLooksUsable(doc, host) {
+        if (doc && (doc.hidden === true
+            || (doc.visibilityState && doc.visibilityState !== 'visible'))) {
+            return false;
+        }
+        if (host && typeof host.hasFocus === 'function' && !host.hasFocus()) {
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Set document.title for Save-as-PDF. Safari reads the title after
-     * print() returns, so restore on afterprint — not in a finally.
-     * If afterprint never fires, a fallback timer restores the tab title.
+     * print() returns, so restore on afterprint — not in a finally, and
+     * not on a wall-clock timer that can beat a long print dialog.
+     * If afterprint never fires, restore on focus/visibility once the
+     * window is usable again.
      */
-    function runPrintWithTitle(doc, noteTitle, printFn, options) {
+    function runPrintWithTitle(doc, noteTitle, printFn) {
         if (!doc) return;
         const previousTitle = doc.title;
         const next = String(noteTitle || '').trim();
         if (next) doc.title = next;
 
         const host = printHost(doc);
-        const delay = options && Number.isFinite(options.restoreAfterMs)
-            ? options.restoreAfterMs
-            : TITLE_RESTORE_FALLBACK_MS;
-
+        const bindings = [];
         let restored = false;
-        let timer = null;
+
+        const unbind = () => {
+            for (const [target, type, fn] of bindings) {
+                if (target && target.removeEventListener) {
+                    target.removeEventListener(type, fn);
+                }
+            }
+            bindings.length = 0;
+        };
+
+        const bind = (target, type, fn) => {
+            if (!target || !target.addEventListener) return;
+            target.addEventListener(type, fn);
+            bindings.push([target, type, fn]);
+        };
+
         const restore = () => {
             if (restored) return;
             restored = true;
             doc.title = previousTitle;
-            if (timer != null) {
-                if (host && typeof host.clearTimeout === 'function') host.clearTimeout(timer);
-                else clearTimeout(timer);
-            }
-            if (host && host.removeEventListener) {
-                host.removeEventListener('afterprint', restore);
-            }
+            unbind();
         };
 
-        if (host && host.addEventListener) {
-            host.addEventListener('afterprint', restore);
-        }
-        const schedule = (host && typeof host.setTimeout === 'function')
-            ? host.setTimeout.bind(host)
-            : setTimeout;
-        timer = schedule(restore, delay);
+        const restoreWhenUsable = () => {
+            if (windowLooksUsable(doc, host)) restore();
+        };
+
+        bind(host, 'afterprint', restore);
+        bind(host, 'focus', restoreWhenUsable);
+        bind(host, 'pageshow', restoreWhenUsable);
+        bind(host, 'visibilitychange', restoreWhenUsable);
+        bind(doc, 'visibilitychange', restoreWhenUsable);
 
         try {
             printFn();
@@ -118,9 +181,12 @@
         TITLE_PRINT,
         TITLE_LOADING,
         TITLE_UNAVAILABLE,
-        TITLE_RESTORE_FALLBACK_MS,
+        windowLooksUsable,
         embedIsReady,
         viewEmbedsPending,
+        rangeLabelIsReady,
+        viewRangeLabelsUnresolved,
+        applyRangeLabelHydration,
         printButtonState,
         runPrintWithTitle,
         startHydrationRun,
@@ -446,7 +512,8 @@ if (typeof document !== 'undefined') (async function () {
     }
 
     function viewEmbedsPending() {
-        return window.KjvNotePrint.viewEmbedsPending(viewBody);
+        return window.KjvNotePrint.viewEmbedsPending(viewBody)
+            || window.KjvNotePrint.viewRangeLabelsUnresolved(viewBody);
     }
 
     function currentPrintState() {
@@ -573,32 +640,49 @@ if (typeof document !== 'undefined') (async function () {
                 if (link.dataset.labelReady) continue;
                 try {
                     const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
-                    if (!res.ok) continue;
+                    if (!res.ok) {
+                        window.KjvNotePrint.applyRangeLabelHydration(link, { ok: false });
+                        continue;
+                    }
                     const data = await res.json();
-                    link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
-                        embedCite: true, reference: data.reference, body
+                    window.KjvNotePrint.applyRangeLabelHydration(link, {
+                        ok: true,
+                        label: window.KjvNoteLinks.rangeLinkDisplayLabel({
+                            embedCite: true, reference: data.reference, body
+                        })
                     });
-                    link.dataset.labelReady = '1';
-                } catch (_) { /* ignore */ }
+                } catch (_) {
+                    window.KjvNotePrint.applyRangeLabelHydration(link, { ok: false });
+                }
                 continue;
             }
             const p = findPassageByVBody(body);
             if (p) {
-                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
-                    embedCite: false, passageTitle: passageDisplayLabel(p), body
+                window.KjvNotePrint.applyRangeLabelHydration(link, {
+                    ok: true,
+                    label: window.KjvNoteLinks.rangeLinkDisplayLabel({
+                        embedCite: false, passageTitle: passageDisplayLabel(p), body
+                    })
                 });
                 continue;
             }
             if (link.dataset.labelReady) continue;
             try {
                 const res = await fetch(`/api/ranges?v=${encodeURIComponent(body)}`);
-                if (!res.ok) continue;
+                if (!res.ok) {
+                    window.KjvNotePrint.applyRangeLabelHydration(link, { ok: false });
+                    continue;
+                }
                 const data = await res.json();
-                link.textContent = window.KjvNoteLinks.rangeLinkDisplayLabel({
-                    embedCite: false, reference: data.reference, body
+                window.KjvNotePrint.applyRangeLabelHydration(link, {
+                    ok: true,
+                    label: window.KjvNoteLinks.rangeLinkDisplayLabel({
+                        embedCite: false, reference: data.reference, body
+                    })
                 });
-                link.dataset.labelReady = '1';
-            } catch (_) { /* ignore */ }
+            } catch (_) {
+                window.KjvNotePrint.applyRangeLabelHydration(link, { ok: false });
+            }
         }
         if (root === viewBody
             && noteGen === openNoteGen

@@ -7,7 +7,9 @@ const path = require('node:path');
 const notes = require('../../main/resources/static/notes.js');
 
 const htmlPath = path.join(__dirname, '../../main/resources/static/notes.html');
+const cssPath = path.join(__dirname, '../../main/resources/static/notes.css');
 const notesHtml = fs.readFileSync(htmlPath, 'utf8');
+const notesCss = fs.readFileSync(cssPath, 'utf8');
 
 function mockEmbed({ ready, text }) {
     return {
@@ -18,6 +20,14 @@ function mockEmbed({ ready, text }) {
 
 function mockRoot(embeds) {
     return { querySelectorAll: () => embeds };
+}
+
+function mockRangeLink({ body, text, ready, embedCite }) {
+    return {
+        dataset: ready ? { v: body, labelReady: '1' } : { v: body },
+        textContent: text,
+        closest: (sel) => (embedCite && String(sel).includes('embed') ? {} : null)
+    };
 }
 
 test('Print button is present in the sermon-note view actions', () => {
@@ -65,6 +75,9 @@ test('Print is disabled until embeds are ready', () => {
 
 test('Print stays disabled while [v=] labels hydrate, even with no embeds', () => {
     assert.equal(notes.viewEmbedsPending(mockRoot([])), false);
+    assert.equal(notes.viewRangeLabelsUnresolved(mockRoot([
+        mockRangeLink({ body: '26136-26138', text: '26136-26138' })
+    ])), true);
 
     const hydratingLabels = notes.printButtonState({
         inView: true,
@@ -83,41 +96,63 @@ test('Print stays disabled while [v=] labels hydrate, even with no embeds', () =
     assert.equal(labelsReady.title, notes.TITLE_PRINT);
 });
 
-test('document.title stays the note title after print() returns; restore on afterprint', () => {
+function mockPrintHost(state) {
     const listeners = [];
+    const host = {
+        addEventListener(type, fn) { listeners.push({ type, fn }); },
+        removeEventListener(type, fn) {
+            const i = listeners.findIndex(l => l.type === type && l.fn === fn);
+            if (i >= 0) listeners.splice(i, 1);
+        },
+        hasFocus() { return !!state.focused; }
+    };
     const doc = {
         title: 'Notes — KJV Bible Reader',
-        defaultView: {
-            addEventListener(type, fn) { listeners.push({ type, fn }); },
-            removeEventListener(type, fn) {
-                const i = listeners.findIndex(l => l.type === type && l.fn === fn);
-                if (i >= 0) listeners.splice(i, 1);
-            }
+        get hidden() { return !!state.hidden; },
+        get visibilityState() { return state.hidden ? 'hidden' : 'visible'; },
+        addEventListener(type, fn) { listeners.push({ type, fn }); },
+        removeEventListener: host.removeEventListener,
+        defaultView: host
+    };
+    return {
+        doc,
+        listeners,
+        fire(type) {
+            listeners.filter(l => l.type === type).forEach(l => l.fn());
         }
     };
-    notes.runPrintWithTitle(doc, 'The New Birth', () => {
-        assert.equal(doc.title, 'The New Birth');
+}
+
+test('document.title stays the note title after print() returns; restore on afterprint', () => {
+    const afterprintHost = mockPrintHost({ hidden: false, focused: true });
+    notes.runPrintWithTitle(afterprintHost.doc, 'The New Birth', () => {
+        assert.equal(afterprintHost.doc.title, 'The New Birth');
     });
-    assert.equal(doc.title, 'The New Birth', 'Safari Save-as-PDF still needs the note title');
-    const after = listeners.find(l => l.type === 'afterprint');
+    assert.equal(afterprintHost.doc.title, 'The New Birth', 'Safari Save-as-PDF still needs the note title');
+    const after = afterprintHost.listeners.find(l => l.type === 'afterprint');
     assert.ok(after, 'afterprint listener registered');
     after.fn();
-    assert.equal(doc.title, 'Notes — KJV Bible Reader');
+    assert.equal(afterprintHost.doc.title, 'Notes — KJV Bible Reader');
 
+    const state = { hidden: true, focused: false };
+    const fallback = mockPrintHost(state);
+    const timerHost = mockPrintHost({ hidden: true, focused: false });
     const timers = [];
-    const fallbackDoc = {
-        title: 'Notes — KJV Bible Reader',
-        defaultView: {
-            addEventListener() {},
-            removeEventListener() {},
-            setTimeout(fn) { timers.push(fn); return 1; },
-            clearTimeout() {}
-        }
-    };
-    notes.runPrintWithTitle(fallbackDoc, 'Psalm 23', () => {}, { restoreAfterMs: 0 });
-    assert.equal(fallbackDoc.title, 'Psalm 23', 'held after print() if afterprint never comes');
-    timers.forEach(fn => fn());
-    assert.equal(fallbackDoc.title, 'Notes — KJV Bible Reader');
+    timerHost.doc.defaultView.setTimeout = (fn, ms) => { timers.push(ms); return 1; };
+    notes.runPrintWithTitle(timerHost.doc, 'Psalm 23', () => {});
+    assert.equal(timers.length, 0, 'no wall-clock title restore that can beat a stuck dialog');
+    assert.equal(timerHost.doc.title, 'Psalm 23');
+
+    notes.runPrintWithTitle(fallback.doc, 'Psalm 23', () => {});
+    assert.equal(fallback.doc.title, 'Psalm 23', 'held after print() if afterprint never comes');
+    fallback.fire('visibilitychange');
+    fallback.fire('focus');
+    fallback.fire('pageshow');
+    assert.equal(fallback.doc.title, 'Psalm 23', 'fallback does not restore while print is still open');
+    state.hidden = false;
+    state.focused = true;
+    fallback.fire('focus');
+    assert.equal(fallback.doc.title, 'Notes — KJV Bible Reader');
 
     const throwing = { title: 'Notes — KJV Bible Reader' };
     assert.throws(() => {
@@ -126,6 +161,42 @@ test('document.title stays the note title after print() returns; restore on afte
         });
     }, /print failed/);
     assert.equal(throwing.title, 'Notes — KJV Bible Reader');
+});
+
+test('failed /api/ranges keeps unresolved [v=] labels out of print', () => {
+    const failedLink = mockRangeLink({
+        body: '26136-26138',
+        text: '26136-26138'
+    });
+    assert.equal(notes.viewRangeLabelsUnresolved(mockRoot([failedLink])), true);
+    notes.applyRangeLabelHydration(failedLink, { ok: false });
+    assert.equal(failedLink.dataset.labelFailed, '1');
+    assert.notEqual(failedLink.dataset.labelReady, '1');
+    assert.equal(failedLink.textContent, '');
+    assert.doesNotMatch(failedLink.textContent, /26136/);
+    assert.equal(notes.viewRangeLabelsUnresolved(mockRoot([failedLink])), true);
+
+    const readyLink = mockRangeLink({
+        body: '26136-26138',
+        text: '26136-26138'
+    });
+    notes.applyRangeLabelHydration(readyLink, { ok: true, label: 'John 3:16–18' });
+    assert.equal(readyLink.dataset.labelReady, '1');
+    assert.equal(readyLink.textContent, 'John 3:16–18');
+    assert.equal(notes.viewRangeLabelsUnresolved(mockRoot([readyLink])), false);
+
+    const afterFail = notes.printButtonState({
+        inView: true,
+        hydrationDone: true,
+        embedsPending: true
+    });
+    assert.equal(afterFail.disabled, false);
+    assert.equal(afterFail.title, notes.TITLE_UNAVAILABLE);
+
+    assert.match(
+        notesCss,
+        /@media print[\s\S]*\.note-range-link\[data-v\]:not\(\[data-label-ready="1"\]\)/
+    );
 });
 
 test('failed ranges does not leave Print still-loading forever', () => {

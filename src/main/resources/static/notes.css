@@ -1089,4 +1089,9 @@ a:hover { text-decoration: underline; }
         text-decoration: underline;
         text-underline-offset: 2px;
     }
+
+    /* Failed / unhydrated [v=] cites still carry the raw verse-id body. */
+    .note-range-link[data-v]:not([data-label-ready="1"]) {
+        display: none !important;
+    }
 }
