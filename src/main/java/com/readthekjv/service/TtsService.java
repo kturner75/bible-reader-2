@@ -22,16 +22,26 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 /**
- * Service for text-to-speech audio generation using OpenAI's TTS API.
+ * Text-to-speech audio generation via a configurable provider (OpenAI or xAI).
  * Stores audio files in Digital Ocean Spaces with CDN delivery.
  *
- * <p>H2: cache lookups are cheap; OpenAI generation is concurrency-capped and
+ * <p>Set {@code TTS_PROVIDER=xai} and {@code XAI_API_KEY} to switch providers.
+ * {@code TTS_VOICE} is passed through as the xAI {@code voice_id} (case-insensitive);
+ * there is no closed voice enum. Unset defaults to {@code onyx} / {@code eve}.
+ * An unknown xAI id 404s that generate and is not written to Spaces.
+ * An unset {@code tts.provider} defaults to openai; any other value that is not
+ * {@code openai} or {@code xai} fails closed (no spend).
+ *
+ * <p>H2: cache lookups are cheap; generation is concurrency-capped and
  * must only be invoked from an authenticated controller path.
  */
 @Service
@@ -39,16 +49,28 @@ public class TtsService {
 
     private static final Logger log = LoggerFactory.getLogger(TtsService.class);
 
-    /** Max simultaneous OpenAI TTS HTTP calls (request + prefetch share this). */
+    /** Max simultaneous TTS HTTP calls (request + prefetch share this). */
     private static final int MAX_CONCURRENT_GENERATIONS = 2;
+
+    private static final String OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech";
+    private static final String XAI_TTS_URL = "https://api.x.ai/v1/tts";
+    private static final String OPENAI_DEFAULT_VOICE = "onyx";
+    private static final String XAI_DEFAULT_VOICE = "eve";
+    private static final String OPENAI_DEFAULT_MODEL = "tts-1-hd";
 
     @Value("${tts.enabled:false}")
     private boolean enabled;
 
+    @Value("${tts.provider:openai}")
+    private String provider;
+
     @Value("${tts.api-key:}")
     private String apiKey;
 
-    @Value("${tts.voice:onyx}")
+    @Value("${XAI_API_KEY:}")
+    private String xaiKey;
+
+    @Value("${tts.voice:}")
     private String voice;
 
     @Value("${tts.model:tts-1-hd}")
@@ -79,7 +101,7 @@ public class TtsService {
     private String audioPrefix;
 
     private final BibleService bibleService;
-    private final HttpClient httpClient;
+    private HttpClient httpClient;
     private final Semaphore generationPermits = new Semaphore(MAX_CONCURRENT_GENERATIONS);
     private S3Client s3Client;
     private ExecutorService prefetchExecutor;
@@ -107,8 +129,9 @@ public class TtsService {
                         .credentialsProvider(StaticCredentialsProvider.create(
                                 AwsBasicCredentials.create(spacesAccessKey, spacesSecretKey)))
                         .build();
-                log.info("TTS service initialized - voice: {}, model: {}, spaces: {}, cdn: {}",
-                        voice, model, spacesBucket, spacesCdnUrl);
+                log.info("TTS service initialized - provider: {}, voice: {}, model: {}, spaces: {}, cdn: {}",
+                        providerKeySegment(), resolvedVoice(),
+                        isXai() ? "-" : resolvedModel(), spacesBucket, spacesCdnUrl);
             } catch (Exception e) {
                 log.error("Failed to initialize S3 client for Spaces", e);
                 s3Client = null;
@@ -132,41 +155,41 @@ public class TtsService {
     }
 
     /**
-     * Returns true if TTS is enabled AND properly configured.
+     * Returns true if TTS is enabled, the provider is known, and the
+     * matching API key is present. Unknown providers fail closed.
      */
     public boolean isEnabled() {
-        return enabled && apiKey != null && !apiKey.isBlank();
+        String key = resolvedKey();
+        return enabled && isKnownProvider() && key != null && !key.isBlank();
     }
 
     /**
      * Returns the CDN URL if the verse audio already exists in Spaces.
-     * Does not call OpenAI and does not prefetch.
+     * Does not call a TTS provider and does not prefetch.
      */
     public Optional<String> findCachedAudioUrlForVerse(int verseId) {
         if (!isEnabled() || s3Client == null) {
             return Optional.empty();
         }
-        String key = getVerseKey(verseId);
-        return existsInSpaces(key) ? Optional.of(getCdnUrl(key)) : Optional.empty();
+        return findExistingCdnUrl(verseCacheKeys(verseId));
     }
 
     /**
      * Returns the CDN URL if the chapter announcement already exists in Spaces.
-     * Does not call OpenAI.
+     * Does not call a TTS provider.
      */
     public Optional<String> findCachedAudioUrlForChapter(String book, int chapter) {
         if (!isEnabled() || s3Client == null) {
             return Optional.empty();
         }
-        String key = getChapterKey(book, chapter);
-        return existsInSpaces(key) ? Optional.of(getCdnUrl(key)) : Optional.empty();
+        return findExistingCdnUrl(chapterCacheKeys(book, chapter));
     }
 
     /**
      * Gets the CDN URL for a verse audio, generating it if not already in Spaces.
      * Also triggers background prefetch of upcoming verses.
      *
-     * <p>Caller must enforce authentication — this method spends OpenAI budget.
+     * <p>Caller must enforce authentication — this method spends TTS budget.
      *
      * @param verseId The verse ID (1-31102)
      * @return Optional containing the CDN URL, or empty if unavailable
@@ -176,16 +199,12 @@ public class TtsService {
             return Optional.empty();
         }
 
-        String key = getVerseKey(verseId);
-
-        // Check if exists in Spaces
-        if (existsInSpaces(key)) {
-            // Trigger background prefetch of next verses
+        Optional<String> cached = findExistingCdnUrl(verseCacheKeys(verseId));
+        if (cached.isPresent()) {
             triggerPrefetch(verseId);
-            return Optional.of(getCdnUrl(key));
+            return cached;
         }
 
-        // Generate and upload
         Optional<Verse> verseOpt = bibleService.getVerse(verseId);
         if (verseOpt.isEmpty()) {
             log.warn("Verse not found: {}", verseId);
@@ -196,15 +215,15 @@ public class TtsService {
         String speechText = formatVerseForSpeech(verse);
 
         try {
-            byte[] audioData = callOpenAiTts(speechText);
+            byte[] audioData = callTts(speechText);
             if (audioData == null || audioData.length == 0) {
                 return Optional.empty();
             }
 
+            String key = getVerseKey(verseId);
             uploadToSpaces(key, audioData);
             log.info("Generated and uploaded verse {}: {}", verseId, key);
 
-            // Trigger background prefetch
             triggerPrefetch(verseId);
 
             return Optional.of(getCdnUrl(key));
@@ -221,7 +240,7 @@ public class TtsService {
     /**
      * Gets the CDN URL for a chapter announcement audio.
      *
-     * <p>Caller must enforce authentication — this method spends OpenAI budget.
+     * <p>Caller must enforce authentication — this method spends TTS budget.
      *
      * @param book The book name (canonical Bible book name)
      * @param chapter The chapter number
@@ -232,22 +251,20 @@ public class TtsService {
             return Optional.empty();
         }
 
-        String key = getChapterKey(book, chapter);
-
-        // Check if exists in Spaces
-        if (existsInSpaces(key)) {
-            return Optional.of(getCdnUrl(key));
+        Optional<String> cached = findExistingCdnUrl(chapterCacheKeys(book, chapter));
+        if (cached.isPresent()) {
+            return cached;
         }
 
-        // Generate and upload
         String speechText = formatChapterForSpeech(book, chapter);
 
         try {
-            byte[] audioData = callOpenAiTts(speechText);
+            byte[] audioData = callTts(speechText);
             if (audioData == null || audioData.length == 0) {
                 return Optional.empty();
             }
 
+            String key = getChapterKey(book, chapter);
             uploadToSpaces(key, audioData);
             log.info("Generated and uploaded chapter {} {}: {}", book, chapter, key);
 
@@ -271,7 +288,7 @@ public class TtsService {
 
     /**
      * Triggers background prefetch of upcoming verses.
-     * Only call for authenticated requests (amplifies OpenAI spend).
+     * Only call for authenticated requests (amplifies TTS spend).
      */
     public void triggerPrefetch(int currentVerseId) {
         if (prefetchExecutor == null) return;
@@ -282,38 +299,172 @@ public class TtsService {
                 int verseId = currentVerseId + i;
                 if (verseId > totalVerses) break;
 
-                String key = getVerseKey(verseId);
-                if (!existsInSpaces(key)) {
-                    try {
-                        Optional<Verse> verseOpt = bibleService.getVerse(verseId);
-                        if (verseOpt.isPresent()) {
-                            String speechText = formatVerseForSpeech(verseOpt.get());
-                            byte[] audioData = callOpenAiTts(speechText);
-                            if (audioData != null && audioData.length > 0) {
-                                uploadToSpaces(key, audioData);
-                                log.debug("Prefetched verse {}", verseId);
-                            }
+                if (findExistingCdnUrl(verseCacheKeys(verseId)).isPresent()) {
+                    continue;
+                }
+                try {
+                    Optional<Verse> verseOpt = bibleService.getVerse(verseId);
+                    if (verseOpt.isPresent()) {
+                        String speechText = formatVerseForSpeech(verseOpt.get());
+                        byte[] audioData = callTts(speechText);
+                        if (audioData != null && audioData.length > 0) {
+                            String key = getVerseKey(verseId);
+                            uploadToSpaces(key, audioData);
+                            log.debug("Prefetched verse {}", verseId);
                         }
-                    } catch (Exception e) {
-                        log.debug("Prefetch failed for verse {}: {}", verseId, e.getMessage());
                     }
+                } catch (Exception e) {
+                    log.debug("Prefetch failed for verse {}: {}", verseId, e.getMessage());
                 }
             }
         });
     }
 
-    private String getVerseKey(int verseId) {
+    // ── Provider resolution (mirrors VerseOfDayService / WhisperService) ──────
+
+    /**
+     * Unset (null) defaults to openai. Empty-after-trim or any value other than
+     * openai | xai is unknown and must not fall through to OpenAI.
+     */
+    boolean isKnownProvider() {
+        String p = normalizedProvider();
+        return p == null || "openai".equalsIgnoreCase(p) || "xai".equalsIgnoreCase(p);
+    }
+
+    boolean isXai() {
+        return "xai".equalsIgnoreCase(normalizedProvider());
+    }
+
+    private String normalizedProvider() {
+        return provider == null ? null : provider.trim();
+    }
+
+    String resolvedUrl() {
+        return isXai() ? XAI_TTS_URL : OPENAI_TTS_URL;
+    }
+
+    String resolvedKey() {
+        return isXai() ? xaiKey : apiKey;
+    }
+
+    /**
+     * Configured voice, or the provider default when {@code TTS_VOICE} is unset.
+     * xAI ids are case-insensitive ({@code ARA} → {@code ara}); any string is
+     * accepted — no allowlist. Unknown ids fail at generate time (xAI 404).
+     */
+    String resolvedVoice() {
+        if (voice != null && !voice.isBlank()) {
+            String trimmed = voice.trim();
+            return isXai() ? trimmed.toLowerCase(Locale.ROOT) : trimmed;
+        }
+        return isXai() ? XAI_DEFAULT_VOICE : OPENAI_DEFAULT_VOICE;
+    }
+
+    String resolvedModel() {
+        if (model != null && !model.isBlank()) {
+            return model;
+        }
+        return OPENAI_DEFAULT_MODEL;
+    }
+
+    /**
+     * OpenAI keeps reading the unversioned {@code audio/verses/…} layout so the
+     * existing onyx cache still hits. xAI (or a non-onyx OpenAI voice) never
+     * consults those keys — flipping provider/voice must not serve the old files.
+     */
+    boolean usesLegacyCache() {
+        return !isXai() && OPENAI_DEFAULT_VOICE.equalsIgnoreCase(resolvedVoice());
+    }
+
+    // ── Spaces key layout ─────────────────────────────────────────────────────
+
+    /**
+     * Canonical namespaced key: {@code audio/{provider}/{voice}/verses/{bucket}/{id}.mp3}.
+     */
+    String getVerseKey(int verseId) {
+        int bucket = verseId / 1000;
+        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment()
+                + "/verses/" + bucket + "/" + verseId + ".mp3";
+    }
+
+    /**
+     * Canonical namespaced key: {@code audio/{provider}/{voice}/chapters/{book}_{chapter}.mp3}.
+     */
+    String getChapterKey(String book, int chapter) {
+        String safeBookName = book.replace(" ", "_");
+        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment()
+                + "/chapters/" + safeBookName + "_" + chapter + ".mp3";
+    }
+
+    /**
+     * Single S3 path segment for the resolved voice. Neutralizes {@code /},
+     * {@code ..}, backslashes, and other path tricks so {@code TTS_VOICE}
+     * cannot escape {@code audio/{provider}/{voice}/}. The TTS request still
+     * receives {@link #resolvedVoice()} as a pass-through (any string).
+     */
+    String voiceKeySegment() {
+        String raw = resolvedVoice();
+        StringBuilder sb = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                    || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+                sb.append(c);
+            } else {
+                sb.append('_');
+            }
+        }
+        String segment = sb.toString();
+        return segment.isBlank() ? "_" : segment;
+    }
+
+    String getLegacyVerseKey(int verseId) {
         int bucket = verseId / 1000;
         return audioPrefix + "/verses/" + bucket + "/" + verseId + ".mp3";
     }
 
-    private String getChapterKey(String book, int chapter) {
+    String getLegacyChapterKey(String book, int chapter) {
         String safeBookName = book.replace(" ", "_");
         return audioPrefix + "/chapters/" + safeBookName + "_" + chapter + ".mp3";
     }
 
+    /**
+     * Lookup order: namespaced key first, then the unversioned openai/onyx key
+     * when {@link #usesLegacyCache()} is true. Writes always use the namespaced key.
+     */
+    List<String> verseCacheKeys(int verseId) {
+        List<String> keys = new ArrayList<>(2);
+        keys.add(getVerseKey(verseId));
+        if (usesLegacyCache()) {
+            keys.add(getLegacyVerseKey(verseId));
+        }
+        return keys;
+    }
+
+    List<String> chapterCacheKeys(String book, int chapter) {
+        List<String> keys = new ArrayList<>(2);
+        keys.add(getChapterKey(book, chapter));
+        if (usesLegacyCache()) {
+            keys.add(getLegacyChapterKey(book, chapter));
+        }
+        return keys;
+    }
+
+    private String providerKeySegment() {
+        return isXai() ? "xai" : "openai";
+    }
+
     private String getCdnUrl(String key) {
         return spacesCdnUrl + "/" + key;
+    }
+
+    private Optional<String> findExistingCdnUrl(List<String> keys) {
+        for (String key : keys) {
+            if (existsInSpaces(key)) {
+                return Optional.of(getCdnUrl(key));
+            }
+        }
+        return Optional.empty();
     }
 
     private boolean existsInSpaces(String key) {
@@ -359,18 +510,42 @@ public class TtsService {
     }
 
     /**
-     * Calls OpenAI's TTS API to generate audio. Concurrency-capped (H2).
+     * Builds the provider-specific TTS JSON body.
+     * OpenAI keeps {@code model/input/voice/response_format=mp3}.
+     * xAI sends {@code text/voice_id/language/output_format} and no model field.
      */
-    private byte[] callOpenAiTts(String text) throws IOException, InterruptedException {
+    String buildTtsRequestBody(String text) {
+        if (isXai()) {
+            return "{\"text\": " + escapeJson(text)
+                    + ", \"voice_id\": " + escapeJson(resolvedVoice())
+                    + ", \"language\": \"en\""
+                    + ", \"output_format\": {\"codec\": \"mp3\"}}";
+        }
+        return "{\"model\": " + escapeJson(resolvedModel())
+                + ", \"input\": " + escapeJson(text)
+                + ", \"voice\": " + escapeJson(resolvedVoice())
+                + ", \"response_format\": \"mp3\"}";
+    }
+
+    /**
+     * Calls the configured TTS API to generate audio. Concurrency-capped (H2).
+     * Unknown providers fail closed — no HTTP, no spend.
+     */
+    private byte[] callTts(String text) throws IOException, InterruptedException {
+        if (!isKnownProvider()) {
+            log.warn("Unknown tts.provider '{}' — expected openai or xai; skipping TTS generation",
+                    provider);
+            return null;
+        }
         generationPermits.acquire();
         try {
-            String requestBody = String.format(
-                    "{\"model\": \"%s\", \"input\": %s, \"voice\": \"%s\", \"response_format\": \"mp3\"}",
-                    model, escapeJson(text), voice);
+            String requestBody = buildTtsRequestBody(text);
+
+            log.debug("TTS provider={} url={} voice={}", provider, resolvedUrl(), resolvedVoice());
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.openai.com/v1/audio/speech"))
-                    .header("Authorization", "Bearer " + apiKey)
+                    .uri(URI.create(resolvedUrl()))
+                    .header("Authorization", "Bearer " + resolvedKey())
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .timeout(Duration.ofSeconds(60))
@@ -379,7 +554,12 @@ public class TtsService {
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
 
             if (response.statusCode() != 200) {
-                log.error("OpenAI TTS API error: {} - {}", response.statusCode(), new String(response.body()));
+                if (response.statusCode() == 404) {
+                    log.warn("TTS API 404 for voice '{}' — skipping generate, not persisting",
+                            resolvedVoice());
+                } else {
+                    log.error("TTS API error: {} - {}", response.statusCode(), new String(response.body()));
+                }
                 return null;
             }
 
