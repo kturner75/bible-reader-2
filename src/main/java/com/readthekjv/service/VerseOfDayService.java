@@ -139,14 +139,15 @@ public class VerseOfDayService {
                     provider);
             return;
         }
-        String apiKey = resolvedBearer();
-        if (apiKey == null || apiKey.isBlank()) {
-            log.debug("{} not set — skipping verse of the day generation",
-                    isXai() ? "xAI OAuth / XAI_API_KEY" : "OPENAI_API_KEY");
-            return;
-        }
+        // existsById before any OAuth refresh: a row already present means we will not
+        // call xAI, so do not spend a refresh (xAI rotates the refresh token on every use).
         if (repository.existsById(date)) {
             log.debug("Verse of the day for {} already exists — skipping", date);
+            return;
+        }
+        if (!hasLocalAuth()) {
+            log.debug("{} not set — skipping verse of the day generation",
+                    isXai() ? "xAI OAuth / XAI_API_KEY" : "OPENAI_API_KEY");
             return;
         }
 
@@ -247,6 +248,19 @@ public class VerseOfDayService {
 
     String resolvedKey() {
         return isXai() ? xaiKey : openAiKey;
+    }
+
+    /**
+     * Local credential check — no token-endpoint call. OAuth refresh happens
+     * only in {@link #resolvedBearer()} when we are about to call xAI.
+     */
+    boolean hasLocalAuth() {
+        if (isXai()) {
+            boolean oauthReady = xaiOAuthTokenManager != null && xaiOAuthTokenManager.isConfigured();
+            String key = xaiKey;
+            return oauthReady || (key != null && !key.isBlank());
+        }
+        return openAiKey != null && !openAiKey.isBlank();
     }
 
     /**

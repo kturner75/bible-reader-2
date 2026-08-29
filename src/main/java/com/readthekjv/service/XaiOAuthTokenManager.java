@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -78,7 +77,7 @@ public class XaiOAuthTokenManager {
     private record PersistedState(String seedToken, String currentToken) {
     }
 
-    private final HttpClient httpClient;
+    private HttpClient httpClient;
     private final AtomicReference<String> refreshToken = new AtomicReference<>();
     private final String seedRefreshToken;
     private final Path refreshTokenFile;
@@ -88,18 +87,14 @@ public class XaiOAuthTokenManager {
     private final AtomicReference<CachedToken> cachedToken = new AtomicReference<>();
     private volatile Instant lastFailureAt;
 
-    @Autowired
     public XaiOAuthTokenManager(
             @Value("${ai.xai.oauth.refresh-token:}") String refreshToken,
             @Value("${ai.xai.oauth.enabled:true}") boolean enabled,
             @Value("${ai.xai.oauth.refresh-token-file:./data/xai-oauth-refresh-token}") String refreshTokenFilePath) {
-        this(refreshToken, enabled, refreshTokenFilePath, defaultHttpClient());
-    }
-
-    // Visible for testing: allows injecting an HttpClient stubbed against a fake token endpoint.
-    XaiOAuthTokenManager(String refreshToken, boolean enabled, String refreshTokenFilePath, HttpClient httpClient) {
         this.enabled = enabled;
-        this.httpClient = httpClient;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(15))
+                .build();
         this.seedRefreshToken = refreshToken;
         this.refreshTokenFile = (refreshTokenFilePath != null && !refreshTokenFilePath.isBlank())
                 ? Path.of(refreshTokenFilePath)
@@ -118,12 +113,6 @@ public class XaiOAuthTokenManager {
         if (enabled && initialToken != null && !initialToken.isBlank()) {
             log.info("event=xai_oauth_configured (SuperGrok subscription auth enabled)");
         }
-    }
-
-    private static HttpClient defaultHttpClient() {
-        return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(15))
-                .build();
     }
 
     /**
@@ -182,8 +171,7 @@ public class XaiOAuthTokenManager {
             if (httpResponse.statusCode() / 100 != 2) {
                 lastFailureAt = Instant.now();
                 cachedToken.set(null);
-                log.warn("event=xai_oauth_refresh_failed status={} body={}",
-                        httpResponse.statusCode(), httpResponse.body());
+                log.warn("event=xai_oauth_refresh_failed status={}", httpResponse.statusCode());
                 return Optional.empty();
             }
 

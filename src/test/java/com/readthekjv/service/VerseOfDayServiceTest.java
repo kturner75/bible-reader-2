@@ -52,7 +52,7 @@ class VerseOfDayServiceTest {
     }
 
     private static XaiOAuthTokenManager unconfiguredOAuth() {
-        return new XaiOAuthTokenManager("", true, null, mock(HttpClient.class));
+        return new XaiOAuthTokenManager("", true, null);
     }
 
     private void configure(String provider, String openAiKey, String xaiKey, String model) {
@@ -210,6 +210,23 @@ class VerseOfDayServiceTest {
         service.generateForDate(DATE);
 
         assertEquals("Bearer oauth-access-token", capturedRequest().headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void existingVerseSkipsOAuthRefreshAndHttp() throws Exception {
+        XaiOAuthTokenManager oauth = mock(XaiOAuthTokenManager.class);
+        when(oauth.isConfigured()).thenReturn(true);
+        when(oauth.getAccessToken()).thenReturn(Optional.of("oauth-access-token"));
+        service = new VerseOfDayService(repository, bibleService, oauth);
+        ReflectionTestUtils.setField(service, "httpClient", httpClient);
+        configure("xai", "sk-openai", "xai-secret", "");
+        when(repository.existsById(DATE)).thenReturn(true);
+
+        service.generateForDate(DATE);
+
+        verify(oauth, never()).getAccessToken();
+        verify(httpClient, never()).send(any(), any());
+        verify(repository, never()).save(any());
     }
 
     // ── Junk / error paths skip persist ───────────────────────────────────────

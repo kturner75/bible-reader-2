@@ -1,8 +1,14 @@
 package com.readthekjv.service;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Constructor;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -10,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -93,6 +100,37 @@ class XaiOAuthTokenManagerTest {
     }
 
     @Test
+    void getAccessToken_refreshFails_logsStatusNotResponseBody() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(XaiOAuthTokenManager.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            String secretBody = "{\"error\":\"invalid_grant\",\"refresh_token\":\"SECRET_TOKEN_DO_NOT_LOG\"}";
+            XaiOAuthTokenManager manager = manager("refresh-token", true, countingHttpClient(new AtomicInteger(), 400, secretBody));
+
+            assertEquals(Optional.empty(), manager.getAccessToken());
+
+            String logged = appender.list.stream()
+                    .map(ILoggingEvent::getFormattedMessage)
+                    .collect(Collectors.joining("\n"));
+            assertTrue(logged.contains("status=400"), logged);
+            assertFalse(logged.contains("SECRET_TOKEN_DO_NOT_LOG"), logged);
+            assertFalse(logged.contains(secretBody), logged);
+            assertFalse(logged.contains("body="), logged);
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void hasSingleProductionConstructor() {
+        Constructor<?>[] ctors = XaiOAuthTokenManager.class.getDeclaredConstructors();
+        assertEquals(1, ctors.length);
+        assertEquals(3, ctors[0].getParameterCount());
+    }
+
+    @Test
     void getAccessToken_afterFailure_respectsCooldownBeforeRetrying() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         XaiOAuthTokenManager manager = manager("refresh-token", true, countingHttpClient(calls, 400, errorResponse()));
@@ -120,7 +158,7 @@ class XaiOAuthTokenManagerTest {
     void refresh_rotatedRefreshToken_isPersistedToFile() throws Exception {
         Path tokenFile = tempDir.resolve("refresh-token");
         AtomicInteger calls = new AtomicInteger();
-        XaiOAuthTokenManager manager = new XaiOAuthTokenManager(
+        XaiOAuthTokenManager manager = manager(
                 "original-refresh-token", true, tokenFile.toString(),
                 countingHttpClient(calls, 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
 
@@ -134,7 +172,7 @@ class XaiOAuthTokenManagerTest {
         Path tokenFile = tempDir.resolve("refresh-token");
         writePersistedState(tokenFile, "stale-original-token-in-env-var", "previously-rotated-token");
 
-        XaiOAuthTokenManager manager = new XaiOAuthTokenManager(
+        XaiOAuthTokenManager manager = manager(
                 "stale-original-token-in-env-var", true, tokenFile.toString(),
                 countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, null)));
 
@@ -146,7 +184,7 @@ class XaiOAuthTokenManagerTest {
         Path tokenFile = tempDir.resolve("refresh-token");
         writePersistedState(tokenFile, "old-configured-token", "old-rotated-token");
 
-        XaiOAuthTokenManager manager = new XaiOAuthTokenManager(
+        XaiOAuthTokenManager manager = manager(
                 "newly-configured-token", true, tokenFile.toString(),
                 countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, null)));
 
@@ -156,7 +194,7 @@ class XaiOAuthTokenManagerTest {
     @Test
     void refresh_rotatedRefreshToken_persistsFileWithOwnerOnlyPermissions() throws Exception {
         Path tokenFile = tempDir.resolve("refresh-token");
-        XaiOAuthTokenManager manager = new XaiOAuthTokenManager(
+        XaiOAuthTokenManager manager = manager(
                 "original-refresh-token", true, tokenFile.toString(),
                 countingHttpClient(new AtomicInteger(), 200, tokenResponse("access-token", 3600, "rotated-refresh-token")));
 
@@ -174,7 +212,7 @@ class XaiOAuthTokenManagerTest {
     void refresh_responseWithoutRotatedToken_leavesFileUntouched() throws Exception {
         Path tokenFile = tempDir.resolve("refresh-token");
         AtomicInteger calls = new AtomicInteger();
-        XaiOAuthTokenManager manager = new XaiOAuthTokenManager(
+        XaiOAuthTokenManager manager = manager(
                 "original-refresh-token", true, tokenFile.toString(),
                 countingHttpClient(calls, 200, tokenResponse("access-token", 3600, null)));
 
@@ -184,7 +222,13 @@ class XaiOAuthTokenManagerTest {
     }
 
     private XaiOAuthTokenManager manager(String refreshToken, boolean enabled, HttpClient httpClient) {
-        return new XaiOAuthTokenManager(refreshToken, enabled, null, httpClient);
+        return manager(refreshToken, enabled, null, httpClient);
+    }
+
+    private XaiOAuthTokenManager manager(String refreshToken, boolean enabled, String filePath, HttpClient httpClient) {
+        XaiOAuthTokenManager manager = new XaiOAuthTokenManager(refreshToken, enabled, filePath);
+        ReflectionTestUtils.setField(manager, "httpClient", httpClient);
+        return manager;
     }
 
     private void writePersistedState(Path tokenFile, String seedToken, String currentToken) throws Exception {
