@@ -34,13 +34,17 @@ DB_USER="${KJV_DB_USERNAME:-kjv}"
 DB_PASS="${KJV_DB_PASSWORD:-kjv}"
 
 # Identifiers and password go through psql :'var' + format(%I/%L), never
-# interpolated into SQL by the shell. CREATE ROLE IF NOT EXISTS is supported
-# on PG 16; CREATE DATABASE is not — use WHERE NOT EXISTS + \gexec.
+# interpolated into SQL by the shell. CREATE ROLE / CREATE DATABASE have no
+# IF NOT EXISTS on PG 16 — use catalog guards + \gexec. ALTER ROLE still
+# sets the password when the role already exists so ENV matches Postgres.
 sudo -u postgres psql -v ON_ERROR_STOP=1 \
   --set=db_name="${DB_NAME}" \
   --set=db_user="${DB_USER}" \
   --set=db_pass="${DB_PASS}" <<'SQL'
-SELECT format('CREATE ROLE IF NOT EXISTS %I LOGIN PASSWORD %L', :'db_user', :'db_pass');
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'db_user', :'db_pass')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'db_user');
+\gexec
+SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', :'db_user', :'db_pass');
 \gexec
 SELECT format('CREATE DATABASE %I OWNER %I', :'db_name', :'db_user')
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db_name');
