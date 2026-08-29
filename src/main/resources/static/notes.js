@@ -272,7 +272,7 @@
     const viewSection   = document.getElementById('sermon-note-view');
     const viewTitle     = document.getElementById('sermon-note-view-title-text');
     const viewBody      = document.getElementById('sermon-note-view-body');
-    const viewActions   = document.getElementById('sermon-note-view-actions');
+    const printBtn      = document.getElementById('sermon-note-print-btn');
     const editSection   = document.getElementById('sermon-note-edit');
     const modalTitle    = document.getElementById('sermon-note-modal-title');
     const titleInput    = document.getElementById('sermon-note-title-input');
@@ -302,6 +302,42 @@
         editSection.hidden = true;
         syncUrl();
         renderSermonNotesList();
+        syncPrintButton();
+    }
+
+    function viewEmbedsPending() {
+        return [...viewBody.querySelectorAll('.note-scripture-embed[data-v]')]
+            .some(el => {
+                if (el.dataset.embedReady !== '1') return true;
+                const textEl = el.querySelector('.note-scripture-embed-text');
+                return !(textEl && textEl.textContent.trim());
+            });
+    }
+
+    function syncPrintButton() {
+        if (!printBtn) return;
+        const ready = editorMode === 'view' && !viewSection.hidden && !viewEmbedsPending();
+        printBtn.disabled = !ready;
+        printBtn.title = ready ? 'Print' : 'Quoted scripture is still loading';
+    }
+
+    function printOpenNote() {
+        if (!printBtn || printBtn.disabled || editorMode !== 'view' || viewEmbedsPending()) {
+            return;
+        }
+        const previousTitle = document.title;
+        const noteTitle = (viewTitle.textContent || '').trim();
+        const restoreTitle = () => {
+            document.title = previousTitle;
+            window.removeEventListener('afterprint', restoreTitle);
+        };
+        if (noteTitle) document.title = noteTitle;
+        window.addEventListener('afterprint', restoreTitle);
+        try {
+            window.print();
+        } finally {
+            if (document.title !== previousTitle) restoreTitle();
+        }
     }
 
     function updateCharCount() {
@@ -421,6 +457,7 @@
                 link.dataset.labelReady = '1';
             } catch (_) { /* ignore */ }
         }
+        if (root === viewBody) syncPrintButton();
     }
 
     function setMode(mode) {
@@ -429,10 +466,12 @@
         if (mode === 'view') {
             viewSection.hidden = false;
             editSection.hidden = true;
-            hydrateRangeLinkLabels(viewBody);
+            syncPrintButton();
+            hydrateRangeLinkLabels(viewBody).then(syncPrintButton);
         } else {
             viewSection.hidden = true;
             editSection.hidden = false;
+            syncPrintButton();
             titleInput.focus();
         }
         syncUrl();
@@ -664,6 +703,9 @@
         if (savingNote) return;
         setMode('edit');
     });
+    if (printBtn) {
+        printBtn.addEventListener('click', printOpenNote);
+    }
     document.getElementById('sermon-note-save-btn').addEventListener('click', saveSermonNote);
     document.getElementById('sermon-note-delete-btn').addEventListener('click', deleteSermonNote);
     document.getElementById('sermon-note-cancel-btn').addEventListener('click', () => {
