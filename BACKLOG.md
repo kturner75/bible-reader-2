@@ -85,7 +85,10 @@ Feature ideas for future slices. Not prioritized — just captured for reference
 ## Infrastructure / Accounts
 
 - **PostgreSQL** — already implemented; keep on DO managed cluster
-- **Donation button** — Stripe or Buy Me a Coffee integration on landing/dashboard
+- **Donation link** *(not started)* — quiet **Donate** link so people can support the site without putting money UI on the reader. **Never on `/read`** (distraction-free / no extra chrome). Landing and/or signed-in `/dashboard` only.
+  - **First cut:** an external link (Buy Me a Coffee, Stripe Payment Link, or similar). Not an in-app checkout, not a floating widget.
+  - **Placement:** landing chrome/footer (not the hero Start Reading CTA); optional same link in dashboard nav/footer. Keep it one tap, visually secondary to Read / Dashboard.
+  - **Provider URL:** decide at implement time — do not invent an account in the lock.
 - **Email notifications** — optional daily reminder to review due passages or read today's plan passage
 - **Mobile app** — React Native shell wrapping the web reader + push notifications for due reviews
 
