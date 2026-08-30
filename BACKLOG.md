@@ -41,6 +41,10 @@ Feature ideas for future slices. Not prioritized — just captured for reference
   - **Surfaces:** every note surface that already renders `[v=…]` (sermon/lesson, verse/chapter/book), not sermon-only.
   - **First-cut cap:** refuse an embed over 12 verses (insert and save-normalize) with a clear error. Do not silently truncate.
   - **Invariants:** portable verse ids, no Passage UUID, no new Passage row required.
+- **Searchable notes grid** *(not started)* — `/notes` currently browses sermon/lesson notes as a left-gutter list (`notes-sidebar` / `sermon-notes-list`). Replace or augment that list with a **searchable grid plus filtering** so the workspace scales as the catalog grows. Finder only: keep the existing editor/view pane (including `[e=…]` embeds and Print). Desktop-first.
+  - **Search:** title + body at minimum; include human refs / portable `[v=…]`/`[e=…]` so scripture in a note is findable.
+  - **Filters:** start with text search; add structured filters as needed (updated date, scripture overlap). Do not invent tags unless a later slice adds them.
+  - **Out of scope:** reader dock (verse/chapter/book notes). Do not implement in the backlog lock PR.
 - **Character studies** — verses tagged to a person (Abraham, David, Paul…); auto-populated from a concordance or user-curated.
 - **Location studies** — same concept for places (Jerusalem, Egypt, Bethlehem…).
 
