@@ -53,3 +53,6 @@ e2e/.env
 
 # Rotated xAI OAuth refresh token (operator-local persist; 0600)
 /data/
+
+# Hermes agent worktrees
+.worktrees/
