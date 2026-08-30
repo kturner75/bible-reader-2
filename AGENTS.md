@@ -8,6 +8,8 @@ KJV Bible Reader - A distraction-free, desktop-focused Bible reading web applica
 
 ## Build & Run Commands
 
+Requires a local PostgreSQL database (Flyway runs on startup; JPA `ddl-auto=validate`). Cloud Agents use `.cursor/start.sh` to provision one; locally create a DB matching `KJV_DB_*` in `application.properties` (or `./dev.sh` if present).
+
 ```bash
 # Local development (port 8081, dev profile)
 ./dev.sh
@@ -39,9 +41,12 @@ mvn test -Dtest=ReferenceParserTest#testBookWithChapterAndVerse
 - **LuceneIndexService** (`service/`) - In-memory Lucene full-text search, built at startup
 - **BibleDataLoader** (`service/`) - @PostConstruct loader that parses `kjv.json` and initializes services
 - **ReferenceParser** (`util/`) - Parses Bible references ("john 3:16", "ps 23", "gen1:1") with 170+ book aliases
-- **Models** (`model/`) - Java records: Verse, Book, ChapterInfo, SearchResult
+- **Models** (`model/`) - Java records: Verse, Book, ChapterInfo, SearchResult; JPA entities under `model/entity/` for account data
+- **PostgreSQL + Flyway** - User accounts, library sync, memorization, reading plans/rhythms, notes, and related tables live in Postgres (`src/main/resources/db/migration/`). JPA `ddl-auto=validate` — migrations must apply before the app will start.
 
-**Data Flow:** KJV JSON → BibleDataLoader → BibleService (verse map) + LuceneIndexService (search index)
+**Data Flow:**
+- Scripture text: KJV JSON → BibleDataLoader → BibleService (verse map) + LuceneIndexService (search index)
+- Account / content state: PostgreSQL (Flyway-managed schema) ↔ Spring Data JPA repositories / services
 
 ### Frontend (Vanilla HTML5/CSS3/ES6+)
 
@@ -116,6 +121,13 @@ Users can save verses with optional tags and notes. All data persists in localSt
 
 ## Data
 
+Two stores — keep them distinct:
+
+| Store | What it holds | Lifetime |
+|---|---|---|
+| **In-memory** (`kjv.json` → `BibleService` + Lucene) | Full KJV scripture text and search index | Loaded at startup; never written at runtime |
+| **PostgreSQL** (Flyway migrations V1–V21+) | Users, auth (OAuth2 / remember-me), synced library, tags, notes, memorization, reading plans & rhythms, sermon notes, verse-of-the-day, etc. | Durable; required for the app to start (`ddl-auto=validate`) |
+
 - **kjv.json** (`src/main/resources/data/`) - Full KJV text, format: `{BookName: {ChapterNum: ["verse text", ...]}}`
-- All data loaded into memory at startup - no external database
 - Verse IDs are global continuous integers (Genesis 1:1 = 1, Revelation 22:21 = 31102)
+- **Local DB defaults** (override via env): `KJV_DB_HOST` / `KJV_DB_PORT` / `KJV_DB_NAME` / `KJV_DB_USERNAME` / `KJV_DB_PASSWORD` — see `application.properties`. Cloud Agent / `.cursor/start.sh` provisions a local `readthekjv` database for development.

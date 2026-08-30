@@ -1,0 +1,16 @@
+{
+  "name": "KJV Bible Reader",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "user": "ubuntu",
+  "install": "mvn -q -DskipTests clean package",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "app",
+      "command": "bash .cursor/start.sh && mvn spring-boot:run"
+    }
+  ],
+  "ports": [8081]
+}
