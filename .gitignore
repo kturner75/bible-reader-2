@@ -55,4 +55,4 @@ e2e/.env
 /data/
 
 # Hermes agent worktrees
-.worktrees/
+/.worktrees/
