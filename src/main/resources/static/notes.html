@@ -23,10 +23,62 @@
         </nav>
     </header>
 
+    <section class="notes-finder" id="notes-finder" hidden>
+        <div class="finder-head">
+            <h1 class="finder-title">Notes</h1>
+            <button type="button" class="btn-primary" id="finder-new-btn">+ New note</button>
+        </div>
+
+        <div class="finder-search">
+            <svg class="finder-search-icon" width="19" height="19" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.9-3.9"></path>
+            </svg>
+            <input type="search" id="finder-search-input" autocomplete="off"
+                   placeholder="Search titles, note text, and scripture references…"
+                   aria-label="Search notes">
+        </div>
+
+        <div class="finder-filters">
+            <div class="finder-filter-group">
+                <span class="finder-filter-label" id="finder-updated-label">Updated</span>
+                <div class="finder-segmented" id="finder-updated" role="group"
+                     aria-labelledby="finder-updated-label">
+                    <button type="button" class="finder-seg is-active" data-window="">Any time</button>
+                    <button type="button" class="finder-seg" data-window="30d">30 days</button>
+                    <button type="button" class="finder-seg" data-window="365d">Past year</button>
+                </div>
+                <select id="finder-book" class="finder-select" aria-label="Filter by book of the Bible">
+                    <option value="">Scripture: any book</option>
+                </select>
+            </div>
+            <select id="finder-sort" class="finder-select" aria-label="Sort notes">
+                <option value="recent">Recently updated</option>
+                <option value="oldest">Oldest first</option>
+                <option value="title">Title A–Z</option>
+            </select>
+        </div>
+
+        <div class="finder-count" id="finder-count" aria-live="polite"></div>
+        <div class="finder-grid" id="finder-grid"></div>
+
+        <div class="finder-blank" id="finder-blank" hidden>
+            <p class="finder-blank-line" id="finder-blank-title"></p>
+            <p class="finder-blank-hint" id="finder-blank-hint"></p>
+            <button type="button" class="btn-secondary" id="finder-blank-action"></button>
+        </div>
+    </section>
+
     <main class="notes-workspace">
         <aside class="notes-sidebar">
             <div class="notes-sidebar-header">
-                <h1 class="notes-sidebar-title">Notes</h1>
+                <button type="button" class="notes-back-btn" id="notes-back-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <path d="M15 18l-6-6 6-6"></path>
+                    </svg>
+                    All notes
+                </button>
                 <button type="button" class="btn-secondary" id="sermon-note-new-btn">+ New</button>
             </div>
             <div class="sermon-notes-list" id="sermon-notes-list"></div>
@@ -122,6 +174,7 @@
         </div>
     </div>
 
+    <script src="/view-prefs.js"></script>
     <script src="/csrf-utils.js"></script>
     <script src="/note-links.js"></script>
     <script src="/notes-return.js"></script>

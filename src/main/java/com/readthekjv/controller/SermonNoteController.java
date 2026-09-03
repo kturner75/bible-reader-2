@@ -37,9 +37,34 @@ public class SermonNoteController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
     }
 
+    /**
+     * The finder. Every parameter is optional; with none supplied this is the old
+     * "every note, newest first" list, so existing callers keep working unchanged.
+     *
+     * @param q             free text over title, body, and the names of books the note cites
+     * @param bookId        restrict to notes citing this book (1-66)
+     * @param updatedWithin rolling window, {@code "30d"} or {@code "365d"}
+     * @param sort          {@code "oldest"} | {@code "title"}; default is recently updated
+     */
     @GetMapping
-    public List<SermonNoteSummary> list(@AuthenticationPrincipal UserDetails ud) {
-        return sermonNoteService.list(resolveUser(ud).getId());
+    public List<SermonNoteSummary> list(@AuthenticationPrincipal UserDetails ud,
+                                        @RequestParam(required = false) String q,
+                                        @RequestParam(required = false) Integer bookId,
+                                        @RequestParam(required = false) String updatedWithin,
+                                        @RequestParam(required = false) String sort) {
+        return sermonNoteService.search(resolveUser(ud).getId(), q, bookId, updatedWithin, sort);
+    }
+
+    /**
+     * Books this user has cited anywhere, for the scripture filter. Offering only books
+     * that actually appear keeps the control from listing 66 dead options.
+     *
+     * Declared before {@code /{id}} so the literal path wins over the UUID pattern.
+     */
+    @GetMapping("/books")
+    public List<SermonNoteSummary.ScriptureRef> scriptureFilterOptions(
+            @AuthenticationPrincipal UserDetails ud) {
+        return sermonNoteService.scriptureFilterOptions(resolveUser(ud).getId());
     }
 
     @PostMapping

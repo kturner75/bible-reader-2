@@ -7,6 +7,7 @@
 | [passage-and-verse-link-model.md](./passage-and-verse-link-model.md) | **Accepted** | Invariants: verses are substrate; links are `[v=…]`; Passages are optional lenses |
 | [portable-verse-links-plan.md](./portable-verse-links-plan.md) | **Implemented** | `[v=…]` storage, range reader, save normalize, scope-relative + absolute multi-verse typed refs |
 | [first-class-passages.md](./first-class-passages.md) | **Completed** | What shipped for Passage entities, collections, focused `/read/passage/{uuid}` |
+| [notes-finder-search.md](./notes-finder-search.md) | **Accepted** | `/notes` finder: server-side search, and why scripture refs are indexed at write time |
 
 ## Rule of thumb
 

@@ -1095,3 +1095,240 @@ a:hover { text-decoration: underline; }
         display: none !important;
     }
 }
+
+/* ── Notes finder ─────────────────────────────────────────────
+   /notes lands here; picking a note swaps to the workspace above.
+   Desktop-first: a three-up grid that steps down with the viewport.
+   See docs/architecture/notes-finder-search.md.
+   ──────────────────────────────────────────────────────────── */
+
+.notes-finder {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 3.6rem);
+    padding: 1.45rem 2rem 0;
+    overflow: hidden;
+}
+
+.finder-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.finder-title {
+    font-size: 1.45rem;
+    font-weight: 500;
+}
+
+.finder-search {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 1.2rem;
+    padding: 0.65rem 0.85rem;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.finder-search:focus-within { border-color: var(--color-link); }
+.finder-search-icon { color: var(--color-text-muted); flex-shrink: 0; }
+
+#finder-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-primary);
+    font-size: 0.95rem;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--color-text);
+}
+#finder-search-input::placeholder { color: var(--color-text-muted); font-style: italic; }
+/* The clear affordance is the Escape key and the empty-state button, not a UA glyph
+   that only some browsers draw. */
+#finder-search-input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+.finder-filters {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.85rem;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.finder-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.finder-filter-label { font-size: 0.85rem; color: var(--color-text-muted); }
+
+.finder-segmented {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.finder-seg {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    padding: 0.45rem 0.8rem;
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+.finder-seg:first-child { border-left: none; }
+.finder-seg:hover { background: var(--color-accent-light); }
+.finder-seg.is-active {
+    background: rgba(123, 94, 58, 0.08);
+    color: var(--color-link);
+}
+
+.finder-select {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    padding: 0.45rem 2rem 0.45rem 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background-color: #fff;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    /* Inline chevron: the CSP-safe equivalent of the wireframe's drawn caret. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b5c4a' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.finder-select:focus { outline: none; border-color: var(--color-link); }
+
+.finder-count {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-top: 0.85rem;
+    flex-shrink: 0;
+}
+
+.finder-grid {
+    margin-top: 0.75rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+    align-content: start;
+    padding-bottom: 1.5rem;
+}
+
+@media (max-width: 1180px) { .finder-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px)  { .finder-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.finder-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.33rem;
+    height: 174px;
+    text-align: left;
+    font-family: var(--font-primary);
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 0.95rem 1rem;
+    cursor: pointer;
+    transition: border-color 150ms ease;
+}
+.finder-card:hover { border-color: var(--color-link); }
+.finder-card:hover .finder-card-title { color: var(--color-link); }
+.finder-card:focus-visible { outline: 2px solid var(--color-link); outline-offset: 2px; }
+
+/* One line, ellipsised: a wrapping title would shove the fixed-height grid out of step. */
+.finder-card-title {
+    font-size: 1rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 150ms ease;
+}
+
+.finder-card-meta { font-size: 0.78rem; color: var(--color-text-muted); }
+
+/* Exactly two lines. The card height above is built from this, so changing one
+   without the other clips the snippet mid-line. */
+.finder-card-snippet {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+    flex: 0 0 2.46rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.finder-card-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: auto;
+    overflow: hidden;
+    max-height: 1.5rem;
+}
+
+.finder-ref-chip {
+    font-size: 0.72rem;
+    color: var(--color-link);
+    background: var(--color-accent-light);
+    border-radius: 3px;
+    padding: 0.1rem 0.45rem;
+    white-space: nowrap;
+}
+.finder-ref-chip.is-more { background: none; color: var(--color-text-muted); }
+
+.finder-hit { background: rgba(212, 168, 75, 0.32); border-radius: 2px; }
+
+.finder-blank {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 2.5rem 0;
+    color: var(--color-text-muted);
+}
+.finder-blank-line { font-size: 1rem; color: var(--color-text); }
+.finder-blank-hint { font-size: 0.9rem; }
+
+/* Back to the finder — replaces the sidebar's standing title, which the finder carries. */
+.notes-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-primary);
+    font-size: 0.95rem;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+.notes-back-btn:hover { color: var(--color-link); }
+
+@media (max-width: 900px) {
+    .notes-finder { height: auto; min-height: calc(100vh - 3.6rem); padding: 1.2rem 1.1rem 0; }
+    .finder-grid { overflow-y: visible; }
+}
