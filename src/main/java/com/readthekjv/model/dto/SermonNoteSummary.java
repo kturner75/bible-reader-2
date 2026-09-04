@@ -11,6 +11,7 @@ public record SermonNoteSummary(
     String title,
     String snippet,
     List<ScriptureRef> refs,
+    int refTotal,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt
 ) {
@@ -30,7 +31,10 @@ public record SermonNoteSummary(
     /** How much of the window sits before the match, so the hit is not flush left. */
     private static final int LEAD_IN = 40;
 
-    /** More chips than a card can show without becoming a wall. */
+    /**
+     * More chips than a card can show without becoming a wall. {@code refTotal} carries the
+     * uncapped count, so a note citing 20 chapters still renders "+17" rather than "+9".
+     */
     private static final int MAX_REFS = 12;
 
     /**
@@ -51,7 +55,7 @@ public record SermonNoteSummary(
                 : refs.size() <= MAX_REFS ? List.copyOf(refs) : List.copyOf(refs.subList(0, MAX_REFS));
         return new SermonNoteSummary(
             n.getId().toString(), n.getTitle(), snippetOf(previewBody, query), capped,
-            n.getCreatedAt(), n.getUpdatedAt()
+            refs == null ? 0 : refs.size(), n.getCreatedAt(), n.getUpdatedAt()
         );
     }
 

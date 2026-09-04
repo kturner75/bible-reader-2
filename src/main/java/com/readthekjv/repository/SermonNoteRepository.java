@@ -37,7 +37,8 @@ public interface SermonNoteRepository extends JpaRepository<SermonNote, UUID> {
     /**
      * Finder query. Every filter is independently optional, expressed as a value that
      * matches everything rather than as NULL: {@code like} is {@code "%"}, {@code bookId}
-     * is {@code -1}, {@code since} is the epoch.
+     * is {@code -1}, {@code since} is the epoch. The caller escapes LIKE metacharacters in a
+     * real query, so the sentinel {@code "%"} is the only wildcard that survives.
      *
      * That is not stylistic. Postgres cannot infer the type of a bare parameter in
      * {@code ? IS NULL}, so the natural "(:since IS NULL OR ...)" shape fails at runtime
@@ -59,8 +60,8 @@ public interface SermonNoteRepository extends JpaRepository<SermonNote, UUID> {
              AND (:bookId = -1 OR EXISTS (
                      SELECT 1 FROM SermonNoteRef r
                      WHERE r.note = n AND r.bookId = :bookId))
-             AND (LOWER(n.title) LIKE :like
-                  OR LOWER(n.note) LIKE :like
+             AND (LOWER(n.title) LIKE :like ESCAPE '\\'
+                  OR LOWER(n.note) LIKE :like ESCAPE '\\'
                   OR EXISTS (
                      SELECT 1 FROM SermonNoteRef qr
                      WHERE qr.note = n AND qr.bookId IN :qBookIds))

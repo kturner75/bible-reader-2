@@ -79,7 +79,7 @@ public class SermonNoteService {
     public List<SermonNoteSummary> search(Long userId, String q, Integer bookId,
                                           String updatedWithin, String sort) {
         String query = q == null || q.isBlank() ? null : q.trim();
-        String like = query == null ? ANY_TEXT : "%" + query.toLowerCase() + "%";
+        String like = query == null ? ANY_TEXT : "%" + escapeLike(query.toLowerCase()) + "%";
         List<Integer> queryBookIds = query == null ? NO_BOOKS : booksNamed(query);
 
         List<SermonNote> notes = sermonNoteRepository.search(
@@ -231,6 +231,18 @@ public class SermonNoteService {
             return "";
         }
         return book.chapters() == 1 ? book.name() : book.name() + " " + chapter;
+    }
+
+    /**
+     * Escapes LIKE metacharacters so the query text is matched literally.
+     *
+     * Without this, searching "100%" matches every note and "_" matches any single character,
+     * which also disagrees with the client, whose match highlighting is literal. The backslash
+     * is escaped first, or it would double-escape the escapes added after it. Paired with
+     * {@code ESCAPE '\'} in {@link SermonNoteRepository#search}.
+     */
+    private static String escapeLike(String s) {
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**

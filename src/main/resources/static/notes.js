@@ -572,15 +572,20 @@ if (typeof document !== 'undefined') (async function () {
         return out + escapeHtml(raw.slice(from));
     }
 
-    /** Three chips fit the card; the rest collapse into a count. */
-    function refChipsHtml(refs) {
+    /**
+     * Three chips fit the card; the rest collapse into a count. The count comes from the
+     * server's uncapped refTotal, not the capped array, so a note citing 20 chapters reads
+     * "+17" rather than "+9".
+     */
+    function refChipsHtml(refs, refTotal) {
         const all = Array.isArray(refs) ? refs : [];
         const shown = all.slice(0, 3);
+        const total = Number.isInteger(refTotal) ? Math.max(refTotal, all.length) : all.length;
         let html = shown
             .map(r => `<span class="finder-ref-chip">${escapeHtml(r.label)}</span>`)
             .join('');
-        if (all.length > shown.length) {
-            html += `<span class="finder-ref-chip is-more">+${all.length - shown.length}</span>`;
+        if (total > shown.length) {
+            html += `<span class="finder-ref-chip is-more">+${total - shown.length}</span>`;
         }
         return html;
     }
@@ -628,7 +633,7 @@ if (typeof document !== 'undefined') (async function () {
                 <span class="finder-card-title">${highlightMatch(note.title)}</span>
                 <span class="finder-card-meta">Updated ${formatUpdatedAt(note.updatedAt)}</span>
                 <span class="finder-card-snippet">${highlightMatch(note.snippet)}</span>
-                <span class="finder-card-refs">${refChipsHtml(note.refs)}</span>
+                <span class="finder-card-refs">${refChipsHtml(note.refs, note.refTotal)}</span>
             `;
             card.addEventListener('click', () => openSermonNote(note.id));
             finderGrid.appendChild(card);
@@ -667,20 +672,35 @@ if (typeof document !== 'undefined') (async function () {
         if (workspaceEl) workspaceEl.hidden = false;
     }
 
-    /** Only books the user has actually cited — 66 dead options is not a filter. */
+    /**
+     * Only books the user has actually cited — 66 dead options is not a filter.
+     *
+     * Re-run after every note mutation, not just at boot: citing John for the first time has
+     * to add John, and deleting the last note that cited it has to remove a now-dead option.
+     * A selection that no longer exists falls back to "any book" and re-runs the search,
+     * otherwise the finder would sit on a filter the control can no longer show.
+     */
     async function loadBookFilterOptions() {
         if (!bookSelect) return;
         try {
             const res = await fetch('/api/sermon-notes/books', { credentials: 'include' });
             if (!res.ok) return;
             const books = await res.json();
+            const previous = bookSelect.value;
+            while (bookSelect.options.length > 1) bookSelect.remove(1);
             books.forEach(b => {
                 const opt = document.createElement('option');
                 opt.value = String(b.bookId);
                 opt.textContent = b.label;
                 bookSelect.appendChild(opt);
             });
-        } catch (_) { /* the filter simply stays at "any book" */ }
+            const stillThere = books.some(b => String(b.bookId) === previous);
+            bookSelect.value = stillThere ? previous : '';
+            if (!stillThere && previous) {
+                finderBookId = '';
+                refreshNotes();
+            }
+        } catch (_) { /* the filter simply stays with the options it has */ }
     }
 
     if (searchInput) {
@@ -1153,6 +1173,7 @@ if (typeof document !== 'undefined') (async function () {
 
             await refreshNotes();
             if (saveGen !== openNoteGen) return;
+            loadBookFilterOptions();
 
             editingNoteId = saved.id;
             savedTitle = saved.title;
@@ -1191,6 +1212,7 @@ if (typeof document !== 'undefined') (async function () {
             if (!res.ok && res.status !== 204) return;
             sermonNotes = sermonNotes.filter(n => n.id !== targetId);
             showPaneEmpty();
+            loadBookFilterOptions();
             showToast('Note deleted');
         } catch (_) { /* ignore */ }
     }

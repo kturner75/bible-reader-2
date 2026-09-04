@@ -197,6 +197,42 @@ class SermonNoteServiceTest {
     }
 
     @Test
+    void likeWildcardsInTheQueryAreEscapedSoTheyMatchLiterally() {
+        whenSearchReturns();
+
+        service.search(USER_ID, "100%", null, null, null);
+
+        // Unescaped, "%" would match every note and disagree with the client's literal highlight.
+        verify(sermonNoteRepository).search(any(), eq("%100\\%%"), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    void underscoreAndBackslashAreEscapedToo() {
+        whenSearchReturns();
+
+        service.search(USER_ID, "a_b\\c", null, null, null);
+
+        verify(sermonNoteRepository).search(any(), eq("%a\\_b\\\\c%"), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    void refTotalKeepsTheUncappedCountWhenChipsAreCapped() {
+        SermonNote note = existingNote("Wide", "many refs");
+        whenSearchReturns(note);
+        List<SermonNoteRef> rows = new java.util.ArrayList<>();
+        for (int chapter = 1; chapter <= 20; chapter++) {
+            rows.add(new SermonNoteRef(note, 19, chapter));
+        }
+        when(refRepository.findForNotes(any())).thenReturn(rows);
+        when(bibleService.getBook(19)).thenReturn(Optional.of(new Book(19, "Psalms", 150, 13934, 16463)));
+
+        SermonNoteSummary summary = service.list(USER_ID).get(0);
+
+        assertEquals(12, summary.refs().size(), "chips stay capped for the card");
+        assertEquals(20, summary.refTotal(), "but the card's +N must reflect the real total");
+    }
+
+    @Test
     void searchWidensToBooksWhoseNameMatchesTheQuery() {
         when(bibleService.getBooks()).thenReturn(List.of(
                 new Book(19, "Psalms", 150, 13934, 16463),
