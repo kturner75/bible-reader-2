@@ -297,7 +297,9 @@ the filter state impossible to miss rather than by discarding it:
 
 Two consequences worth knowing: the boot list is fetched *unfiltered*, so a restored filter means
 the cached rows must not be painted — `showFinder` holds blank whenever `sermonNotesFiltered`
-disagrees with the filters now in effect. And `loadBookFilterOptions` restores the remembered book
+disagrees with the filters now in effect. Entering the workspace refreshes the gutter from the
+unfiltered corpus (prefs stay; there is no Clear in the editor chrome), and `showFinder` re-applies
+filters on return. And `loadBookFilterOptions` restores the remembered book
 from `finderBookId`, never from `bookSelect.value`, because at boot the options do not exist yet.
 
 See "Remembering what the reader chose" and `docs/architecture/notes-finder-search.md`.

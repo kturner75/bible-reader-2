@@ -181,3 +181,39 @@ test('clearing the query drops cached rows and holds the finder blank', () => {
     assert.match(refresh[0], /sermonNotesFiltered = filtered/,
         'refreshNotes records which filter state the rows came from');
 });
+
+test('entering workspace loads an unfiltered gutter without clearing remembered filters', () => {
+    // Medium on #79: openSermonNote / showWorkspace used to paint the filtered subset in the
+    // workspace gutter for the whole edit, with no in-workspace Clear. Prefs must stay so
+    // leave-keep still restores the finder query on return.
+    const showWorkspace = notesSrc.match(/function showWorkspace\(\)[\s\S]*?^    \}/m);
+    assert.ok(showWorkspace, 'showWorkspace present');
+    assert.doesNotMatch(showWorkspace[0], /clearFinderQuery\(\)/,
+        'entering workspace must not clear remembered filters');
+    assert.match(showWorkspace[0], /sermonNotesFiltered/,
+        'showWorkspace notices when the cached list is filtered');
+    assert.match(showWorkspace[0], /refreshWorkspaceGutter\(/,
+        'showWorkspace refreshes the gutter from the unfiltered corpus');
+
+    const gutter = notesSrc.match(/async function refreshWorkspaceGutter\(\)[\s\S]*?^    \}/m);
+    assert.ok(gutter, 'refreshWorkspaceGutter present');
+    assert.doesNotMatch(gutter[0], /clearFinderQuery/,
+        'gutter refresh must not clear the remembered query');
+    assert.doesNotMatch(gutter[0], /finderQuery\s*=/,
+        'gutter refresh must not wipe finderQuery');
+    assert.doesNotMatch(gutter[0], /storeFilters\(/,
+        'gutter refresh must not rewrite prefs');
+    assert.match(gutter[0], /sermonNotesFiltered\s*=\s*false/,
+        'gutter rows are recorded as unfiltered so showFinder revalidates on return');
+    assert.match(gutter[0], /renderSermonNotesList\(/,
+        'gutter repaints from the unfiltered list');
+    assert.match(gutter[0], /!finderEl\.hidden/,
+        'a bounce back to the finder must not overwrite its pending refresh');
+});
+
+test('clearFinderQuery marks the emptied cache as unfiltered', () => {
+    const reset = notesSrc.match(/function clearFinderQuery\(\)[\s\S]*?^    \}/m);
+    assert.ok(reset, 'clearFinderQuery present');
+    assert.match(reset[0], /sermonNotesFiltered\s*=\s*false/,
+        'clearing must not leave sermonNotesFiltered true against an empty list');
+});
