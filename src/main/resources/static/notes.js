@@ -628,8 +628,7 @@ if (typeof document !== 'undefined') (async function () {
     /**
      * Refetch under the current filters. Sequence-guarded: a slow response for an
      * older keystroke must not overwrite a newer one's results.
-     */
-    /**
+     *
      * @param opts.awaitTotal wait for the parallel unfiltered total before resolving.
      *        Callers that *read* totalNotes straight afterwards need this: the total
      *        fetch is fire-and-forget, so without it they can act on a stale count.
