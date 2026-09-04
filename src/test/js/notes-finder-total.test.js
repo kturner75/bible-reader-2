@@ -60,14 +60,35 @@ test('filtered finder count stays N of total after searchSeq race (not N of 0)',
     );
 });
 
-test('mutations while filtered refresh the denominator', () => {
+test('deleting while filtered lowers the denominator locally', () => {
+    // Safe to apply locally because the delete bump runs *before* any post-delete fetch;
+    // the create case cannot do the same, see below.
     let total = notes.seedFinderTotalNotes(4);
-    total = notes.bumpFinderTotalAfterCreate(total);
-    assert.equal(total, 5);
     total = notes.bumpFinderTotalAfterDelete(total);
-    assert.equal(total, 4);
+    assert.equal(total, 3);
     total = notes.bumpFinderTotalAfterDelete(0);
     assert.equal(total, 0);
+});
+
+test('creating a note does not double-count the denominator', () => {
+    // refreshNotes fires the unfiltered total in parallel, and post-create that fetch
+    // already counts the new note. A local +1 on top reported "N of M" with M one too
+    // high whenever the total landed first — reachable once a filter survives opening
+    // the editor, so the create path awaits the authoritative total instead.
+    assert.doesNotMatch(notesSrc, /bumpFinderTotalAfterCreate/,
+        'no local +1 may be applied on top of the authoritative unfiltered total');
+
+    const refresh = notesSrc.match(/async function refreshNotes\([\s\S]*?^    \}/m);
+    assert.ok(refresh, 'refreshNotes present');
+    assert.match(refresh[0], /const totalPending = filtered \? refreshFinderTotal\(\) : null/,
+        'the parallel total is captured so a caller can wait for it');
+    assert.match(refresh[0], /opts && opts\.awaitTotal && totalPending/,
+        'refreshNotes can await the total for callers that read it straight after');
+
+    const save = notesSrc.match(/async function saveSermonNote\([\s\S]*?^    \}/m);
+    assert.ok(save, 'saveSermonNote present');
+    assert.match(save[0], /awaitTotal: true/,
+        'the create path waits for the authoritative post-create total');
 });
 
 test('boot and refreshNotes keep totalNotes independent of filtered searchSeq', () => {
@@ -81,14 +102,16 @@ test('boot and refreshNotes keep totalNotes independent of filtered searchSeq', 
         /let totalNotes\s*=\s*0;/,
         'boot must not leave totalNotes at 0'
     );
-    const refresh = notesSrc.match(/async function refreshNotes\(\)[\s\S]*?^    \}/m);
+    const refresh = notesSrc.match(/async function refreshNotes\([\s\S]*?^    \}/m);
     assert.ok(refresh, 'refreshNotes present');
     const body = refresh[0];
     const applyAt = body.indexOf('applyFinderTotalNotes');
-    const seqReturnAt = body.indexOf('if (seq !== searchSeq) return');
+    // The guard is a nested if rather than an early return, so the trailing
+    // awaitTotal still runs; the ordering it protects is unchanged.
+    const seqGuardAt = body.indexOf('if (seq === searchSeq)');
     assert.ok(applyAt !== -1, 'refreshNotes uses applyFinderTotalNotes');
-    assert.ok(seqReturnAt !== -1, 'refreshNotes still seq-guards the list paint');
-    assert.ok(applyAt < seqReturnAt, 'unfiltered total must apply before seq discard');
+    assert.ok(seqGuardAt !== -1, 'refreshNotes still seq-guards the list paint');
+    assert.ok(applyAt < seqGuardAt, 'unfiltered total must apply before seq discard');
 });
 
 test('the finder remembers its query rather than clearing it on leave', () => {
@@ -152,10 +175,10 @@ test('filtered refreshNotes fires a separate unfiltered total fetch', () => {
     assert.match(totalFn[0], /fetch\('\/api\/sermon-notes'/,
         'total fetch is unfiltered');
 
-    const refresh = notesSrc.match(/async function refreshNotes\(\)[\s\S]*?^    \}/m);
+    const refresh = notesSrc.match(/async function refreshNotes\([\s\S]*?^    \}/m);
     assert.ok(refresh, 'refreshNotes present');
-    assert.match(refresh[0], /if \(filtered\) refreshFinderTotal\(\)/,
-        'filtered refreshNotes must fire the parallel total fetch');
+    assert.match(refresh[0], /filtered \? refreshFinderTotal\(\) : null/,
+        'filtered refreshNotes must fire the parallel total fetch, and keep the promise');
 });
 
 test('clearing the query drops cached rows and holds the finder blank', () => {
@@ -174,10 +197,10 @@ test('clearing the query drops cached rows and holds the finder blank', () => {
         'a restored filter at boot must not paint the unfiltered boot list');
     assert.match(showFinder[0], /finderBlank\.hidden\s*=\s*true/,
         'hold must not flash the empty-library blank while refresh is in flight');
-    assert.match(showFinder[0], /refreshNotes\(\)/,
+    assert.match(showFinder[0], /refreshNotes\(/,
         'showFinder still revalidates with refreshNotes');
 
-    const refresh = notesSrc.match(/async function refreshNotes\(\)[\s\S]*?^    \}/m);
+    const refresh = notesSrc.match(/async function refreshNotes\([\s\S]*?^    \}/m);
     assert.match(refresh[0], /sermonNotesFiltered = filtered/,
         'refreshNotes records which filter state the rows came from');
 });

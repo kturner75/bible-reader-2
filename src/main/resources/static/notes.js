@@ -193,10 +193,6 @@
         return prevTotal;
     }
 
-    function bumpFinderTotalAfterCreate(prevTotal) {
-        return (prevTotal || 0) + 1;
-    }
-
     function bumpFinderTotalAfterDelete(prevTotal) {
         return Math.max(0, (prevTotal || 0) - 1);
     }
@@ -226,7 +222,6 @@
         printStateAfterHydrationFinish,
         seedFinderTotalNotes,
         applyFinderTotalNotes,
-        bumpFinderTotalAfterCreate,
         bumpFinderTotalAfterDelete,
         formatFinderCount
     };
@@ -633,30 +628,41 @@ if (typeof document !== 'undefined') (async function () {
      * Refetch under the current filters. Sequence-guarded: a slow response for an
      * older keystroke must not overwrite a newer one's results.
      */
-    async function refreshNotes() {
+    /**
+     * @param opts.awaitTotal wait for the parallel unfiltered total before resolving.
+     *        Callers that *read* totalNotes straight afterwards need this: the total
+     *        fetch is fire-and-forget, so without it they can act on a stale count.
+     */
+    async function refreshNotes(opts) {
         const seq = ++searchSeq;
         const filtered = finderIsFiltered();
         // While filtered, the list response cannot refresh the denominator — fire a
         // parallel unfiltered total that does not share searchSeq.
-        if (filtered) refreshFinderTotal();
+        const totalPending = filtered ? refreshFinderTotal() : null;
         try {
             const res = await fetch(finderUrl(), { credentials: 'include' });
-            if (!res.ok) return;
-            const next = await res.json();
-            // An unfiltered response is the only thing that knows the corpus size, and it
-            // stays true even once a newer keystroke has superseded it for rendering.
-            // Recording it *before* the sequence guard is what stops the denominator
-            // sticking at 0 when a fast search overtakes the opening refresh.
-            totalNotes = window.KjvNotePrint.applyFinderTotalNotes(totalNotes, {
-                filtered,
-                length: next.length
-            });
-            if (seq !== searchSeq) return;
-            sermonNotes = next;
-            sermonNotesFiltered = filtered;
-            renderFinderGrid();
-            renderSermonNotesList();
+            if (res.ok) {
+                const next = await res.json();
+                // An unfiltered response is the only thing that knows the corpus size, and
+                // it stays true even once a newer keystroke has superseded it for
+                // rendering. Recording it *before* the sequence guard is what stops the
+                // denominator sticking at 0 when a fast search overtakes the opening
+                // refresh.
+                totalNotes = window.KjvNotePrint.applyFinderTotalNotes(totalNotes, {
+                    filtered,
+                    length: next.length
+                });
+                if (seq === searchSeq) {
+                    sermonNotes = next;
+                    sermonNotesFiltered = filtered;
+                    renderFinderGrid();
+                    renderSermonNotesList();
+                }
+            }
         } catch (_) { /* keep what is already on screen */ }
+        if (opts && opts.awaitTotal && totalPending) {
+            try { await totalPending; } catch (_) { /* denominator keeps its last value */ }
+        }
     }
 
     function scheduleSearch() {
@@ -1354,13 +1360,13 @@ if (typeof document !== 'undefined') (async function () {
             const saved = await res.json();
             if (saveGen !== openNoteGen) return;
 
-            const created = !targetId;
-            await refreshNotes();
+            // A create changes the corpus size, so wait for the authoritative unfiltered
+            // total rather than adding a local +1 on top of it. The parallel total fetch
+            // runs after the create commits, so it already counts the new note; bumping
+            // as well reported "N of M" with M one too high whenever it landed first —
+            // reachable only now that a filter survives opening the editor.
+            await refreshNotes(targetId ? undefined : { awaitTotal: true });
             if (saveGen !== openNoteGen) return;
-            // Filtered refresh does not rewrite the denominator — bump on create.
-            if (created && finderIsFiltered()) {
-                totalNotes = window.KjvNotePrint.bumpFinderTotalAfterCreate(totalNotes);
-            }
             loadBookFilterOptions();
 
             editingNoteId = saved.id;
