@@ -249,6 +249,11 @@ test('entering the workspace cancels a pending debounced search', () => {
     assert.ok(showWorkspace, 'showWorkspace present');
     assert.match(showWorkspace[0], /clearTimeout\(searchTimer\)/,
         'a pending debounced search must not survive into the workspace');
+    // clearTimeout is not enough on its own: once the timer has fired the request is
+    // already in flight and stays sequence-current, so its response would still repaint
+    // the gutter mid-edit. The sequence bump retires that one too.
+    assert.match(showWorkspace[0], /searchSeq\+\+/,
+        'a search that already escaped the debounce must be retired by sequence');
     const cancelAt = showWorkspace[0].indexOf('clearTimeout(searchTimer)');
     const gutterAt = showWorkspace[0].indexOf('refreshWorkspaceGutter()');
     assert.ok(gutterAt !== -1, 'showWorkspace still refreshes the gutter when filtered');
