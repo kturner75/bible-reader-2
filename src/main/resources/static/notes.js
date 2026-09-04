@@ -550,6 +550,7 @@ if (typeof document !== 'undefined') (async function () {
     // Boot already fetched the unfiltered list — seed the denominator now.
     let totalNotes   = window.KjvNotePrint.seedFinderTotalNotes(sermonNotes);
     let searchSeq    = 0;
+    let totalSeq     = 0; // independent of searchSeq — filtered discards must not drop totals
     let searchTimer  = null;
 
     if (sortSelect) sortSelect.value = finderSort;
@@ -569,12 +570,40 @@ if (typeof document !== 'undefined') (async function () {
     }
 
     /**
+     * Keep the unfiltered library size fresh while filters are on. Own sequence so
+     * a discarded filtered searchSeq cannot drop this write. Only repaints the
+     * count label — the card list belongs to refreshNotes.
+     */
+    async function refreshFinderTotal() {
+        const seq = ++totalSeq;
+        try {
+            const res = await fetch('/api/sermon-notes', { credentials: 'include' });
+            if (!res.ok) return;
+            const next = await res.json();
+            if (seq !== totalSeq) return;
+            const prev = totalNotes;
+            totalNotes = Array.isArray(next) ? next.length : prev;
+            if (totalNotes === prev) return;
+            if (!finderIsFiltered() || !finderEl || finderEl.hidden) return;
+            if (!finderCount || sermonNotes.length === 0) return;
+            finderCount.textContent = window.KjvNotePrint.formatFinderCount({
+                filtered: true,
+                shown: sermonNotes.length,
+                total: totalNotes
+            });
+        } catch (_) { /* keep last known denominator */ }
+    }
+
+    /**
      * Refetch under the current filters. Sequence-guarded: a slow response for an
      * older keystroke must not overwrite a newer one's results.
      */
     async function refreshNotes() {
         const seq = ++searchSeq;
         const filtered = finderIsFiltered();
+        // While filtered, the list response cannot refresh the denominator — fire a
+        // parallel unfiltered total that does not share searchSeq.
+        if (filtered) refreshFinderTotal();
         try {
             const res = await fetch(finderUrl(), { credentials: 'include' });
             if (!res.ok) return;
@@ -694,6 +723,7 @@ if (typeof document !== 'undefined') (async function () {
         clearTimeout(searchTimer);
         searchTimer = null;
         searchSeq++; // discard in-flight filtered responses
+        totalSeq++;  // discard in-flight denominator fetches tied to the old query
         finderQuery = '';
         finderBookId = '';
         finderWindow = '';

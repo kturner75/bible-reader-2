@@ -116,3 +116,24 @@ test('leaving the finder clears search/book/updated filter state', () => {
     assert.match(openSermonNote[0], /resetFinderFiltersOnLeave\(\)/,
         'openSermonNote clears filters when leaving the finder');
 });
+
+test('filtered refreshNotes fires a separate unfiltered total fetch', () => {
+    assert.match(notesSrc, /async function refreshFinderTotal\(/,
+        'refreshFinderTotal helper must exist');
+    assert.match(notesSrc, /let totalSeq\s*=/,
+        'totalSeq must be independent of searchSeq');
+
+    const totalFn = notesSrc.match(/async function refreshFinderTotal\(\)[\s\S]*?^    \}/m);
+    assert.ok(totalFn, 'refreshFinderTotal present');
+    assert.match(totalFn[0], /\+\+totalSeq/, 'total fetch uses totalSeq');
+    assert.doesNotMatch(totalFn[0], /searchSeq/,
+        'total fetch must not share filtered searchSeq');
+    assert.match(totalFn[0], /fetch\('\/api\/sermon-notes'/,
+        'total fetch is unfiltered');
+
+    const refresh = notesSrc.match(/async function refreshNotes\(\)[\s\S]*?^    \}/m);
+    assert.ok(refresh, 'refreshNotes present');
+    assert.match(refresh[0], /if \(filtered\) refreshFinderTotal\(\)/,
+        'filtered refreshNotes must fire the parallel total fetch');
+});
+
