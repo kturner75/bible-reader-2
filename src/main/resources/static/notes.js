@@ -875,11 +875,19 @@ if (typeof document !== 'undefined') (async function () {
         // Nothing is lost by cancelling: the input handler already committed finderQuery
         // and persisted it, so this drops the pending fetch, not the remembered query —
         // returning to the finder re-runs it.
+        //
+        // Also invalidate in-flight refreshNotes (searchSeq++). Prefs can already be
+        // filtered while sermonNotesFiltered is still false — the debounce has fired,
+        // the fetch is outstanding, and the flag flips only when it lands. Gate the
+        // gutter refresh on finderIsFiltered() || sermonNotesFiltered so that case
+        // still loads the unfiltered corpus; without the seq bump the landing paint
+        // would still reach renderSermonNotesList into the workspace gutter.
         clearTimeout(searchTimer);
         searchTimer = null;
+        searchSeq++; // discard in-flight filtered refreshNotes that could paint the gutter
         finderEl.hidden = true;
         if (workspaceEl) workspaceEl.hidden = false;
-        if (sermonNotesFiltered) refreshWorkspaceGutter();
+        if (finderIsFiltered() || sermonNotesFiltered) refreshWorkspaceGutter();
     }
 
     /**
