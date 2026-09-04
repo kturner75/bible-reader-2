@@ -15,8 +15,6 @@ import java.util.UUID;
 
 public interface SermonNoteRepository extends JpaRepository<SermonNote, UUID> {
 
-    List<SermonNote> findByUserIdOrderByUpdatedAtDesc(Long userId);
-
     Optional<SermonNote> findByIdAndUserId(UUID id, Long userId);
 
     /**

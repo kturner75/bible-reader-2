@@ -1,5 +1,6 @@
 package com.readthekjv.controller;
 
+import com.readthekjv.model.dto.BookOption;
 import com.readthekjv.model.dto.SermonNoteResponse;
 import com.readthekjv.model.dto.SermonNoteSummary;
 import com.readthekjv.model.dto.UpsertSermonNoteRequest;
@@ -62,7 +63,7 @@ public class SermonNoteController {
      * Declared before {@code /{id}} so the literal path wins over the UUID pattern.
      */
     @GetMapping("/books")
-    public List<SermonNoteSummary.ScriptureRef> scriptureFilterOptions(
+    public List<BookOption> scriptureFilterOptions(
             @AuthenticationPrincipal UserDetails ud) {
         return sermonNoteService.scriptureFilterOptions(resolveUser(ud).getId());
     }

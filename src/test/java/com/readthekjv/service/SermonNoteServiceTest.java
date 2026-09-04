@@ -2,6 +2,7 @@ package com.readthekjv.service;
 
 import com.readthekjv.exception.BadRequestException;
 import com.readthekjv.model.Book;
+import com.readthekjv.model.dto.BookOption;
 import com.readthekjv.model.dto.SermonNoteResponse;
 import com.readthekjv.model.dto.SermonNoteSummary;
 import com.readthekjv.model.entity.SermonNote;
@@ -224,7 +225,7 @@ class SermonNoteServiceTest {
             rows.add(new SermonNoteRef(note, 19, chapter));
         }
         when(refRepository.findForNotes(any())).thenReturn(rows);
-        when(bibleService.getBook(19)).thenReturn(Optional.of(new Book(19, "Psalms", 150, 13934, 16463)));
+        when(bibleService.getBook(19)).thenReturn(Optional.of(new Book(19, "Psalm", 150, 13934, 16463)));
 
         SermonNoteSummary summary = service.list(USER_ID).get(0);
 
@@ -235,7 +236,7 @@ class SermonNoteServiceTest {
     @Test
     void searchWidensToBooksWhoseNameMatchesTheQuery() {
         when(bibleService.getBooks()).thenReturn(List.of(
-                new Book(19, "Psalms", 150, 13934, 16463),
+                new Book(19, "Psalm", 150, 13934, 16463),
                 new Book(43, "John", 21, 26046, 26924),
                 new Book(62, "1 John", 5, 30518, 30622)));
         whenSearchReturns();
@@ -249,7 +250,7 @@ class SermonNoteServiceTest {
 
     @Test
     void searchWithNoBookNameMatchSendsASentinelNotAnEmptyList() {
-        when(bibleService.getBooks()).thenReturn(List.of(new Book(19, "Psalms", 150, 13934, 16463)));
+        when(bibleService.getBooks()).thenReturn(List.of(new Book(19, "Psalm", 150, 13934, 16463)));
         whenSearchReturns();
 
         service.search(USER_ID, "shepherd", null, null, null);
@@ -287,7 +288,7 @@ class SermonNoteServiceTest {
     void summariesCarryScriptureChipsInBibleOrder() {
         SermonNote note = existingNote("Funeral", "See [v=14237-14242] and [v=26792]");
         whenSearchReturns(note);
-        when(bibleService.getBook(19)).thenReturn(Optional.of(new Book(19, "Psalms", 150, 13934, 16463)));
+        when(bibleService.getBook(19)).thenReturn(Optional.of(new Book(19, "Psalm", 150, 13934, 16463)));
         when(bibleService.getBook(43)).thenReturn(Optional.of(new Book(43, "John", 21, 26046, 26924)));
         when(refRepository.findForNotes(any())).thenReturn(List.of(
                 new SermonNoteRef(note, 19, 23),
@@ -295,7 +296,7 @@ class SermonNoteServiceTest {
 
         List<SermonNoteSummary.ScriptureRef> refs = service.list(USER_ID).get(0).refs();
 
-        assertEquals(List.of("Psalms 23", "John 14"), refs.stream().map(SermonNoteSummary.ScriptureRef::label).toList());
+        assertEquals(List.of("Psalm 23", "John 14"), refs.stream().map(SermonNoteSummary.ScriptureRef::label).toList());
     }
 
     @Test
@@ -359,12 +360,12 @@ class SermonNoteServiceTest {
     @Test
     void scriptureFilterOffersOnlyBooksTheUserHasCited() {
         when(refRepository.findBookIdsForUser(USER_ID)).thenReturn(List.of(19, 43));
-        when(bibleService.getBook(19)).thenReturn(Optional.of(new Book(19, "Psalms", 150, 13934, 16463)));
+        when(bibleService.getBook(19)).thenReturn(Optional.of(new Book(19, "Psalm", 150, 13934, 16463)));
         when(bibleService.getBook(43)).thenReturn(Optional.of(new Book(43, "John", 21, 26046, 26924)));
 
-        List<SermonNoteSummary.ScriptureRef> options = service.scriptureFilterOptions(USER_ID);
+        List<BookOption> options = service.scriptureFilterOptions(USER_ID);
 
-        assertEquals(List.of("Psalms", "John"), options.stream().map(SermonNoteSummary.ScriptureRef::label).toList());
-        assertEquals(List.of(19, 43), options.stream().map(SermonNoteSummary.ScriptureRef::bookId).toList());
+        assertEquals(List.of("Psalm", "John"), options.stream().map(BookOption::label).toList());
+        assertEquals(List.of(19, 43), options.stream().map(BookOption::bookId).toList());
     }
 }

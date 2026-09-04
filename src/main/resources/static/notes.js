@@ -509,7 +509,9 @@ if (typeof document !== 'undefined') (async function () {
     let finderBookId = '';
     let finderWindow = '';
     let finderSort   = (prefs && prefs.get('kjv_notes_sort', 'recent')) || 'recent';
-    let totalNotes   = 0;
+    // Seeded from the boot fetch, which is always unfiltered (filters reset on load).
+    // Left at 0 it would paint "3 of 0 notes" the moment a filter was applied.
+    let totalNotes   = sermonNotes.length;
     let searchSeq    = 0;
     let searchTimer  = null;
 
@@ -538,15 +540,33 @@ if (typeof document !== 'undefined') (async function () {
         const filtered = finderIsFiltered();
         try {
             const res = await fetch(finderUrl(), { credentials: 'include' });
-            if (seq !== searchSeq || !res.ok) return;
+            if (!res.ok) return;
             const next = await res.json();
+            // An unfiltered response is the only thing that knows the corpus size, and it
+            // stays true even once a newer keystroke has superseded it for rendering.
+            // Recording it *before* the sequence guard is what stops the denominator
+            // sticking at 0 when a fast search overtakes the opening refresh.
+            if (!filtered) totalNotes = next.length;
             if (seq !== searchSeq) return;
             sermonNotes = next;
-            // An unfiltered response is the only one that knows the true total.
-            if (!filtered) totalNotes = sermonNotes.length;
             renderFinderGrid();
             renderSermonNotesList();
         } catch (_) { /* keep what is already on screen */ }
+    }
+
+    /**
+     * "N of M notes" takes M from an unfiltered response only. After a create or delete
+     * with a filter active, refreshNotes() sees just the filtered count, so the total is
+     * refetched here rather than left to drift.
+     */
+    async function refreshTotalAfterMutation() {
+        if (!finderIsFiltered()) return;   // an unfiltered refreshNotes already wrote it
+        try {
+            const res = await fetch('/api/sermon-notes', { credentials: 'include' });
+            if (!res.ok) return;
+            totalNotes = (await res.json()).length;
+            renderFinderGrid();
+        } catch (_) { /* the denominator simply keeps its last known value */ }
     }
 
     function scheduleSearch() {
@@ -1174,6 +1194,7 @@ if (typeof document !== 'undefined') (async function () {
             await refreshNotes();
             if (saveGen !== openNoteGen) return;
             loadBookFilterOptions();
+            refreshTotalAfterMutation();
 
             editingNoteId = saved.id;
             savedTitle = saved.title;
@@ -1213,6 +1234,7 @@ if (typeof document !== 'undefined') (async function () {
             sermonNotes = sermonNotes.filter(n => n.id !== targetId);
             showPaneEmpty();
             loadBookFilterOptions();
+            refreshTotalAfterMutation();
             showToast('Note deleted');
         } catch (_) { /* ignore */ }
     }

@@ -2,6 +2,7 @@ package com.readthekjv.service;
 
 import com.readthekjv.model.Book;
 import com.readthekjv.model.Verse;
+import com.readthekjv.model.dto.BookOption;
 import com.readthekjv.model.dto.SermonNoteResponse;
 import com.readthekjv.model.dto.SermonNoteSummary;
 import com.readthekjv.model.entity.SermonNote;
@@ -90,11 +91,10 @@ public class SermonNoteService {
 
     /** Books the user has cited anywhere — the scripture filter offers only these. */
     @Transactional(readOnly = true)
-    public List<SermonNoteSummary.ScriptureRef> scriptureFilterOptions(Long userId) {
-        List<SermonNoteSummary.ScriptureRef> options = new ArrayList<>();
+    public List<BookOption> scriptureFilterOptions(Long userId) {
+        List<BookOption> options = new ArrayList<>();
         for (int id : refRepository.findBookIdsForUser(userId)) {
-            bibleService.getBook(id).ifPresent(b -> options.add(
-                    new SermonNoteSummary.ScriptureRef(b.id(), 0, b.name())));
+            bibleService.getBook(id).ifPresent(b -> options.add(new BookOption(b.id(), b.name())));
         }
         return options;
     }
