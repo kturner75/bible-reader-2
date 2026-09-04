@@ -213,8 +213,8 @@ test('entering workspace loads an unfiltered gutter without clearing remembered 
     assert.ok(showWorkspace, 'showWorkspace present');
     assert.doesNotMatch(showWorkspace[0], /clearFinderQuery\(\)/,
         'entering workspace must not clear remembered filters');
-    assert.match(showWorkspace[0], /sermonNotesFiltered/,
-        'showWorkspace notices when the cached list is filtered');
+    assert.match(showWorkspace[0], /finderIsFiltered\(\) \|\| sermonNotesFiltered/,
+        'gutter refresh runs when prefs are filtered even before sermonNotesFiltered flips');
     assert.match(showWorkspace[0], /refreshWorkspaceGutter\(/,
         'showWorkspace refreshes the gutter from the unfiltered corpus');
 
@@ -266,4 +266,29 @@ test('entering the workspace cancels a pending debounced search', () => {
     assert.ok(onInput, 'search input handler present');
     assert.match(onInput[0], /finderQuery = searchInput\.value/, 'query committed on input');
     assert.match(onInput[0], /storeFilters\(\)/, 'query persisted on input');
+});
+
+test('in-flight filtered refreshNotes must not paint the gutter after showWorkspace', () => {
+    // Prefs already filtered, debounce fired, refreshNotes outstanding, flag still false.
+    // Opening a card used to skip the gutter refresh; when the filtered fetch landed it
+    // painted via renderSermonNotesList into the workspace for the whole edit.
+    const showWorkspace = notesSrc.match(/function showWorkspace\(\)[\s\S]*?^    \}/m);
+    assert.ok(showWorkspace, 'showWorkspace present');
+    assert.match(showWorkspace[0], /searchSeq\+\+/,
+        'must invalidate in-flight refreshNotes so a late filtered paint cannot land');
+    assert.match(showWorkspace[0], /finderIsFiltered\(\) \|\| sermonNotesFiltered/,
+        'must refresh the unfiltered gutter when prefs are filtered even if the flag lags');
+
+    const bumpAt = showWorkspace[0].indexOf('searchSeq++');
+    const gutterAt = showWorkspace[0].indexOf('refreshWorkspaceGutter()');
+    assert.ok(bumpAt !== -1 && gutterAt !== -1);
+    assert.ok(bumpAt < gutterAt,
+        'seq bump before gutter refresh so the in-flight list work is already discarded');
+
+    const refresh = notesSrc.match(/async function refreshNotes\([\s\S]*?^    \}/m);
+    assert.ok(refresh, 'refreshNotes present');
+    assert.match(refresh[0], /if \(seq === searchSeq\)/,
+        'refreshNotes still seq-guards list + gutter paints');
+    assert.match(refresh[0], /renderSermonNotesList\(/,
+        'the paint path that would trap the gutter is the one being seq-guarded');
 });
