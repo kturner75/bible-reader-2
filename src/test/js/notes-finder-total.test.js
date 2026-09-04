@@ -91,30 +91,51 @@ test('boot and refreshNotes keep totalNotes independent of filtered searchSeq', 
     assert.ok(applyAt < seqReturnAt, 'unfiltered total must apply before seq discard');
 });
 
-test('leaving the finder clears search/book/updated filter state', () => {
-    assert.match(notesSrc, /function resetFinderFiltersOnLeave\(/,
-        'resetFinderFiltersOnLeave helper must exist');
-    assert.match(notesSrc, /finderQuery\s*=\s*''/,
-        'reset clears finderQuery');
-    assert.match(notesSrc, /finderBookId\s*=\s*''/,
-        'reset clears finderBookId');
-    assert.match(notesSrc, /finderWindow\s*=\s*''/,
-        'reset clears finderWindow');
+test('the finder remembers its query rather than clearing it on leave', () => {
+    // Deliberate exception to "persist arrangement; reset queries" — the reader asked for
+    // filters to be remembered, with the Clear control as the mitigation. See CLAUDE.md.
+    assert.match(notesSrc, /const FILTERS_KEY = 'kjv_notes_filters'/,
+        'the query is stored under its own KjvViewPrefs key');
+    assert.match(notesSrc, /function storeFilters\(/, 'storeFilters helper must exist');
+    assert.match(notesSrc, /function loadStoredFilters\(/, 'loadStoredFilters helper must exist');
+    assert.match(notesSrc, /let finderQuery\s*=\s*storedFilters\.q/,
+        'boot state comes from the stored query');
 
-    const showWorkspace = notesSrc.match(/function showWorkspace\(\)[\s\S]*?^    \}/m);
-    assert.ok(showWorkspace, 'showWorkspace present');
-    assert.match(showWorkspace[0], /resetFinderFiltersOnLeave\(\)/,
-        'showWorkspace clears filters on leave');
+    for (const [name, re] of [
+        ['showWorkspace', /function showWorkspace\(\)[\s\S]*?^    \}/m],
+        ['showPaneEmpty', /function showPaneEmpty\(\)[\s\S]*?^    \}/m],
+        ['openSermonNote', /async function openSermonNote\([\s\S]*?^    \}/m]
+    ]) {
+        const fn = notesSrc.match(re);
+        assert.ok(fn, name + ' present');
+        assert.doesNotMatch(fn[0], /clearFinderQuery\(\)/,
+            name + ' must not clear the query — leaving the finder keeps it');
+    }
 
-    const showPaneEmpty = notesSrc.match(/function showPaneEmpty\(\)[\s\S]*?^    \}/m);
-    assert.ok(showPaneEmpty, 'showPaneEmpty present');
-    assert.match(showPaneEmpty[0], /resetFinderFiltersOnLeave\(\)/,
-        'showPaneEmpty clears filters when returning to finder');
+    const clearFilters = notesSrc.match(/function clearFinderFilters\(\)[\s\S]*?^    \}/m);
+    assert.ok(clearFilters, 'clearFinderFilters present');
+    assert.match(clearFilters[0], /clearFinderQuery\(\)/,
+        'the explicit Clear filters action is what drops the query');
+});
 
-    const openSermonNote = notesSrc.match(/async function openSermonNote\([\s\S]*?^    \}/m);
-    assert.ok(openSermonNote, 'openSermonNote present');
-    assert.match(openSermonNote[0], /resetFinderFiltersOnLeave\(\)/,
-        'openSermonNote clears filters when leaving the finder');
+test('stored filter values are validated on the way in', () => {
+    const load = notesSrc.match(/function loadStoredFilters\(\)[\s\S]*?^    \}/m);
+    assert.ok(load, 'loadStoredFilters present');
+    assert.match(load[0], /KNOWN_WINDOWS/,
+        'an unknown updated-window must fall back rather than wedge the query');
+    assert.match(load[0], /\[0-9\]\{1,2\}/,
+        'a stored book id must look like a book id');
+    assert.match(load[0], /typeof stored\.q === 'string'/,
+        'a non-string search value must not reach the query');
+});
+
+test('the Clear filters control appears only while something is active', () => {
+    assert.match(notesSrc, /function syncClearButton\(/, 'syncClearButton helper must exist');
+    const sync = notesSrc.match(/function syncClearButton\(\)[\s\S]*?^    \}/m);
+    assert.match(sync[0], /clearBtn\.hidden = !finderIsFiltered\(\)/,
+        'the control is the visible signal that results are narrowed');
+    assert.match(notesSrc, /clearBtn\.addEventListener\('click', clearFinderFilters\)/,
+        'the control is wired to the clear action');
 });
 
 test('filtered refreshNotes fires a separate unfiltered total fetch', () => {
@@ -137,32 +158,26 @@ test('filtered refreshNotes fires a separate unfiltered total fetch', () => {
         'filtered refreshNotes must fire the parallel total fetch');
 });
 
-test('leave-reset drops filtered sermonNotes and holds finder until unfiltered refresh', () => {
-    const reset = notesSrc.match(/function resetFinderFiltersOnLeave\(\)[\s\S]*?^    \}/m);
-    assert.ok(reset, 'resetFinderFiltersOnLeave present');
-    assert.match(reset[0], /wasFiltered/,
-        'reset must detect whether filters were active');
+test('clearing the query drops cached rows and holds the finder blank', () => {
+    const reset = notesSrc.match(/function clearFinderQuery\(\)[\s\S]*?^    \}/m);
+    assert.ok(reset, 'clearFinderQuery present');
+    assert.match(reset[0], /wasFiltered/, 'must detect whether anything was active');
     assert.match(reset[0], /sermonNotes\s*=\s*\[\]/,
-        'reset must drop filtered sermonNotes so they cannot paint as the full corpus');
+        'must drop the filtered rows so they cannot paint as the full corpus');
+    assert.match(reset[0], /storeFilters\(\)/, 'clearing is remembered too');
     assert.match(reset[0], /return wasFiltered/,
-        'reset returns whether an unfiltered refresh is needed');
+        'returns whether an unfiltered refresh is needed');
 
     const showFinder = notesSrc.match(/function showFinder\(\)[\s\S]*?^    \}/m);
     assert.ok(showFinder, 'showFinder present');
-    assert.match(showFinder[0], /sermonNotes\.length\s*===\s*0/,
-        'showFinder must hold blank when the list was cleared on leave');
+    assert.match(showFinder[0], /sermonNotesFiltered !== finderIsFiltered\(\)/,
+        'a restored filter at boot must not paint the unfiltered boot list');
     assert.match(showFinder[0], /finderBlank\.hidden\s*=\s*true/,
         'hold must not flash the empty-library blank while refresh is in flight');
     assert.match(showFinder[0], /refreshNotes\(\)/,
         'showFinder still revalidates with refreshNotes');
 
-    const showWorkspace = notesSrc.match(/function showWorkspace\(\)[\s\S]*?^    \}/m);
-    assert.ok(showWorkspace, 'showWorkspace present');
-    assert.match(showWorkspace[0], /if \(resetFinderFiltersOnLeave\(\)\) refreshNotes\(\)/,
-        'showWorkspace must refresh unfiltered when leave-reset dropped a filtered list');
-
-    const openSermonNote = notesSrc.match(/async function openSermonNote\([\s\S]*?^    \}/m);
-    assert.ok(openSermonNote, 'openSermonNote present');
-    assert.match(openSermonNote[0], /if \(resetFinderFiltersOnLeave\(\)\) refreshNotes\(\)/,
-        'openSermonNote must refresh so the gutter does not stay on a filtered subset');
+    const refresh = notesSrc.match(/async function refreshNotes\(\)[\s\S]*?^    \}/m);
+    assert.match(refresh[0], /sermonNotesFiltered = filtered/,
+        'refreshNotes records which filter state the rows came from');
 });

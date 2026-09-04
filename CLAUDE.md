@@ -280,10 +280,27 @@ Three traps worth not re-learning:
   height is built from that sum; changing one without the other clips the snippet mid-line. The
   server's snippet budget (140 chars) is sized to the same two lines.
 
-Sort persists via `KjvViewPrefs`; search text and filters do not. Leaving the finder via
-`showWorkspace` / `openSermonNote` / `showPaneEmpty` clears the active search and filters — a
-forgotten filter must not make a full library look empty — and a reload always starts clean. See
-"Remembering what the reader chose" and `docs/architecture/notes-finder-search.md`.
+**The finder's query is remembered, and that is a deliberate exception.** Sort, search text,
+the book filter and the updated-window all persist via `KjvViewPrefs` (`kjv_notes_sort`,
+`kjv_notes_filters`), per device — they survive both leaving the finder and a reload.
+
+This knowingly departs from "persist arrangement; reset queries" above. That rule exists to stop
+a forgotten filter making a full library look empty, and here the same risk is answered by making
+the filter state impossible to miss rather than by discarding it:
+
+- **Clear filters** sits in the filter row and is rendered *only* while something is active, so
+  its presence is itself the signal that results are narrowed.
+- The count reads `2 of 8 notes` rather than a bare `8 notes` whenever a filter applies.
+- Stored values are validated on load (`loadStoredFilters`), so a stale book id or an unknown
+  window falls back to "any" instead of wedging the finder into a state the controls cannot show
+  or the reader cannot clear.
+
+Two consequences worth knowing: the boot list is fetched *unfiltered*, so a restored filter means
+the cached rows must not be painted — `showFinder` holds blank whenever `sermonNotesFiltered`
+disagrees with the filters now in effect. And `loadBookFilterOptions` restores the remembered book
+from `finderBookId`, never from `bookSelect.value`, because at boot the options do not exist yet.
+
+See "Remembering what the reader chose" and `docs/architecture/notes-finder-search.md`.
 
 ## Dashboard Layout
 
