@@ -175,6 +175,39 @@
         });
     }
 
+    /**
+     * Finder denominator helpers (exported for Node tests).
+     *
+     * totalNotes is the unfiltered library size. A filtered refresh must never
+     * write it, and an unfiltered response must write it even when a later
+     * filtered searchSeq has already superseded the request — otherwise the
+     * discarded write leaves the count at 0 and the grid paints "N of 0".
+     */
+    function seedFinderTotalNotes(bootLength) {
+        return Array.isArray(bootLength) ? bootLength.length : (Number(bootLength) || 0);
+    }
+
+    /** Unfiltered length always wins; filtered responses leave prevTotal alone. */
+    function applyFinderTotalNotes(prevTotal, { filtered, length }) {
+        if (!filtered) return length;
+        return prevTotal;
+    }
+
+    function bumpFinderTotalAfterCreate(prevTotal) {
+        return (prevTotal || 0) + 1;
+    }
+
+    function bumpFinderTotalAfterDelete(prevTotal) {
+        return Math.max(0, (prevTotal || 0) - 1);
+    }
+
+    function formatFinderCount({ filtered, shown, total }) {
+        if (filtered) {
+            return `${shown} of ${total} note${total === 1 ? '' : 's'}`;
+        }
+        return `${shown} note${shown === 1 ? '' : 's'}`;
+    }
+
     const api = {
         TITLE_PRINT,
         TITLE_LOADING,
@@ -190,7 +223,12 @@
         runPrintWithTitle,
         startHydrationRun,
         isLiveHydrationRun,
-        printStateAfterHydrationFinish
+        printStateAfterHydrationFinish,
+        seedFinderTotalNotes,
+        applyFinderTotalNotes,
+        bumpFinderTotalAfterCreate,
+        bumpFinderTotalAfterDelete,
+        formatFinderCount
     };
 
     if (typeof module !== 'undefined' && module.exports) {
@@ -511,7 +549,7 @@ if (typeof document !== 'undefined') (async function () {
     let finderSort   = (prefs && prefs.get('kjv_notes_sort', 'recent')) || 'recent';
     // Seeded from the boot fetch, which is always unfiltered (filters reset on load).
     // Left at 0 it would paint "3 of 0 notes" the moment a filter was applied.
-    let totalNotes   = sermonNotes.length;
+    let totalNotes   = window.KjvNotePrint.seedFinderTotalNotes(sermonNotes);
     let searchSeq    = 0;
     let searchTimer  = null;
 
@@ -546,7 +584,10 @@ if (typeof document !== 'undefined') (async function () {
             // stays true even once a newer keystroke has superseded it for rendering.
             // Recording it *before* the sequence guard is what stops the denominator
             // sticking at 0 when a fast search overtakes the opening refresh.
-            if (!filtered) totalNotes = next.length;
+            totalNotes = window.KjvNotePrint.applyFinderTotalNotes(totalNotes, {
+                filtered,
+                length: next.length
+            });
             if (seq !== searchSeq) return;
             sermonNotes = next;
             renderFinderGrid();
@@ -626,9 +667,11 @@ if (typeof document !== 'undefined') (async function () {
         finderGrid.hidden = false;
 
         const n = sermonNotes.length;
-        finderCount.textContent = finderIsFiltered()
-            ? `${n} of ${totalNotes} note${totalNotes === 1 ? '' : 's'}`
-            : `${n} note${n === 1 ? '' : 's'}`;
+        finderCount.textContent = window.KjvNotePrint.formatFinderCount({
+            filtered: finderIsFiltered(),
+            shown: n,
+            total: totalNotes
+        });
 
         sermonNotes.forEach(note => {
             const card = document.createElement('button');
@@ -645,13 +688,25 @@ if (typeof document !== 'undefined') (async function () {
         });
     }
 
-    function clearFinderFilters() {
+    /**
+     * Search text + book/updated filters are a *query* and must not survive
+     * leaving the finder — a forgotten filter makes a full library look empty.
+     * Sort persists. Does not refetch; callers that need a fresh list do.
+     */
+    function resetFinderFiltersOnLeave() {
+        clearTimeout(searchTimer);
+        searchTimer = null;
+        searchSeq++; // discard in-flight filtered responses
         finderQuery = '';
         finderBookId = '';
         finderWindow = '';
         if (searchInput) searchInput.value = '';
         if (bookSelect) bookSelect.value = '';
         syncUpdatedButtons();
+    }
+
+    function clearFinderFilters() {
+        resetFinderFiltersOnLeave();
         refreshNotes();
         if (searchInput) searchInput.focus();
     }
@@ -673,6 +728,7 @@ if (typeof document !== 'undefined') (async function () {
 
     function showWorkspace() {
         if (!finderEl) return;
+        resetFinderFiltersOnLeave();
         finderEl.hidden = true;
         if (workspaceEl) workspaceEl.hidden = false;
     }
@@ -781,6 +837,8 @@ if (typeof document !== 'undefined') (async function () {
         viewSection.hidden = true;
         editSection.hidden = true;
         syncUrl();
+        // Back to finder — drop any query so the library cannot look empty.
+        resetFinderFiltersOnLeave();
         renderSermonNotesList();
         syncPrintButton();
         showFinder();
@@ -1032,6 +1090,8 @@ if (typeof document !== 'undefined') (async function () {
         if (blockIfSaveDispatched()) return;
         // Confirm discard first — do not abandon an in-flight save if the user cancels.
         if (isEditorDirty() && !confirmDiscardEdits()) return;
+        // Leaving the finder — clear search/filters (also done in showWorkspace).
+        resetFinderFiltersOnLeave();
         const gen = ++openNoteGen;
         if (savingNote) unlockEditorInputs();
         try {
@@ -1180,7 +1240,9 @@ if (typeof document !== 'undefined') (async function () {
             await refreshNotes();
             if (saveGen !== openNoteGen) return;
             // Filtered refresh does not rewrite the denominator — bump on create.
-            if (created && finderIsFiltered()) totalNotes += 1;
+            if (created && finderIsFiltered()) {
+                totalNotes = window.KjvNotePrint.bumpFinderTotalAfterCreate(totalNotes);
+            }
             loadBookFilterOptions();
 
             editingNoteId = saved.id;
@@ -1219,7 +1281,7 @@ if (typeof document !== 'undefined') (async function () {
             if (deleteGen !== openNoteGen) return;
             if (!res.ok && res.status !== 204) return;
             sermonNotes = sermonNotes.filter(n => n.id !== targetId);
-            totalNotes = Math.max(0, totalNotes - 1);
+            totalNotes = window.KjvNotePrint.bumpFinderTotalAfterDelete(totalNotes);
             showPaneEmpty();
             loadBookFilterOptions();
             showToast('Note deleted');
