@@ -543,7 +543,7 @@ if (typeof document !== 'undefined') (async function () {
      * That is a deliberate exception to "persist arrangement; reset queries": the reader
      * asked for their filters to be remembered. The risk that rule guards against — a
      * forgotten filter making a full library look empty — is answered instead by the
-     * always-visible "Clear filters" control, which appears whenever anything is active,
+     * "Clear filters" control (shown via syncClearButton only while something is active),
      * and by the count reading "N of M notes" rather than a bare "N notes".
      */
     const FILTERS_KEY = 'kjv_notes_filters';
@@ -573,7 +573,8 @@ if (typeof document !== 'undefined') (async function () {
     let finderBookId = storedFilters.bookId;
     let finderWindow = storedFilters.window;
     let finderSort   = (prefs && prefs.get('kjv_notes_sort', 'recent')) || 'recent';
-    // Seeded from the boot fetch, which is always unfiltered (filters reset on load).
+    // Seeded from the boot fetch, which is always unfiltered (filters may still be
+    // restored into the controls; the boot list itself is the full corpus).
     // Left at 0 it would paint "3 of 0 notes" the moment a filter was applied.
     let totalNotes   = window.KjvNotePrint.seedFinderTotalNotes(sermonNotes);
     // Which filter state the notes in hand came from. The boot fetch is unfiltered, so a
@@ -784,6 +785,7 @@ if (typeof document !== 'undefined') (async function () {
             // Drop filtered rows immediately — showFinder / gutter must not paint
             // them as an unfiltered corpus while refreshNotes is in flight.
             sermonNotes = [];
+            sermonNotesFiltered = false;
             if (finderGrid) {
                 finderGrid.innerHTML = '';
                 finderGrid.hidden = true;
@@ -834,10 +836,41 @@ if (typeof document !== 'undefined') (async function () {
         refreshNotes();       // …then revalidate against any edit just made
     }
 
+    /**
+     * Workspace gutter has no Clear control (finder chrome is hidden). If sermonNotes
+     * still holds a filtered subset, refetch the unfiltered corpus for the gutter —
+     * without wiping finder prefs. showFinder sees sermonNotesFiltered !==
+     * finderIsFiltered() on return and re-applies the remembered filters.
+     */
+    async function refreshWorkspaceGutter() {
+        const seq = ++searchSeq;
+        try {
+            const params = new URLSearchParams();
+            if (finderSort && finderSort !== 'recent') params.set('sort', finderSort);
+            const qs = params.toString();
+            const res = await fetch(`/api/sermon-notes${qs ? `?${qs}` : ''}`, {
+                credentials: 'include'
+            });
+            if (!res.ok) return;
+            const next = await res.json();
+            totalNotes = window.KjvNotePrint.applyFinderTotalNotes(totalNotes, {
+                filtered: false,
+                length: next.length
+            });
+            if (seq !== searchSeq) return;
+            // Bounced back to the finder — do not overwrite its pending refresh.
+            if (!finderEl || !finderEl.hidden) return;
+            sermonNotes = next;
+            sermonNotesFiltered = false;
+            renderSermonNotesList();
+        } catch (_) { /* keep the current gutter */ }
+    }
+
     function showWorkspace() {
         if (!finderEl) return;
         finderEl.hidden = true;
         if (workspaceEl) workspaceEl.hidden = false;
+        if (sermonNotesFiltered) refreshWorkspaceGutter();
     }
 
     /**
