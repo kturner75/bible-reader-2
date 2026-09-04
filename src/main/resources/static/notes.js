@@ -193,10 +193,6 @@
         return prevTotal;
     }
 
-    function bumpFinderTotalAfterCreate(prevTotal) {
-        return (prevTotal || 0) + 1;
-    }
-
     function bumpFinderTotalAfterDelete(prevTotal) {
         return Math.max(0, (prevTotal || 0) - 1);
     }
@@ -226,7 +222,6 @@
         printStateAfterHydrationFinish,
         seedFinderTotalNotes,
         applyFinderTotalNotes,
-        bumpFinderTotalAfterCreate,
         bumpFinderTotalAfterDelete,
         formatFinderCount
     };
@@ -536,20 +531,55 @@ if (typeof document !== 'undefined') (async function () {
     const updatedGroup  = document.getElementById('finder-updated');
     const bookSelect    = document.getElementById('finder-book');
     const sortSelect    = document.getElementById('finder-sort');
+    const clearBtn      = document.getElementById('finder-clear');
     const backBtn       = document.getElementById('notes-back-btn');
 
     const prefs = window.KjvViewPrefs;
 
-    // Sort is arrangement, so it persists. Search text and the two filters are a
-    // *query* and reset on leaving — a forgotten filter makes a full library look
-    // empty. Same line the Library draws.
-    let finderQuery  = '';
-    let finderBookId = '';
-    let finderWindow = '';
+    /**
+     * The finder's query — search text plus the book and updated-window filters — is
+     * remembered per device, and survives both leaving the finder and a reload.
+     *
+     * That is a deliberate exception to "persist arrangement; reset queries": the reader
+     * asked for their filters to be remembered. The risk that rule guards against — a
+     * forgotten filter making a full library look empty — is answered instead by the
+     * "Clear filters" control (shown via syncClearButton only while something is active),
+     * and by the count reading "N of M notes" rather than a bare "N notes".
+     */
+    const FILTERS_KEY = 'kjv_notes_filters';
+    const KNOWN_WINDOWS = ['', '30d', '365d'];
+
+    function loadStoredFilters() {
+        const stored = prefs ? prefs.get(FILTERS_KEY, null) : null;
+        if (!stored || typeof stored !== 'object') {
+            return { q: '', bookId: '', window: '' };
+        }
+        // Validate on the way in: a stale or hand-edited value must not wedge the query
+        // into a state the controls cannot represent or the reader cannot clear.
+        return {
+            q: typeof stored.q === 'string' ? stored.q : '',
+            bookId: /^[0-9]{1,2}$/.test(String(stored.bookId || '')) ? String(stored.bookId) : '',
+            window: KNOWN_WINDOWS.indexOf(stored.window) > 0 ? stored.window : ''
+        };
+    }
+
+    function storeFilters() {
+        if (!prefs) return;
+        prefs.set(FILTERS_KEY, { q: finderQuery, bookId: finderBookId, window: finderWindow });
+    }
+
+    const storedFilters = loadStoredFilters();
+    let finderQuery  = storedFilters.q;
+    let finderBookId = storedFilters.bookId;
+    let finderWindow = storedFilters.window;
     let finderSort   = (prefs && prefs.get('kjv_notes_sort', 'recent')) || 'recent';
-    // Seeded from the boot fetch, which is always unfiltered (filters reset on load).
+    // Seeded from the boot fetch, which is always unfiltered (filters may still be
+    // restored into the controls; the boot list itself is the full corpus).
     // Left at 0 it would paint "3 of 0 notes" the moment a filter was applied.
     let totalNotes   = window.KjvNotePrint.seedFinderTotalNotes(sermonNotes);
+    // Which filter state the notes in hand came from. The boot fetch is unfiltered, so a
+    // restored filter means the cached list must not be painted as the current result.
+    let sermonNotesFiltered = false;
     let searchSeq    = 0;
     let totalSeq     = 0; // independent of searchSeq — filtered discards must not drop totals
     let searchTimer  = null;
@@ -598,30 +628,41 @@ if (typeof document !== 'undefined') (async function () {
     /**
      * Refetch under the current filters. Sequence-guarded: a slow response for an
      * older keystroke must not overwrite a newer one's results.
+     *
+     * @param opts.awaitTotal wait for the parallel unfiltered total before resolving.
+     *        Callers that *read* totalNotes straight afterwards need this: the total
+     *        fetch is fire-and-forget, so without it they can act on a stale count.
      */
-    async function refreshNotes() {
+    async function refreshNotes(opts) {
         const seq = ++searchSeq;
         const filtered = finderIsFiltered();
         // While filtered, the list response cannot refresh the denominator — fire a
         // parallel unfiltered total that does not share searchSeq.
-        if (filtered) refreshFinderTotal();
+        const totalPending = filtered ? refreshFinderTotal() : null;
         try {
             const res = await fetch(finderUrl(), { credentials: 'include' });
-            if (!res.ok) return;
-            const next = await res.json();
-            // An unfiltered response is the only thing that knows the corpus size, and it
-            // stays true even once a newer keystroke has superseded it for rendering.
-            // Recording it *before* the sequence guard is what stops the denominator
-            // sticking at 0 when a fast search overtakes the opening refresh.
-            totalNotes = window.KjvNotePrint.applyFinderTotalNotes(totalNotes, {
-                filtered,
-                length: next.length
-            });
-            if (seq !== searchSeq) return;
-            sermonNotes = next;
-            renderFinderGrid();
-            renderSermonNotesList();
+            if (res.ok) {
+                const next = await res.json();
+                // An unfiltered response is the only thing that knows the corpus size, and
+                // it stays true even once a newer keystroke has superseded it for
+                // rendering. Recording it *before* the sequence guard is what stops the
+                // denominator sticking at 0 when a fast search overtakes the opening
+                // refresh.
+                totalNotes = window.KjvNotePrint.applyFinderTotalNotes(totalNotes, {
+                    filtered,
+                    length: next.length
+                });
+                if (seq === searchSeq) {
+                    sermonNotes = next;
+                    sermonNotesFiltered = filtered;
+                    renderFinderGrid();
+                    renderSermonNotesList();
+                }
+            }
         } catch (_) { /* keep what is already on screen */ }
+        if (opts && opts.awaitTotal && totalPending) {
+            try { await totalPending; } catch (_) { /* denominator keeps its last value */ }
+        }
     }
 
     function scheduleSearch() {
@@ -718,14 +759,14 @@ if (typeof document !== 'undefined') (async function () {
     }
 
     /**
-     * Search text + book/updated filters are a *query* and must not survive
-     * leaving the finder — a forgotten filter makes a full library look empty.
-     * Sort persists. When filters were on, drops the filtered sermonNotes so
-     * the next paint cannot treat that subset as the full library / gutter.
-     * Returns whether filters were active so callers can kick an unfiltered
-     * refresh; does not refetch itself.
+     * Drops the whole query — search text and both filters — and forgets it on this
+     * device. Only ever runs on an explicit reader action ("Clear filters", or the
+     * no-results escape hatch); leaving the finder no longer calls it, because the
+     * query is now remembered. Clears the cached rows so the next paint cannot show a
+     * filtered subset as the full library. Returns whether anything was actually
+     * active, so callers can skip a pointless refetch.
      */
-    function resetFinderFiltersOnLeave() {
+    function clearFinderQuery() {
         clearTimeout(searchTimer);
         searchTimer = null;
         searchSeq++; // discard in-flight filtered responses
@@ -736,11 +777,14 @@ if (typeof document !== 'undefined') (async function () {
         finderWindow = '';
         if (searchInput) searchInput.value = '';
         if (bookSelect) bookSelect.value = '';
+        storeFilters();
         syncUpdatedButtons();
+        syncClearButton();
         if (wasFiltered) {
             // Drop filtered rows immediately — showFinder / gutter must not paint
             // them as an unfiltered corpus while refreshNotes is in flight.
             sermonNotes = [];
+            sermonNotesFiltered = false;
             if (finderGrid) {
                 finderGrid.innerHTML = '';
                 finderGrid.hidden = true;
@@ -754,9 +798,14 @@ if (typeof document !== 'undefined') (async function () {
     }
 
     function clearFinderFilters() {
-        resetFinderFiltersOnLeave();
+        clearFinderQuery();
         refreshNotes();
         if (searchInput) searchInput.focus();
+    }
+
+    /** The escape hatch is only worth showing while there is something to escape. */
+    function syncClearButton() {
+        if (clearBtn) clearBtn.hidden = !finderIsFiltered();
     }
 
     function syncUpdatedButtons() {
@@ -770,9 +819,10 @@ if (typeof document !== 'undefined') (async function () {
         if (!finderEl) return;
         finderEl.hidden = false;
         if (workspaceEl) workspaceEl.hidden = true;
-        // After leave-reset, sermonNotes is [] — do not flash "No notes yet" or a
-        // filtered subset with filters off. Hold blank until refreshNotes paints.
-        if (sermonNotes.length === 0) {
+        // Hold blank rather than flash "No notes yet", or paint rows fetched under a
+        // different filter state than the one now in effect (a restored filter at boot,
+        // or a cleared query). refreshNotes settles it a round trip later.
+        if (sermonNotes.length === 0 || sermonNotesFiltered !== finderIsFiltered()) {
             if (finderGrid) {
                 finderGrid.innerHTML = '';
                 finderGrid.hidden = true;
@@ -785,11 +835,59 @@ if (typeof document !== 'undefined') (async function () {
         refreshNotes();       // …then revalidate against any edit just made
     }
 
+    /**
+     * Workspace gutter has no Clear control (finder chrome is hidden). If sermonNotes
+     * still holds a filtered subset, refetch the unfiltered corpus for the gutter —
+     * without wiping finder prefs. showFinder sees sermonNotesFiltered !==
+     * finderIsFiltered() on return and re-applies the remembered filters.
+     */
+    async function refreshWorkspaceGutter() {
+        const seq = ++searchSeq;
+        try {
+            const params = new URLSearchParams();
+            if (finderSort && finderSort !== 'recent') params.set('sort', finderSort);
+            const qs = params.toString();
+            const res = await fetch(`/api/sermon-notes${qs ? `?${qs}` : ''}`, {
+                credentials: 'include'
+            });
+            if (!res.ok) return;
+            const next = await res.json();
+            totalNotes = window.KjvNotePrint.applyFinderTotalNotes(totalNotes, {
+                filtered: false,
+                length: next.length
+            });
+            if (seq !== searchSeq) return;
+            // Bounced back to the finder — do not overwrite its pending refresh.
+            if (!finderEl || !finderEl.hidden) return;
+            sermonNotes = next;
+            sermonNotesFiltered = false;
+            renderSermonNotesList();
+        } catch (_) { /* keep the current gutter */ }
+    }
+
     function showWorkspace() {
         if (!finderEl) return;
-        if (resetFinderFiltersOnLeave()) refreshNotes();
+        // Drop any debounced search still in flight. Typing and then opening a card
+        // within the 200ms window would otherwise let refreshNotes fire mid-edit, bump
+        // searchSeq past refreshWorkspaceGutter's request, and paint the filtered subset
+        // into the gutter for the rest of the edit.
+        //
+        // Nothing is lost by cancelling: the input handler already committed finderQuery
+        // and persisted it, so this drops the pending fetch, not the remembered query —
+        // returning to the finder re-runs it.
+        //
+        // Also invalidate in-flight refreshNotes (searchSeq++). Prefs can already be
+        // filtered while sermonNotesFiltered is still false — the debounce has fired,
+        // the fetch is outstanding, and the flag flips only when it lands. Gate the
+        // gutter refresh on finderIsFiltered() || sermonNotesFiltered so that case
+        // still loads the unfiltered corpus; without the seq bump the landing paint
+        // would still reach renderSermonNotesList into the workspace gutter.
+        clearTimeout(searchTimer);
+        searchTimer = null;
+        searchSeq++; // discard in-flight filtered refreshNotes that could paint the gutter
         finderEl.hidden = true;
         if (workspaceEl) workspaceEl.hidden = false;
+        if (finderIsFiltered() || sermonNotesFiltered) refreshWorkspaceGutter();
     }
 
     /**
@@ -806,7 +904,9 @@ if (typeof document !== 'undefined') (async function () {
             const res = await fetch('/api/sermon-notes/books', { credentials: 'include' });
             if (!res.ok) return;
             const books = await res.json();
-            const previous = bookSelect.value;
+            // finderBookId, not bookSelect.value: at boot the options do not exist yet,
+            // so the DOM cannot be the source of truth for a remembered selection.
+            const previous = finderBookId;
             while (bookSelect.options.length > 1) bookSelect.remove(1);
             books.forEach(b => {
                 const opt = document.createElement('option');
@@ -817,7 +917,11 @@ if (typeof document !== 'undefined') (async function () {
             const stillThere = books.some(b => String(b.bookId) === previous);
             bookSelect.value = stillThere ? previous : '';
             if (!stillThere && previous) {
+                // The last note citing that book is gone; do not strand the reader on a
+                // filter the control can no longer show.
                 finderBookId = '';
+                storeFilters();
+                syncClearButton();
                 refreshNotes();
             }
         } catch (_) { /* the filter simply stays with the options it has */ }
@@ -826,6 +930,8 @@ if (typeof document !== 'undefined') (async function () {
     if (searchInput) {
         searchInput.addEventListener('input', () => {
             finderQuery = searchInput.value;
+            storeFilters();
+            syncClearButton();
             scheduleSearch();
         });
         searchInput.addEventListener('keydown', e => {
@@ -833,6 +939,8 @@ if (typeof document !== 'undefined') (async function () {
                 e.stopPropagation();
                 searchInput.value = '';
                 finderQuery = '';
+                storeFilters();
+                syncClearButton();
                 refreshNotes();
             }
         });
@@ -842,13 +950,17 @@ if (typeof document !== 'undefined') (async function () {
             const btn = e.target.closest('.finder-seg');
             if (!btn) return;
             finderWindow = btn.dataset.window || '';
+            storeFilters();
             syncUpdatedButtons();
+            syncClearButton();
             refreshNotes();
         });
     }
     if (bookSelect) {
         bookSelect.addEventListener('change', () => {
             finderBookId = bookSelect.value;
+            storeFilters();
+            syncClearButton();
             refreshNotes();
         });
     }
@@ -867,7 +979,14 @@ if (typeof document !== 'undefined') (async function () {
             showPaneEmpty();
         });
     }
+    if (clearBtn) clearBtn.addEventListener('click', clearFinderFilters);
     document.getElementById('finder-new-btn').addEventListener('click', openNewSermonNote);
+
+    // Reflect the remembered query into the controls. The book <select> is filled in by
+    // loadBookFilterOptions, which restores the stored id once its options exist.
+    if (searchInput) searchInput.value = finderQuery;
+    syncUpdatedButtons();
+    syncClearButton();
 
     loadBookFilterOptions();
 
@@ -896,8 +1015,6 @@ if (typeof document !== 'undefined') (async function () {
         viewSection.hidden = true;
         editSection.hidden = true;
         syncUrl();
-        // Back to finder — drop any query so the library cannot look empty.
-        resetFinderFiltersOnLeave();
         renderSermonNotesList();
         syncPrintButton();
         showFinder();
@@ -1149,9 +1266,6 @@ if (typeof document !== 'undefined') (async function () {
         if (blockIfSaveDispatched()) return;
         // Confirm discard first — do not abandon an in-flight save if the user cancels.
         if (isEditorDirty() && !confirmDiscardEdits()) return;
-        // Leaving the finder — clear search/filters (also done in showWorkspace).
-        // Refresh so the gutter does not stay on the filtered subset.
-        if (resetFinderFiltersOnLeave()) refreshNotes();
         const gen = ++openNoteGen;
         if (savingNote) unlockEditorInputs();
         try {
@@ -1296,13 +1410,13 @@ if (typeof document !== 'undefined') (async function () {
             const saved = await res.json();
             if (saveGen !== openNoteGen) return;
 
-            const created = !targetId;
-            await refreshNotes();
+            // A create changes the corpus size, so wait for the authoritative unfiltered
+            // total rather than adding a local +1 on top of it. The parallel total fetch
+            // runs after the create commits, so it already counts the new note; bumping
+            // as well reported "N of M" with M one too high whenever it landed first —
+            // reachable only now that a filter survives opening the editor.
+            await refreshNotes(targetId ? undefined : { awaitTotal: true });
             if (saveGen !== openNoteGen) return;
-            // Filtered refresh does not rewrite the denominator — bump on create.
-            if (created && finderIsFiltered()) {
-                totalNotes = window.KjvNotePrint.bumpFinderTotalAfterCreate(totalNotes);
-            }
             loadBookFilterOptions();
 
             editingNoteId = saved.id;
