@@ -41,10 +41,11 @@ Feature ideas for future slices. Not prioritized — just captured for reference
   - **Surfaces:** every note surface that already renders `[v=…]` (sermon/lesson, verse/chapter/book), not sermon-only.
   - **First-cut cap:** refuse an embed over 12 verses (insert and save-normalize) with a clear error. Do not silently truncate.
   - **Invariants:** portable verse ids, no Passage UUID, no new Passage row required.
-- **Searchable notes grid** *(not started)* — `/notes` currently browses sermon/lesson notes as a left-gutter list (`notes-sidebar` / `sermon-notes-list`). Replace or augment that list with a **searchable grid plus filtering** so the workspace scales as the catalog grows. Finder only: keep the existing editor/view pane (including `[e=…]` embeds and Print). Desktop-first.
-  - **Search:** title + body at minimum; include human refs / portable `[v=…]`/`[e=…]` so scripture in a note is findable.
-  - **Filters:** start with text search; add structured filters as needed (updated date, scripture overlap). Do not invent tags unless a later slice adds them.
-  - **Out of scope:** reader dock (verse/chapter/book notes). Do not implement in the backlog lock PR.
+- **Searchable notes grid** *(done)* — `/notes` now opens as a **finder**: search field, filters, and a card grid; choosing a note swaps to the existing sidebar + editor with an "All notes" back link. The editor pane, `[e=…]` embeds and Print are untouched. See `docs/architecture/notes-finder-search.md`.
+  - **Search** runs server-side over title, body, and the *names of books the note cites* — so typing "john" finds a note whose only mention of John is an encoded `[e=26136]`. It deliberately does not match the KJV text behind a reference.
+  - **Scripture chips** on each card come from `sermon_note_refs` (V22), a derived `(book_id, chapter)` index rebuilt on every save, with a startup backfill for notes written earlier. Snippets swap tokens for their chapter label rather than showing `[v=…]` raw.
+  - **Filters:** rolling updated-window (30 days / past year), book of the Bible (only books the user has actually cited), and sort. Sort persists per device; search text and filters reset on reload — arrangement is a preference, a query is not.
+  - **Out of scope, as specced:** reader dock (verse/chapter/book notes).
 - **Character studies** — verses tagged to a person (Abraham, David, Paul…); auto-populated from a concordance or user-curated.
 - **Location studies** — same concept for places (Jerusalem, Egypt, Bethlehem…).
 

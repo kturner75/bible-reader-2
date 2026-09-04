@@ -248,6 +248,43 @@ rhythm lane's cursor and a plan's `currentDay`, which are already server-side an
 localStorage nowhere. When something new looks like "reading position", ask which of the two it
 is — incidental (local) or committed (database).
 
+## The `/notes` finder
+
+`/notes` opens as a **finder** — search field, filters, card grid — and choosing a note swaps to
+the sidebar + editor workspace with an "All notes" back link. The editor pane, `[e=…]` embeds and
+Print are untouched by this; the finder is a way *in*, not a new editor.
+
+**Search is server-side, and it reaches scripture the reader never typed.** `GET /api/sermon-notes`
+takes `q`, `bookId`, `updatedWithin` and `sort`. `q` matches title, body, *and the names of books
+the note cites* — so "john" finds a note whose only mention of John is an encoded `[e=26136]`. It
+deliberately does **not** match the KJV text behind a reference: a note citing John 3:16 does not
+match "begotten". That is a different feature, and folding it in makes one parameter mean two things.
+
+**`sermon_note_refs` (V22) is derived, never authored.** Portable `[v=…]` / `[e=…]` tokens are
+resolved to `(book_id, chapter)` on every save — delete-then-insert in the note's own transaction —
+and a startup backfill claims anything with no rows. Dropping the table and rebooting is lossless.
+Granularity is book+chapter: a chip reads `Psalm 23`, and the body stays the authority for the
+exact range.
+
+Three traps worth not re-learning:
+
+- **No `indexed_at` column on `sermon_notes`.** `trg_sermon_notes_updated_at` sets
+  `updated_at = now()` on *every* UPDATE, so stamping an indexing marker there would bump the
+  timestamp the finder sorts and filters by on every note the backfill touched. "Indexed" is
+  "has rows"; ref-less notes are re-scanned once per boot, which is a regex that finds nothing.
+- **The finder query compares values, never `NULL`.** Postgres cannot infer the type of a bare
+  parameter in `? IS NULL`, so `(:since IS NULL OR …)` fails at runtime with "could not determine
+  data type of parameter". Optional filters pass match-everything values instead — `"%"`, `-1`,
+  the epoch — and `IN` gets a sentinel list, since JPQL has no `IN ()`.
+- **Card geometry is load-bearing.** The snippet is clamped to exactly two lines and the card
+  height is built from that sum; changing one without the other clips the snippet mid-line. The
+  server's snippet budget (140 chars) is sized to the same two lines.
+
+Sort persists via `KjvViewPrefs`; search text and filters do not. Leaving the finder via
+`showWorkspace` / `openSermonNote` / `showPaneEmpty` clears the active search and filters — a
+forgotten filter must not make a full library look empty — and a reload always starts clean. See
+"Remembering what the reader chose" and `docs/architecture/notes-finder-search.md`.
+
 ## Dashboard Layout
 
 Section order is by **volatility** — what changes daily sits high, retrospective content sits low:
