@@ -554,21 +554,6 @@ if (typeof document !== 'undefined') (async function () {
         } catch (_) { /* keep what is already on screen */ }
     }
 
-    /**
-     * "N of M notes" takes M from an unfiltered response only. After a create or delete
-     * with a filter active, refreshNotes() sees just the filtered count, so the total is
-     * refetched here rather than left to drift.
-     */
-    async function refreshTotalAfterMutation() {
-        if (!finderIsFiltered()) return;   // an unfiltered refreshNotes already wrote it
-        try {
-            const res = await fetch('/api/sermon-notes', { credentials: 'include' });
-            if (!res.ok) return;
-            totalNotes = (await res.json()).length;
-            renderFinderGrid();
-        } catch (_) { /* the denominator simply keeps its last known value */ }
-    }
-
     function scheduleSearch() {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(refreshNotes, 200);
@@ -1191,10 +1176,12 @@ if (typeof document !== 'undefined') (async function () {
             const saved = await res.json();
             if (saveGen !== openNoteGen) return;
 
+            const created = !targetId;
             await refreshNotes();
             if (saveGen !== openNoteGen) return;
+            // Filtered refresh does not rewrite the denominator — bump on create.
+            if (created && finderIsFiltered()) totalNotes += 1;
             loadBookFilterOptions();
-            refreshTotalAfterMutation();
 
             editingNoteId = saved.id;
             savedTitle = saved.title;
@@ -1232,9 +1219,9 @@ if (typeof document !== 'undefined') (async function () {
             if (deleteGen !== openNoteGen) return;
             if (!res.ok && res.status !== 204) return;
             sermonNotes = sermonNotes.filter(n => n.id !== targetId);
+            totalNotes = Math.max(0, totalNotes - 1);
             showPaneEmpty();
             loadBookFilterOptions();
-            refreshTotalAfterMutation();
             showToast('Note deleted');
         } catch (_) { /* ignore */ }
     }

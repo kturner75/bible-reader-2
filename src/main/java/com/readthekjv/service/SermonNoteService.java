@@ -230,6 +230,9 @@ public class SermonNoteService {
         if (book == null) {
             return "";
         }
+        // No singularizing special case here: kjv.json already names book 19 "Psalm",
+        // so chips read "Psalm 23" as the docs claim. A "Psalms" -> "Psalm" branch would
+        // never fire; the only thing that ever said "Psalms" was a wrong test fixture.
         return book.chapters() == 1 ? book.name() : book.name() + " " + chapter;
     }
 
