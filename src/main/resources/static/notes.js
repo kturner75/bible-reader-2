@@ -868,6 +868,16 @@ if (typeof document !== 'undefined') (async function () {
 
     function showWorkspace() {
         if (!finderEl) return;
+        // Drop any debounced search still in flight. Typing and then opening a card
+        // within the 200ms window would otherwise let refreshNotes fire mid-edit, bump
+        // searchSeq past refreshWorkspaceGutter's request, and paint the filtered subset
+        // into the gutter for the rest of the edit.
+        //
+        // Nothing is lost by cancelling: the input handler already committed finderQuery
+        // and persisted it, so this drops the pending fetch, not the remembered query —
+        // returning to the finder re-runs it.
+        clearTimeout(searchTimer);
+        searchTimer = null;
         finderEl.hidden = true;
         if (workspaceEl) workspaceEl.hidden = false;
         if (sermonNotesFiltered) refreshWorkspaceGutter();

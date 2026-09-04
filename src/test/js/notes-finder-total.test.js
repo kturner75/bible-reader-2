@@ -240,3 +240,25 @@ test('clearFinderQuery marks the emptied cache as unfiltered', () => {
     assert.match(reset[0], /sermonNotesFiltered\s*=\s*false/,
         'clearing must not leave sermonNotesFiltered true against an empty list');
 });
+
+test('entering the workspace cancels a pending debounced search', () => {
+    // Typing then opening a card inside the 200ms window used to let refreshNotes fire
+    // mid-edit, supersede refreshWorkspaceGutter's request, and leave the gutter showing
+    // the filtered subset for the whole edit.
+    const showWorkspace = notesSrc.match(/function showWorkspace\(\)[\s\S]*?^    \}/m);
+    assert.ok(showWorkspace, 'showWorkspace present');
+    assert.match(showWorkspace[0], /clearTimeout\(searchTimer\)/,
+        'a pending debounced search must not survive into the workspace');
+    const cancelAt = showWorkspace[0].indexOf('clearTimeout(searchTimer)');
+    const gutterAt = showWorkspace[0].indexOf('refreshWorkspaceGutter()');
+    assert.ok(gutterAt !== -1, 'showWorkspace still refreshes the gutter when filtered');
+    assert.ok(cancelAt < gutterAt,
+        'cancel before starting the gutter refresh, or the timer can still supersede it');
+
+    // The query itself is committed synchronously on input, so cancelling the timer
+    // drops the pending fetch and not the remembered filter.
+    const onInput = notesSrc.match(/searchInput\.addEventListener\('input'[\s\S]*?\}\);/m);
+    assert.ok(onInput, 'search input handler present');
+    assert.match(onInput[0], /finderQuery = searchInput\.value/, 'query committed on input');
+    assert.match(onInput[0], /storeFilters\(\)/, 'query persisted on input');
+});
