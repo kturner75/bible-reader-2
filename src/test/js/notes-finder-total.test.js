@@ -137,3 +137,32 @@ test('filtered refreshNotes fires a separate unfiltered total fetch', () => {
         'filtered refreshNotes must fire the parallel total fetch');
 });
 
+test('leave-reset drops filtered sermonNotes and holds finder until unfiltered refresh', () => {
+    const reset = notesSrc.match(/function resetFinderFiltersOnLeave\(\)[\s\S]*?^    \}/m);
+    assert.ok(reset, 'resetFinderFiltersOnLeave present');
+    assert.match(reset[0], /wasFiltered/,
+        'reset must detect whether filters were active');
+    assert.match(reset[0], /sermonNotes\s*=\s*\[\]/,
+        'reset must drop filtered sermonNotes so they cannot paint as the full corpus');
+    assert.match(reset[0], /return wasFiltered/,
+        'reset returns whether an unfiltered refresh is needed');
+
+    const showFinder = notesSrc.match(/function showFinder\(\)[\s\S]*?^    \}/m);
+    assert.ok(showFinder, 'showFinder present');
+    assert.match(showFinder[0], /sermonNotes\.length\s*===\s*0/,
+        'showFinder must hold blank when the list was cleared on leave');
+    assert.match(showFinder[0], /finderBlank\.hidden\s*=\s*true/,
+        'hold must not flash the empty-library blank while refresh is in flight');
+    assert.match(showFinder[0], /refreshNotes\(\)/,
+        'showFinder still revalidates with refreshNotes');
+
+    const showWorkspace = notesSrc.match(/function showWorkspace\(\)[\s\S]*?^    \}/m);
+    assert.ok(showWorkspace, 'showWorkspace present');
+    assert.match(showWorkspace[0], /if \(resetFinderFiltersOnLeave\(\)\) refreshNotes\(\)/,
+        'showWorkspace must refresh unfiltered when leave-reset dropped a filtered list');
+
+    const openSermonNote = notesSrc.match(/async function openSermonNote\([\s\S]*?^    \}/m);
+    assert.ok(openSermonNote, 'openSermonNote present');
+    assert.match(openSermonNote[0], /if \(resetFinderFiltersOnLeave\(\)\) refreshNotes\(\)/,
+        'openSermonNote must refresh so the gutter does not stay on a filtered subset');
+});

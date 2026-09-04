@@ -720,19 +720,37 @@ if (typeof document !== 'undefined') (async function () {
     /**
      * Search text + book/updated filters are a *query* and must not survive
      * leaving the finder — a forgotten filter makes a full library look empty.
-     * Sort persists. Does not refetch; callers that need a fresh list do.
+     * Sort persists. When filters were on, drops the filtered sermonNotes so
+     * the next paint cannot treat that subset as the full library / gutter.
+     * Returns whether filters were active so callers can kick an unfiltered
+     * refresh; does not refetch itself.
      */
     function resetFinderFiltersOnLeave() {
         clearTimeout(searchTimer);
         searchTimer = null;
         searchSeq++; // discard in-flight filtered responses
         totalSeq++;  // discard in-flight denominator fetches tied to the old query
+        const wasFiltered = !!(finderQuery || finderBookId || finderWindow);
         finderQuery = '';
         finderBookId = '';
         finderWindow = '';
         if (searchInput) searchInput.value = '';
         if (bookSelect) bookSelect.value = '';
         syncUpdatedButtons();
+        if (wasFiltered) {
+            // Drop filtered rows immediately — showFinder / gutter must not paint
+            // them as an unfiltered corpus while refreshNotes is in flight.
+            sermonNotes = [];
+            if (finderGrid) {
+                finderGrid.innerHTML = '';
+                finderGrid.hidden = true;
+            }
+            if (finderBlank) finderBlank.hidden = true;
+            if (finderCount) finderCount.textContent = '';
+            if (notesList) notesList.innerHTML = '';
+            if (notesEmpty) notesEmpty.hidden = true;
+        }
+        return wasFiltered;
     }
 
     function clearFinderFilters() {
@@ -752,13 +770,24 @@ if (typeof document !== 'undefined') (async function () {
         if (!finderEl) return;
         finderEl.hidden = false;
         if (workspaceEl) workspaceEl.hidden = true;
-        renderFinderGrid();   // paint what we already have…
+        // After leave-reset, sermonNotes is [] — do not flash "No notes yet" or a
+        // filtered subset with filters off. Hold blank until refreshNotes paints.
+        if (sermonNotes.length === 0) {
+            if (finderGrid) {
+                finderGrid.innerHTML = '';
+                finderGrid.hidden = true;
+            }
+            if (finderBlank) finderBlank.hidden = true;
+            if (finderCount) finderCount.textContent = '';
+        } else {
+            renderFinderGrid();   // paint what we already have…
+        }
         refreshNotes();       // …then revalidate against any edit just made
     }
 
     function showWorkspace() {
         if (!finderEl) return;
-        resetFinderFiltersOnLeave();
+        if (resetFinderFiltersOnLeave()) refreshNotes();
         finderEl.hidden = true;
         if (workspaceEl) workspaceEl.hidden = false;
     }
@@ -1121,7 +1150,8 @@ if (typeof document !== 'undefined') (async function () {
         // Confirm discard first — do not abandon an in-flight save if the user cancels.
         if (isEditorDirty() && !confirmDiscardEdits()) return;
         // Leaving the finder — clear search/filters (also done in showWorkspace).
-        resetFinderFiltersOnLeave();
+        // Refresh so the gutter does not stay on the filtered subset.
+        if (resetFinderFiltersOnLeave()) refreshNotes();
         const gen = ++openNoteGen;
         if (savingNote) unlockEditorInputs();
         try {

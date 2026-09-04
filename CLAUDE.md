@@ -280,10 +280,10 @@ Three traps worth not re-learning:
   height is built from that sum; changing one without the other clips the snippet mid-line. The
   server's snippet budget (140 chars) is sized to the same two lines.
 
-Sort persists via `KjvViewPrefs`; search text and filters do not. Returning from a note keeps the
-active search — that is navigating within a finder session, not landing on a filtered view — but a
-reload always starts clean. See "Remembering what the reader chose" and
-`docs/architecture/notes-finder-search.md`.
+Sort persists via `KjvViewPrefs`; search text and filters do not. Leaving the finder via
+`showWorkspace` / `openSermonNote` / `showPaneEmpty` clears the active search and filters — a
+forgotten filter must not make a full library look empty — and a reload always starts clean. See
+"Remembering what the reader chose" and `docs/architecture/notes-finder-search.md`.
 
 ## Dashboard Layout
 
