@@ -295,7 +295,7 @@ class SermonNoteServiceTest {
 
         List<SermonNoteSummary.ScriptureRef> refs = service.list(USER_ID).get(0).refs();
 
-        assertEquals(List.of("Psalms 23", "John 14"), refs.stream().map(SermonNoteSummary.ScriptureRef::label).toList());
+        assertEquals(List.of("Psalm 23", "John 14"), refs.stream().map(SermonNoteSummary.ScriptureRef::label).toList());
     }
 
     @Test

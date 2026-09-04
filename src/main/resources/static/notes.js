@@ -509,7 +509,7 @@ if (typeof document !== 'undefined') (async function () {
     let finderBookId = '';
     let finderWindow = '';
     let finderSort   = (prefs && prefs.get('kjv_notes_sort', 'recent')) || 'recent';
-    let totalNotes   = 0;
+    let totalNotes   = sermonNotes.length; // boot already fetched the unfiltered list
     let searchSeq    = 0;
     let searchTimer  = null;
 
@@ -538,12 +538,13 @@ if (typeof document !== 'undefined') (async function () {
         const filtered = finderIsFiltered();
         try {
             const res = await fetch(finderUrl(), { credentials: 'include' });
-            if (seq !== searchSeq || !res.ok) return;
+            if (!res.ok) return;
             const next = await res.json();
+            // Unfiltered denominator always applies, even when a later filtered search
+            // superseded this seq — otherwise a raced response leaves totalNotes at 0.
+            if (!filtered) totalNotes = next.length;
             if (seq !== searchSeq) return;
             sermonNotes = next;
-            // An unfiltered response is the only one that knows the true total.
-            if (!filtered) totalNotes = sermonNotes.length;
             renderFinderGrid();
             renderSermonNotesList();
         } catch (_) { /* keep what is already on screen */ }
@@ -1171,8 +1172,11 @@ if (typeof document !== 'undefined') (async function () {
             const saved = await res.json();
             if (saveGen !== openNoteGen) return;
 
+            const created = !targetId;
             await refreshNotes();
             if (saveGen !== openNoteGen) return;
+            // Filtered refresh does not rewrite the denominator — bump on create.
+            if (created && finderIsFiltered()) totalNotes += 1;
             loadBookFilterOptions();
 
             editingNoteId = saved.id;
@@ -1211,6 +1215,7 @@ if (typeof document !== 'undefined') (async function () {
             if (deleteGen !== openNoteGen) return;
             if (!res.ok && res.status !== 204) return;
             sermonNotes = sermonNotes.filter(n => n.id !== targetId);
+            totalNotes = Math.max(0, totalNotes - 1);
             showPaneEmpty();
             loadBookFilterOptions();
             showToast('Note deleted');

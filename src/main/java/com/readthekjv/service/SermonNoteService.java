@@ -230,7 +230,9 @@ public class SermonNoteService {
         if (book == null) {
             return "";
         }
-        return book.chapters() == 1 ? book.name() : book.name() + " " + chapter;
+        // BibleService stores the plural book name; chapter chips read better singular.
+        String name = "Psalms".equals(book.name()) ? "Psalm" : book.name();
+        return book.chapters() == 1 ? name : name + " " + chapter;
     }
 
     /**
