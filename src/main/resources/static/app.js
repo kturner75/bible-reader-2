@@ -928,9 +928,12 @@
         return html;
     }
 
-    /** Copy a verse's text and reference (e.g. "…text…" — Psalm 53:3) to the clipboard. */
-    async function copyVerseToClipboard(verseId) {
-        const verse = state.pageVerses.find(v => v.id === verseId);
+    /**
+     * Copy any verse-shaped object ({ book, chapter, verse, text }) to the
+     * clipboard as `"…text…" — Psalm 53:3`. Shared by the reader and the
+     * search results modal so both produce byte-identical output.
+     */
+    async function copyVerseObjectToClipboard(verse) {
         if (!verse) return;
         const isPsalm = verse.book === 'Psalms' || verse.book === 'Psalm';
         const label = `${isPsalm ? 'Psalm' : verse.book} ${verse.chapter}:${verse.verse}`;
@@ -942,6 +945,11 @@
             console.error('Failed to copy verse:', err);
             showToast('Failed to copy verse');
         }
+    }
+
+    /** Copy a verse on the current page by id (reader affordance and the `y` key). */
+    async function copyVerseToClipboard(verseId) {
+        await copyVerseObjectToClipboard(state.pageVerses.find(v => v.id === verseId));
     }
 
     // ─── Scoped Reader (collection or focused passage) ────────────────────────
@@ -2126,13 +2134,18 @@
 
         elements.searchResultsList.innerHTML = results.verses.map(v => `
             <div class="search-result-item" data-verse-id="${v.id}" tabindex="0">
-                <div class="search-result-ref">${escapeHtml(v.book)} ${v.chapter}:${v.verse}</div>
+                <div class="search-result-ref search-result-ref-row">
+                    <span>${escapeHtml(v.book)} ${v.chapter}:${v.verse}</span>
+                    <button class="search-result-copy-btn" data-verse-id="${v.id}" title="Copy verse (y)" aria-label="Copy verse text and reference">${COPY_ICON_SVG}</button>
+                </div>
                 <div class="search-result-text">${v.highlight || escapeHtml(v.text)}</div>
             </div>
         `).join('');
 
         elements.searchResultsList.querySelectorAll('.search-result-item').forEach(item => {
-            item.addEventListener('click', async () => {
+            item.addEventListener('click', async (e) => {
+                // The copy button lives inside the row; copying must not navigate.
+                if (e.target.closest('.search-result-copy-btn')) return;
                 const wasPlaying = state.audioWasPlayingBeforeModal;
                 const verseId = parseInt(item.dataset.verseId, 10);
                 closeSearch();
@@ -2141,8 +2154,26 @@
             });
         });
 
+        elements.searchResultsList.querySelectorAll('.search-result-copy-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                copySearchResultVerse(parseInt(btn.dataset.verseId, 10));
+            });
+        });
+
         const firstResult = elements.searchResultsList.querySelector('.search-result-item');
         if (firstResult) firstResult.focus();
+    }
+
+    /**
+     * Copy a verse straight from the search results, without visiting it.
+     * Copies the full verse text, never the highlighted snippet — the snippet
+     * carries <mark> markup and may be elided.
+     */
+    function copySearchResultVerse(verseId) {
+        const verses = state.lastSearchResults && state.lastSearchResults.verses;
+        if (!verses) return;
+        copyVerseObjectToClipboard(verses.find(v => v.id === verseId));
     }
 
     function passageOverlapsHitIds(passage, hitIds) {
@@ -6754,8 +6785,15 @@
         // Keyboard navigation within search results
         elements.searchResultsList.addEventListener('keydown', (e) => {
             const items = Array.from(elements.searchResultsList.querySelectorAll('.search-result-item'));
-            const idx = items.indexOf(document.activeElement);
+            // Focus may sit on a row or on the copy button inside one; both
+            // navigate the same list.
+            const active = document.activeElement && document.activeElement.closest('.search-result-item');
+            const idx = items.indexOf(active);
             if (idx === -1) return;
+
+            // Let the copy button handle its own activation natively.
+            const onCopyBtn = document.activeElement.classList.contains('search-result-copy-btn');
+            if (onCopyBtn && (e.key === 'Enter' || e.key === ' ')) return;
 
             if (e.key === 'ArrowDown' || e.key === 'j') {
                 e.preventDefault();
@@ -6764,6 +6802,13 @@
                 e.preventDefault();
                 if (idx > 0) items[idx - 1].focus();
                 else elements.searchInput.focus();
+            } else if (e.key === 'y') {
+                // Mirrors the reader's `y`; verses tab only — a passage row
+                // has no verse text to copy.
+                const verseId = items[idx].dataset.verseId;
+                if (!verseId) return;
+                e.preventDefault();
+                copySearchResultVerse(parseInt(verseId, 10));
             } else if (e.key === 'Enter') {
                 e.preventDefault();
                 items[idx].click();
