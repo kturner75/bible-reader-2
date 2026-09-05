@@ -733,7 +733,8 @@ body.note-dock-resizing {
     background: var(--color-header-bg);
 }
 
-.search-result-item:focus {
+.search-result-item:focus,
+.search-result-item:focus-within {
     background: var(--color-highlight);
     outline: none;
 }
@@ -742,6 +743,46 @@ body.note-dock-resizing {
     font-weight: 600;
     color: var(--color-link);
     margin-bottom: 0.25rem;
+}
+
+/* Verse rows only — passage rows keep the plain inline ref line. */
+.search-result-ref-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Same affordance as the reader's .verse-copy-btn, laid out in flow here:
+   a search row has no fixed page-height budget to protect. */
+.search-result-copy-btn {
+    margin-left: auto;
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    opacity: 0.35;
+    padding: 0.2em;
+    line-height: 1;
+    border-radius: 3px;
+    transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.search-result-copy-btn:hover,
+.search-result-copy-btn:focus-visible,
+.search-result-item:hover .search-result-copy-btn,
+.search-result-item:focus .search-result-copy-btn {
+    opacity: 1;
+    color: var(--color-link);
+}
+
+/* Touch: no hover to reveal it, so keep it visible and give it a real target. */
+@media (hover: none) {
+    .search-result-copy-btn {
+        opacity: 0.6;
+        padding: 0.6em;
+        margin: -0.4em -0.4em -0.4em auto;
+    }
 }
 
 .search-result-text {
