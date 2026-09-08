@@ -24,10 +24,13 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,6 +41,7 @@ class TtsServiceTest {
     private BibleService bibleService;
     private HttpClient httpClient;
     private S3Client s3Client;
+    private XaiOAuthTokenManager oauth;
     private TtsService service;
 
     @BeforeEach
@@ -45,7 +49,8 @@ class TtsServiceTest {
         bibleService = mock(BibleService.class);
         httpClient = mock(HttpClient.class);
         s3Client = mock(S3Client.class);
-        service = new TtsService(bibleService);
+        oauth = mock(XaiOAuthTokenManager.class);
+        service = new TtsService(bibleService, oauth);
         ReflectionTestUtils.setField(service, "httpClient", httpClient);
         ReflectionTestUtils.setField(service, "s3Client", s3Client);
         ReflectionTestUtils.setField(service, "spacesCdnUrl", "https://cdn.example");
@@ -241,14 +246,66 @@ class TtsServiceTest {
     }
 
     @Test
-    void openaiOnyxChapterKeyIsNamespacedAndFallsBackToLegacy() {
+    void chapterAnnouncementIsSharedByEveryBookWithThatChapterNumber() {
         configure("openai", "sk-openai", "xai-key", "onyx", "tts-1-hd");
 
-        assertEquals("audio/openai/onyx/chapters/1_John_3.mp3", service.getChapterKey("1 John", 3));
-        assertEquals("audio/chapters/1_John_3.mp3", service.getLegacyChapterKey("1 John", 3));
-        assertEquals(
-                List.of("audio/openai/onyx/chapters/1_John_3.mp3", "audio/chapters/1_John_3.mp3"),
-                service.chapterCacheKeys("1 John", 3));
+        // "Chapter 3" names no book, so one object serves them all.
+        assertEquals("audio/openai/onyx/chapters/3.mp3", service.getChapterKey("1 John", 3));
+        assertEquals(service.getChapterKey("Genesis", 3), service.getChapterKey("1 John", 3));
+        assertEquals(List.of("audio/openai/onyx/chapters/3.mp3"), service.chapterCacheKeys("1 John", 3));
+    }
+
+    @Test
+    void psalmsGetTheirOwnChapterClipBecauseTheWordingDiffers() {
+        configure("openai", "sk-openai", "xai-key", "onyx", "tts-1-hd");
+
+        assertEquals("audio/openai/onyx/chapters/psalm_23.mp3", service.getChapterKey("Psalm", 23));
+        assertEquals("... Psalm 23 ...", service.formatChapterForSpeech("Psalm", 23));
+        assertEquals("... Chapter 23 ...", service.formatChapterForSpeech("Genesis", 23));
+        assertFalse(service.getChapterKey("Psalm", 23).equals(service.getChapterKey("Genesis", 23)));
+    }
+
+    @Test
+    void chapterKeysNeverFallBackToThePerBookLegacyLayout() {
+        configure("openai", "sk-openai", "xai-key", "onyx", "tts-1-hd");
+
+        // usesLegacyCache still governs verses; chapters opted out when the
+        // per-book duplicates were collapsed.
+        assertTrue(service.usesLegacyCache());
+        assertEquals(1, service.chapterCacheKeys("Genesis", 1).size());
+        assertFalse(service.chapterCacheKeys("Genesis", 1).contains("audio/chapters/Genesis_1.mp3"));
+    }
+
+    @Test
+    void bookAnnouncementIsKeyedByBookAndHasNoLegacyFallback() {
+        configure("openai", "sk-openai", "xai-key", "onyx", "tts-1-hd");
+
+        assertEquals("audio/openai/onyx/books/1_John.mp3", service.getBookKey("1 John"));
+        assertEquals("audio/openai/onyx/books/Song_of_Solomon.mp3",
+                service.getBookKey("Song of Solomon"));
+        assertEquals(List.of("audio/openai/onyx/books/1_John.mp3"), service.bookCacheKeys("1 John"));
+    }
+
+    @Test
+    void bookAnnouncementSpeaksTheAuthorizedVersionTitle() {
+        assertEquals("... The Second Book of Moses, called Exodus ...",
+                service.formatBookForSpeech("Exodus"));
+        assertEquals("... The First Epistle General of John ...",
+                service.formatBookForSpeech("1 John"));
+        assertEquals("... The Book of Psalms ...", service.formatBookForSpeech("Psalm"));
+        assertEquals("... Malachi ...", service.formatBookForSpeech("Malachi"));
+        // Unknown book: degrade to the bare name rather than fail.
+        assertEquals("... Nowhere ...", service.formatBookForSpeech("Nowhere"));
+    }
+
+    @Test
+    void everyCanonicalBookHasASpokenTitle() {
+        // 66 hand-written titles — a typo in a book name would silently degrade
+        // that book's announcement to its bare name at runtime.
+        assertEquals(BibleService.BOOK_ORDER.size(), TtsService.KJV_BOOK_TITLES.size());
+        for (String book : BibleService.BOOK_ORDER) {
+            assertTrue(TtsService.KJV_BOOK_TITLES.containsKey(book), "no title for " + book);
+        }
     }
 
     @Test
@@ -256,10 +313,11 @@ class TtsServiceTest {
         configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
 
         assertEquals("audio/xai/eve/verses/0/1.mp3", service.getVerseKey(1));
-        assertEquals("audio/xai/eve/chapters/Genesis_1.mp3", service.getChapterKey("Genesis", 1));
+        assertEquals("audio/xai/eve/chapters/1.mp3", service.getChapterKey("Genesis", 1));
+        assertEquals("audio/xai/eve/books/Genesis.mp3", service.getBookKey("Genesis"));
         assertFalse(service.usesLegacyCache());
         assertEquals(List.of("audio/xai/eve/verses/0/1.mp3"), service.verseCacheKeys(1));
-        assertEquals(List.of("audio/xai/eve/chapters/Genesis_1.mp3"), service.chapterCacheKeys("Genesis", 1));
+        assertEquals(List.of("audio/xai/eve/chapters/1.mp3"), service.chapterCacheKeys("Genesis", 1));
     }
 
     @Test
@@ -283,7 +341,8 @@ class TtsServiceTest {
     void flippingXaiVoiceChangesCacheKey() {
         configure("xai", "sk-openai", "xai-key", "ara", "tts-1-hd");
         assertEquals("audio/xai/ara/verses/0/1.mp3", service.getVerseKey(1));
-        assertEquals("audio/xai/ara/chapters/Genesis_1.mp3", service.getChapterKey("Genesis", 1));
+        assertEquals("audio/xai/ara/chapters/1.mp3", service.getChapterKey("Genesis", 1));
+        assertEquals("audio/xai/ara/books/Genesis.mp3", service.getBookKey("Genesis"));
 
         configure("xai", "sk-openai", "xai-key", "rex", "tts-1-hd");
         assertEquals("audio/xai/rex/verses/0/1.mp3", service.getVerseKey(1));
@@ -336,7 +395,7 @@ class TtsServiceTest {
         assertEquals("foo/../../bar\\baz", service.resolvedVoice());
         assertEquals("foo_______bar_baz", service.voiceKeySegment());
         assertEquals("audio/openai/foo_______bar_baz/verses/0/1.mp3", service.getVerseKey(1));
-        assertEquals("audio/openai/foo_______bar_baz/chapters/Genesis_1.mp3",
+        assertEquals("audio/openai/foo_______bar_baz/chapters/1.mp3",
                 service.getChapterKey("Genesis", 1));
         assertFalse(service.getVerseKey(1).contains(".."));
         assertFalse(service.getVerseKey(1).contains("\\"));
@@ -392,5 +451,171 @@ class TtsServiceTest {
         ArgumentCaptor<HttpRequest> cap = ArgumentCaptor.forClass(HttpRequest.class);
         verify(httpClient).send(cap.capture(), any());
         return cap.getValue();
+    }
+
+    // ── SuperGrok OAuth bearer ────────────────────────────────────────────────
+
+    @Test
+    void xaiPrefersOAuthAccessTokenOverTheStaticApiKey() {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        when(oauth.getAccessToken()).thenReturn(Optional.of("oauth-access-token"));
+
+        // Subscription quota, not pay-per-token.
+        assertEquals("oauth-access-token", service.resolvedBearer());
+    }
+
+    @Test
+    void xaiFallsBackToApiKeyWhenNoOAuthTokenIsAvailable() {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        when(oauth.getAccessToken()).thenReturn(Optional.empty());
+
+        assertEquals("xai-key", service.resolvedBearer());
+    }
+
+    @Test
+    void openaiNeverConsultsTheXaiOAuthManager() {
+        configure("openai", "sk-openai", "xai-key", "", "tts-1-hd");
+
+        assertEquals("sk-openai", service.resolvedBearer());
+        verify(oauth, never()).getAccessToken();
+    }
+
+    @Test
+    void xaiIsEnabledOnOAuthAloneWithNoApiKey() {
+        configure("xai", "sk-openai", "", "", "tts-1-hd");
+        when(oauth.isConfigured()).thenReturn(true);
+
+        assertTrue(service.isEnabled());
+        // Availability must not burn a refresh — isConfigured() is the local check.
+        verify(oauth, never()).getAccessToken();
+    }
+
+    @Test
+    void xaiIsDisabledWithNeitherOAuthNorApiKey() {
+        configure("xai", "sk-openai", "", "", "tts-1-hd");
+        when(oauth.isConfigured()).thenReturn(false);
+
+        assertFalse(service.isEnabled());
+    }
+
+    @Test
+    void oauthRejectionRetriesOnceWithAFreshToken() throws Exception {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        stubCacheMiss();
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("stale-token"))
+                .thenReturn(Optional.of("fresh-token"));
+        when(bibleService.getVerse(1)).thenReturn(Optional.of(
+                new Verse(1, "Genesis", 1, 1, 1, "In the beginning")));
+
+        HttpResponse<byte[]> rejected = mock(HttpResponse.class);
+        when(rejected.statusCode()).thenReturn(401);
+        HttpResponse<byte[]> ok = mock(HttpResponse.class);
+        when(ok.statusCode()).thenReturn(200);
+        when(ok.body()).thenReturn(new byte[] { 1, 2, 3 });
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(rejected, ok);
+
+        assertTrue(service.getAudioUrlForVerse(1).isPresent());
+
+        verify(oauth).invalidate();
+        ArgumentCaptor<HttpRequest> requests = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient, times(2)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
+        assertEquals("Bearer stale-token",
+                requests.getAllValues().get(0).headers().firstValue("Authorization").orElseThrow());
+        assertEquals("Bearer fresh-token",
+                requests.getAllValues().get(1).headers().firstValue("Authorization").orElseThrow());
+    }
+
+    // ── Bulk generation must never bill the metered key ───────────────────────
+
+    @Test
+    void oauthOnlyReturnsNoBearerRatherThanTheApiKey() {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        when(oauth.getAccessToken()).thenReturn(Optional.empty());
+
+        // Serving still falls back; bulk must not.
+        assertEquals("xai-key", service.resolvedBearer(TtsService.BearerPolicy.ALLOW_API_KEY));
+        assertNull(service.resolvedBearer(TtsService.BearerPolicy.OAUTH_ONLY));
+        assertFalse(service.hasOAuthBearer());
+    }
+
+    @Test
+    void bulkGenerationRefusesToStartWithoutAnOAuthToken() throws Exception {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        when(oauth.getAccessToken()).thenReturn(Optional.empty());
+
+        TtsService.AuthUnavailableException e = assertThrows(
+                TtsService.AuthUnavailableException.class,
+                () -> service.generateAndUpload("audio/xai/eve/books/Genesis.mp3", "... Genesis ..."));
+        assertTrue(e.getMessage().contains("XAI_API_KEY"));
+        // The decisive assertion: no HTTP call, so nothing was billed.
+        verify(httpClient, never()).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
+    void bulkGenerationRefusesANonXaiProviderOutright() {
+        configure("openai", "sk-openai", "xai-key", "", "tts-1-hd");
+
+        assertThrows(TtsService.AuthUnavailableException.class,
+                () -> service.generateAndUpload("audio/openai/onyx/books/Genesis.mp3", "... Genesis ..."));
+    }
+
+    @Test
+    void bulkGenerationAbortsRatherThanRetryingOn401WithTheApiKey() throws Exception {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        // A token is minted, then rejected, and no fresh one is available. The serving
+        // path would retry on xai-key here; the bulk path must refuse.
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("stale-token"))
+                .thenReturn(Optional.empty());
+        stubHttp(401, new byte[0]);
+
+        TtsService.AuthUnavailableException e = assertThrows(
+                TtsService.AuthUnavailableException.class,
+                () -> service.generateAndUpload("audio/xai/eve/books/Genesis.mp3", "... Genesis ..."));
+        assertTrue(e.getMessage().contains("XAI_API_KEY"));
+
+        // Exactly one call — the rejected one. No retry reached for the metered key.
+        verify(httpClient, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
+    void exhaustedSubscriptionStopsTheRunInsteadOfDowngrading() throws Exception {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        when(oauth.getAccessToken()).thenReturn(Optional.of("oauth-access-token"));
+        stubHttp(429, "quota exhausted".getBytes());
+
+        TtsService.AuthUnavailableException e = assertThrows(
+                TtsService.AuthUnavailableException.class,
+                () -> service.generateAndUpload("audio/xai/eve/books/Genesis.mp3", "... Genesis ..."));
+        assertTrue(e.getMessage().contains("quota exhausted") || e.getMessage().contains("429"));
+        verify(httpClient, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
+    void servingPathKeepsItsApiKeyFallbackOn401() throws Exception {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        stubCacheMiss();
+        when(oauth.getAccessToken())
+                .thenReturn(Optional.of("stale-token"))
+                .thenReturn(Optional.empty());
+        when(bibleService.getVerse(1)).thenReturn(Optional.of(
+                new Verse(1, "Genesis", 1, 1, 1, "In the beginning")));
+
+        HttpResponse<byte[]> rejected = mock(HttpResponse.class);
+        when(rejected.statusCode()).thenReturn(401);
+        HttpResponse<byte[]> ok = mock(HttpResponse.class);
+        when(ok.statusCode()).thenReturn(200);
+        when(ok.body()).thenReturn(new byte[] { 1, 2, 3 });
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(rejected, ok);
+
+        // One reader waiting on one clip is worth the metered fallback.
+        assertTrue(service.getAudioUrlForVerse(1).isPresent());
+        ArgumentCaptor<HttpRequest> requests = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient, times(2)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
+        assertEquals("Bearer xai-key",
+                requests.getAllValues().get(1).headers().firstValue("Authorization").orElseThrow());
     }
 }

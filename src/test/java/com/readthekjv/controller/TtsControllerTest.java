@@ -79,6 +79,40 @@ class TtsControllerTest {
     }
 
     @Test
+    void bookRejectsUnknownBook() {
+        when(ttsService.isKnownBook("NotABook")).thenReturn(false);
+
+        ResponseEntity<Map<String, String>> res = controller.getBookAudio("NotABook", user);
+
+        assertEquals(HttpStatus.BAD_REQUEST, res.getStatusCode());
+        verify(ttsService, never()).getAudioUrlForBook(any());
+    }
+
+    @Test
+    void anonymousBookCacheMissRequiresAuth() {
+        when(ttsService.isKnownBook("Exodus")).thenReturn(true);
+        when(ttsService.findCachedAudioUrlForBook("Exodus")).thenReturn(Optional.empty());
+
+        ResponseEntity<Map<String, String>> res = controller.getBookAudio("Exodus", null);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, res.getStatusCode());
+        verify(ttsService, never()).getAudioUrlForBook(any());
+    }
+
+    @Test
+    void anonymousBookCacheHitIsPublic() {
+        when(ttsService.isKnownBook("Exodus")).thenReturn(true);
+        when(ttsService.findCachedAudioUrlForBook("Exodus"))
+                .thenReturn(Optional.of("https://cdn.example/audio/books/Exodus.mp3"));
+
+        ResponseEntity<Map<String, String>> res = controller.getBookAudio("Exodus", null);
+
+        assertEquals(HttpStatus.OK, res.getStatusCode());
+        assertEquals("https://cdn.example/audio/books/Exodus.mp3", res.getBody().get("url"));
+        verify(ttsService, never()).getAudioUrlForBook(any());
+    }
+
+    @Test
     void chapterRejectsUnknownBook() {
         when(ttsService.isKnownBook("NotABook")).thenReturn(false);
 
