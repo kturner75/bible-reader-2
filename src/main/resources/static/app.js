@@ -70,6 +70,7 @@
         audioPlaying: false,       // Currently playing
         audioSpeed: 1.0,           // 1, 1.25, 1.5, 1.75, 2
         audioAnnouncing: false,    // an announcement is playing, not a verse
+        audioAnnounceEpoch: 0,     // bumps when an announcement is skipped/stopped; invalidates in-flight play
         audioQueuedAnnouncements: [], // [{ type: 'book'|'chapter', book, chapter }] still to speak
         audioWasPlayingBeforeModal: false,  // Track if audio was playing when modal opened
         mobileMenuOpen: false,             // Mobile quick-actions sheet
@@ -6302,6 +6303,7 @@
     function stopAudio() {
         state.audioPlaying = false;
         state.audioAnnouncing = false;
+        state.audioAnnounceEpoch++;
         state.audioQueuedAnnouncements = [];
         elements.audioToggle.classList.remove('playing');
         if (elements.ttsAudio) {
@@ -6343,15 +6345,18 @@
         }
     }
 
-    async function playBookAudio(book, retryCount = 0) {
+    async function playBookAudio(book, retryCount = 0, epoch = state.audioAnnounceEpoch) {
         if (!state.audioPlaying || !elements.ttsAudio) return;
+        if (epoch !== state.audioAnnounceEpoch) return;
 
         try {
             const url = await getBookAudioUrl(book);
+            if (epoch !== state.audioAnnounceEpoch) return;
             elements.ttsAudio.src = url;
             elements.ttsAudio.playbackRate = state.audioSpeed;
             await elements.ttsAudio.play();
         } catch (e) {
+            if (!state.audioPlaying || epoch !== state.audioAnnounceEpoch) return;
             if (e && e.message === 'AUTH_REQUIRED') {
                 skipAnnouncement();
                 return;
@@ -6359,22 +6364,25 @@
             console.error('Failed to play book audio', e);
             if (retryCount < 1) {
                 console.log('Retrying book audio playback...');
-                setTimeout(() => playBookAudio(book, retryCount + 1), 500);
+                setTimeout(() => playBookAudio(book, retryCount + 1, epoch), 500);
             } else {
                 skipAnnouncement();
             }
         }
     }
 
-    async function playChapterAudio(book, chapter, retryCount = 0) {
+    async function playChapterAudio(book, chapter, retryCount = 0, epoch = state.audioAnnounceEpoch) {
         if (!state.audioPlaying || !elements.ttsAudio) return;
+        if (epoch !== state.audioAnnounceEpoch) return;
 
         try {
             const url = await getChapterAudioUrl(book, chapter);
+            if (epoch !== state.audioAnnounceEpoch) return;
             elements.ttsAudio.src = url;
             elements.ttsAudio.playbackRate = state.audioSpeed;
             await elements.ttsAudio.play();
         } catch (e) {
+            if (!state.audioPlaying || epoch !== state.audioAnnounceEpoch) return;
             if (e && e.message === 'AUTH_REQUIRED') {
                 skipAnnouncement();
                 return;
@@ -6382,7 +6390,7 @@
             console.error('Failed to play chapter audio', e);
             if (retryCount < 1) {
                 console.log('Retrying chapter audio playback...');
-                setTimeout(() => playChapterAudio(book, chapter, retryCount + 1), 500);
+                setTimeout(() => playChapterAudio(book, chapter, retryCount + 1, epoch), 500);
             } else {
                 skipAnnouncement();
             }
@@ -6440,10 +6448,11 @@
             return;
         }
         state.audioAnnouncing = true;
+        const epoch = state.audioAnnounceEpoch;
         if (next.type === 'book') {
-            playBookAudio(next.book);
+            playBookAudio(next.book, 0, epoch);
         } else {
-            playChapterAudio(next.book, next.chapter);
+            playChapterAudio(next.book, next.chapter, 0, epoch);
         }
     }
 
@@ -6456,6 +6465,9 @@
     function skipAnnouncement() {
         if (!state.audioPlaying) return;
         state.audioAnnouncing = false;
+        // Invalidate any in-flight announcement play()/retry so a late catch
+        // cannot overwrite the next clip after media-element fail-soft.
+        state.audioAnnounceEpoch++;
         playQueuedAnnouncementOrVerse();
     }
 
@@ -6463,6 +6475,13 @@
         // Ignore errors when audio was intentionally stopped (src set to '')
         if (!state.audioPlaying) return;
         console.error('Audio playback error', e);
+        // Announcement media failures are fail-soft: drop the interstitial and
+        // keep reading. stopAudio() would clear the queue and kill playback,
+        // racing the playBookAudio/playChapterAudio catch that also skips.
+        if (state.audioAnnouncing) {
+            skipAnnouncement();
+            return;
+        }
         stopAudio();
     }
 
