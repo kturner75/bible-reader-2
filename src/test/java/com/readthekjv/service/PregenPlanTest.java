@@ -24,7 +24,8 @@ class PregenPlanTest {
         ReflectionTestUtils.setField(tts, "provider", "xai");
         ReflectionTestUtils.setField(tts, "voice", "helios");
         ReflectionTestUtils.setField(tts, "audioPrefix", "audio");
-        pregen = new TtsPregenService(tts, bible);
+        pregen = new TtsPregenService(tts, bible,
+                mock(org.springframework.context.ConfigurableApplicationContext.class));
         ReflectionTestUtils.setField(pregen, "scope", "all");
     }
 

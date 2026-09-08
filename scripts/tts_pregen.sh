@@ -41,7 +41,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${XAI_OAUTH_REFRESH_TOKEN:-}" && ! -f "$REFRESH_TOKEN_FILE" ]]; then
+# Only a live run needs credentials. The default dry run prints the plan and the
+# gap count without generating anything, so it has to work on a machine that has
+# never been near a SuperGrok token.
+if [[ "$DRY_RUN" == false && -z "${XAI_OAUTH_REFRESH_TOKEN:-}" && ! -f "$REFRESH_TOKEN_FILE" ]]; then
   cat >&2 <<EOF
 No SuperGrok refresh token.
 

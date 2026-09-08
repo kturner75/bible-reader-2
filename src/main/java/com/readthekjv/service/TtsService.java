@@ -389,6 +389,8 @@ public class TtsService {
     Set<String> listExistingKeys() {
         Set<String> keys = new HashSet<>();
         if (s3Client == null) {
+            log.warn("Spaces is not configured — cannot list existing audio. Every clip will look "
+                    + "missing; treat any gap count from this run as an upper bound.");
             return keys;
         }
         String token = null;

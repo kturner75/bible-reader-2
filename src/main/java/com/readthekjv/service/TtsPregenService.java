@@ -8,7 +8,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -59,6 +61,7 @@ public class TtsPregenService implements ApplicationRunner {
 
     private final TtsService ttsService;
     private final BibleService bibleService;
+    private final ConfigurableApplicationContext applicationContext;
 
     @Value("${tts.pregen.dry-run:true}")
     private boolean dryRun;
@@ -75,9 +78,11 @@ public class TtsPregenService implements ApplicationRunner {
     @Value("${tts.pregen.confirm-namespace:}")
     private String confirmNamespace;
 
-    public TtsPregenService(TtsService ttsService, BibleService bibleService) {
+    public TtsPregenService(TtsService ttsService, BibleService bibleService,
+                            ConfigurableApplicationContext applicationContext) {
         this.ttsService = ttsService;
         this.bibleService = bibleService;
+        this.applicationContext = applicationContext;
     }
 
     /** One clip to generate: where it goes and what it says. */
@@ -85,8 +90,12 @@ public class TtsPregenService implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        if (!ttsService.isEnabled()) {
+        // Credential checks are gated on live mode. A dry run prints the plan and
+        // the gap count and spends nothing, so it has to work on a machine with no
+        // TTS credentials at all — that is the whole point of the default mode.
+        if (!dryRun && !ttsService.isEnabled()) {
             log.error("Pregen aborted: TTS is not enabled (check tts.enabled, provider, and credentials)");
+            exitWith(1);
             return;
         }
 
@@ -95,6 +104,7 @@ public class TtsPregenService implements ApplicationRunner {
             log.error("Pregen aborted: this run would write to '{}'. Re-run with "
                             + "--tts.pregen.confirm-namespace={} if that is what you intend.",
                     namespace, namespace);
+            exitWith(1);
             return;
         }
 
@@ -107,6 +117,7 @@ public class TtsPregenService implements ApplicationRunner {
                     + "fall back to XAI_API_KEY (that would be real per-token spend). Mint a fresh "
                     + "token with scripts/xai_oauth_login.sh and point "
                     + "ai.xai.oauth.refresh-token-file at a writable path, then re-run.");
+            exitWith(1);
             return;
         }
 
@@ -132,6 +143,7 @@ public class TtsPregenService implements ApplicationRunner {
 
         if (todo.isEmpty()) {
             log.info("Nothing to do — corpus is complete for this namespace");
+            exitWith(0);
             return;
         }
 
@@ -139,10 +151,21 @@ public class TtsPregenService implements ApplicationRunner {
             todo.stream().limit(10).forEach(c -> log.info("  would generate {}  <- \"{}\"", c.key(), c.text()));
             log.info("DRY RUN — nothing generated, nothing spent. Re-run with "
                     + "--tts.pregen.dry-run=false to generate {} clips.", todo.size());
+            exitWith(0);
             return;
         }
 
-        generate(todo);
+        exitWith(generate(todo) ? 0 : 1);
+    }
+
+    /**
+     * Shuts the application down. This runs inside a fully started Spring Boot web
+     * app, so returning from {@link #run} would leave the server and its scheduled
+     * jobs up forever — the wrapper script would never return to the shell and the
+     * "one-shot command" would be unusable from any script.
+     */
+    private void exitWith(int code) {
+        System.exit(SpringApplication.exit(applicationContext, () -> code));
     }
 
     /**
@@ -191,7 +214,8 @@ public class TtsPregenService implements ApplicationRunner {
         return clips;
     }
 
-    private void generate(List<Clip> todo) throws InterruptedException {
+    /** @return true when the run finished without aborting. */
+    private boolean generate(List<Clip> todo) throws InterruptedException {
         ExecutorService pool = Executors.newFixedThreadPool(Math.max(1, threads));
         AtomicInteger done = new AtomicInteger();
         AtomicInteger failed = new AtomicInteger();
@@ -244,8 +268,9 @@ public class TtsPregenService implements ApplicationRunner {
             log.error("Pregen stopped early: {} generated before the abort. Nothing was billed to "
                             + "XAI_API_KEY. Restore the subscription token and re-run — the run "
                             + "resumes from the gaps.", done.get() - failed.get());
-            return;
+            return false;
         }
         log.info("Pregen complete: {} generated, {} failed", done.get() - failed.get(), failed.get());
+        return true;
     }
 }
