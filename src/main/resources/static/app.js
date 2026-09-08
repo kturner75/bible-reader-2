@@ -69,7 +69,9 @@
         audioEnabled: false,       // Feature flag from backend
         audioPlaying: false,       // Currently playing
         audioSpeed: 1.0,           // 1, 1.25, 1.5, 1.75, 2
-        audioPendingChapter: null, // { book, chapter } if chapter announcement pending
+        audioAnnouncing: false,    // an announcement is playing, not a verse
+        audioAnnounceEpoch: 0,     // bumps when an announcement is skipped/stopped; invalidates in-flight play
+        audioQueuedAnnouncements: [], // [{ type: 'book'|'chapter', book, chapter }] still to speak
         audioWasPlayingBeforeModal: false,  // Track if audio was playing when modal opened
         mobileMenuOpen: false,             // Mobile quick-actions sheet
         // Reading rhythm lane (?lane=N) — the reader was opened from a lane, so it
@@ -6300,7 +6302,9 @@
 
     function stopAudio() {
         state.audioPlaying = false;
-        state.audioPendingChapter = null;
+        state.audioAnnouncing = false;
+        state.audioAnnounceEpoch++;
+        state.audioQueuedAnnouncements = [];
         elements.audioToggle.classList.remove('playing');
         if (elements.ttsAudio) {
             elements.ttsAudio.pause();
@@ -6341,26 +6345,54 @@
         }
     }
 
-    async function playChapterAudio(book, chapter, retryCount = 0) {
+    async function playBookAudio(book, retryCount = 0, epoch = state.audioAnnounceEpoch) {
         if (!state.audioPlaying || !elements.ttsAudio) return;
+        if (epoch !== state.audioAnnounceEpoch) return;
 
         try {
-            const url = await getChapterAudioUrl(book, chapter);
+            const url = await getBookAudioUrl(book);
+            if (epoch !== state.audioAnnounceEpoch) return;
             elements.ttsAudio.src = url;
             elements.ttsAudio.playbackRate = state.audioSpeed;
             await elements.ttsAudio.play();
         } catch (e) {
+            if (!state.audioPlaying || epoch !== state.audioAnnounceEpoch) return;
             if (e && e.message === 'AUTH_REQUIRED') {
-                stopAudio();
-                showToast('Sign in to use read-aloud');
+                skipAnnouncement();
+                return;
+            }
+            console.error('Failed to play book audio', e);
+            if (retryCount < 1) {
+                console.log('Retrying book audio playback...');
+                setTimeout(() => playBookAudio(book, retryCount + 1, epoch), 500);
+            } else {
+                skipAnnouncement();
+            }
+        }
+    }
+
+    async function playChapterAudio(book, chapter, retryCount = 0, epoch = state.audioAnnounceEpoch) {
+        if (!state.audioPlaying || !elements.ttsAudio) return;
+        if (epoch !== state.audioAnnounceEpoch) return;
+
+        try {
+            const url = await getChapterAudioUrl(book, chapter);
+            if (epoch !== state.audioAnnounceEpoch) return;
+            elements.ttsAudio.src = url;
+            elements.ttsAudio.playbackRate = state.audioSpeed;
+            await elements.ttsAudio.play();
+        } catch (e) {
+            if (!state.audioPlaying || epoch !== state.audioAnnounceEpoch) return;
+            if (e && e.message === 'AUTH_REQUIRED') {
+                skipAnnouncement();
                 return;
             }
             console.error('Failed to play chapter audio', e);
             if (retryCount < 1) {
                 console.log('Retrying chapter audio playback...');
-                setTimeout(() => playChapterAudio(book, chapter, retryCount + 1), 500);
+                setTimeout(() => playChapterAudio(book, chapter, retryCount + 1, epoch), 500);
             } else {
-                stopAudio();
+                skipAnnouncement();
             }
         }
     }
@@ -6368,10 +6400,11 @@
     async function handleAudioEnded() {
         if (!state.audioPlaying) return;
 
-        // If we just played a chapter announcement, now play the verse
-        if (state.audioPendingChapter) {
-            state.audioPendingChapter = null;
-            playVerseAudio(state.currentVerseId);
+        // An announcement just finished — the reading position has not moved, so
+        // work down the rest of the queue and then read the verse it introduces.
+        if (state.audioAnnouncing) {
+            state.audioAnnouncing = false;
+            playQueuedAnnouncementOrVerse();
             return;
         }
 
@@ -6386,21 +6419,69 @@
         // Get new verse info
         const newVerse = state.pageVerses.find(v => v.id === state.currentVerseId);
 
-        // Check if we crossed into a new chapter
-        if (newVerse && (newVerse.book !== prevBook || newVerse.chapter !== prevChapter)) {
-            // Play chapter announcement first
-            state.audioPendingChapter = { book: newVerse.book, chapter: newVerse.chapter };
-            playChapterAudio(newVerse.book, newVerse.chapter);
-        } else {
-            // Same chapter, just play the verse
-            playVerseAudio(state.currentVerseId);
+        // A book break announces the book and then its chapter — "The Second Book
+        // of Moses, Called Exodus", "Chapter 1", verse 1 — each clip carrying its
+        // own leading and trailing pause. A chapter break inside a book announces
+        // the chapter alone.
+        if (newVerse && newVerse.book !== prevBook) {
+            state.audioQueuedAnnouncements = [
+                { type: 'book', book: newVerse.book },
+                { type: 'chapter', book: newVerse.book, chapter: newVerse.chapter }
+            ];
+        } else if (newVerse && newVerse.chapter !== prevChapter) {
+            state.audioQueuedAnnouncements = [
+                { type: 'chapter', book: newVerse.book, chapter: newVerse.chapter }
+            ];
         }
+
+        playQueuedAnnouncementOrVerse();
+    }
+
+    /**
+     * Speak the next queued announcement, or read the current verse once the
+     * queue is empty. Every path back into scripture after a break goes here.
+     */
+    function playQueuedAnnouncementOrVerse() {
+        const next = state.audioQueuedAnnouncements.shift();
+        if (!next) {
+            playVerseAudio(state.currentVerseId);
+            return;
+        }
+        state.audioAnnouncing = true;
+        const epoch = state.audioAnnounceEpoch;
+        if (next.type === 'book') {
+            playBookAudio(next.book, 0, epoch);
+        } else {
+            playChapterAudio(next.book, next.chapter, 0, epoch);
+        }
+    }
+
+    /**
+     * An announcement could not be fetched — most often a cold cache for a
+     * signed-out reader, since generating a clip requires an account. Drop it and
+     * carry on: scripture keeps playing, it simply loses the interstitial. Only a
+     * failed *verse* is worth stopping playback over.
+     */
+    function skipAnnouncement() {
+        if (!state.audioPlaying) return;
+        state.audioAnnouncing = false;
+        // Invalidate any in-flight announcement play()/retry so a late catch
+        // cannot overwrite the next clip after media-element fail-soft.
+        state.audioAnnounceEpoch++;
+        playQueuedAnnouncementOrVerse();
     }
 
     function handleAudioError(e) {
         // Ignore errors when audio was intentionally stopped (src set to '')
         if (!state.audioPlaying) return;
         console.error('Audio playback error', e);
+        // Announcement media failures are fail-soft: drop the interstitial and
+        // keep reading. stopAudio() would clear the queue and kill playback,
+        // racing the playBookAudio/playChapterAudio catch that also skips.
+        if (state.audioAnnouncing) {
+            skipAnnouncement();
+            return;
+        }
         stopAudio();
     }
 
@@ -6433,6 +6514,24 @@
         if (audioUrlCache.has(key)) return audioUrlCache.get(key);
         // credentials: cache-miss generation requires a signed-in session (H2)
         const response = await fetch(`/api/audio/${verseId}`, { credentials: 'include' });
+        if (response.status === 401) {
+            throw new Error('AUTH_REQUIRED');
+        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        audioUrlCache.set(key, data.url);
+        return data.url;
+    }
+
+    /**
+     * Fetch and cache the CDN URL for a book announcement.
+     */
+    async function getBookAudioUrl(book) {
+        const key = `book:${book}`;
+        if (audioUrlCache.has(key)) return audioUrlCache.get(key);
+        const response = await fetch(`/api/audio/book/${encodeURIComponent(book)}`, {
+            credentials: 'include'
+        });
         if (response.status === 401) {
             throw new Error('AUTH_REQUIRED');
         }

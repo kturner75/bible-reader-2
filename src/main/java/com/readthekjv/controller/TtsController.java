@@ -84,6 +84,43 @@ public class TtsController {
     }
 
     /**
+     * Get audio URL for a book announcement, spoken at a book break ahead of
+     * the chapter announcement.
+     *
+     * @param book Book name (URL encoded)
+     * @return JSON with url field or error status
+     */
+    @GetMapping("/audio/book/{book}")
+    public ResponseEntity<Map<String, String>> getBookAudio(
+            @PathVariable String book,
+            @AuthenticationPrincipal UserDetails user) {
+        if (book == null || book.isBlank() || !ttsService.isKnownBook(book)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        if (!ttsService.isEnabled()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Optional<String> cached = ttsService.findCachedAudioUrlForBook(book);
+        if (cached.isPresent()) {
+            return ResponseEntity.ok(Map.of("url", cached.get()));
+        }
+
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Sign in to generate audio"));
+        }
+
+        Optional<String> cdnUrl = ttsService.getAudioUrlForBook(book);
+        if (cdnUrl.isEmpty()) {
+            return ResponseEntity.internalServerError().build();
+        }
+
+        return ResponseEntity.ok(Map.of("url", cdnUrl.get()));
+    }
+
+    /**
      * Get audio URL for a chapter announcement.
      * Returns JSON with the CDN URL.
      *
