@@ -1,12 +1,15 @@
 package com.readthekjv.controller;
 
 import com.readthekjv.service.TtsService;
+import com.readthekjv.service.VoiceCatalogService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,9 +27,45 @@ public class TtsController {
     private static final int MAX_VERSE_ID = 31102;
 
     private final TtsService ttsService;
+    private final VoiceCatalogService voiceCatalog;
 
-    public TtsController(TtsService ttsService) {
+    public TtsController(TtsService ttsService, VoiceCatalogService voiceCatalog) {
         this.ttsService = ttsService;
+        this.voiceCatalog = voiceCatalog;
+    }
+
+    /**
+     * Voices a reader may choose between, default first, each with the verse id to
+     * audition it with. A single entry means the picker has nothing to offer and the
+     * client hides it — pregenerating a second voice is all it takes to light it up.
+     */
+    @GetMapping("/audio/voices")
+    public ResponseEntity<Map<String, Object>> getVoices() {
+        if (!ttsService.isEnabled()) {
+            return ResponseEntity.notFound().build();
+        }
+        List<VoiceCatalogService.Voice> voices = voiceCatalog.selectableVoices();
+        return ResponseEntity.ok(Map.of(
+                "voices", voices,
+                "default", ttsService.defaultVoice(),
+                "sampleVerseId", VoiceCatalogService.SAMPLE_VERSE_ID));
+    }
+
+    /**
+     * Resolves the requested voice, or null when the request named one that is not
+     * selectable. An absent voice means "the server default", which is the only voice
+     * allowed to generate; a named one is always serve-only.
+     */
+    private String resolveRequestedVoice(String voice) {
+        if (voice == null || voice.isBlank()) {
+            return ttsService.defaultVoice();
+        }
+        String normalized = voice.trim().toLowerCase(Locale.ROOT);
+        return voiceCatalog.isSelectable(normalized) ? normalized : null;
+    }
+
+    private boolean isDefaultVoice(String voice) {
+        return ttsService.defaultVoice().equals(voice);
     }
 
     /**
@@ -49,6 +88,7 @@ public class TtsController {
     @GetMapping("/audio/{verseId}")
     public ResponseEntity<Map<String, String>> getAudio(
             @PathVariable int verseId,
+            @RequestParam(required = false) String voice,
             @AuthenticationPrincipal UserDetails user) {
         // Validate verse ID range
         if (verseId < MIN_VERSE_ID || verseId > MAX_VERSE_ID) {
@@ -60,13 +100,24 @@ public class TtsController {
             return ResponseEntity.notFound().build();
         }
 
+        String resolved = resolveRequestedVoice(voice);
+        if (resolved == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
         // Cache hit — public, no OpenAI spend. Prefetch only when signed in.
-        Optional<String> cached = ttsService.findCachedAudioUrlForVerse(verseId);
+        Optional<String> cached = ttsService.findCachedAudioUrlForVerse(verseId, resolved);
         if (cached.isPresent()) {
-            if (user != null) {
+            if (user != null && isDefaultVoice(resolved)) {
                 ttsService.triggerPrefetch(verseId);
             }
             return ResponseEntity.ok(Map.of("url", cached.get()));
+        }
+
+        // A non-default voice is serve-only: it was offered because its corpus is
+        // complete, so a miss is a gap to report, never a licence to spend.
+        if (!isDefaultVoice(resolved)) {
+            return ResponseEntity.notFound().build();
         }
 
         // Cache miss — generation requires auth (H2)
@@ -93,6 +144,7 @@ public class TtsController {
     @GetMapping("/audio/book/{book}")
     public ResponseEntity<Map<String, String>> getBookAudio(
             @PathVariable String book,
+            @RequestParam(required = false) String voice,
             @AuthenticationPrincipal UserDetails user) {
         if (book == null || book.isBlank() || !ttsService.isKnownBook(book)) {
             return ResponseEntity.badRequest().build();
@@ -102,9 +154,18 @@ public class TtsController {
             return ResponseEntity.notFound().build();
         }
 
-        Optional<String> cached = ttsService.findCachedAudioUrlForBook(book);
+        String resolved = resolveRequestedVoice(voice);
+        if (resolved == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Optional<String> cached = ttsService.findCachedAudioUrlForBook(book, resolved);
         if (cached.isPresent()) {
             return ResponseEntity.ok(Map.of("url", cached.get()));
+        }
+
+        if (!isDefaultVoice(resolved)) {
+            return ResponseEntity.notFound().build();
         }
 
         if (user == null) {
@@ -132,6 +193,7 @@ public class TtsController {
     public ResponseEntity<Map<String, String>> getChapterAudio(
             @PathVariable String book,
             @PathVariable int chapter,
+            @RequestParam(required = false) String voice,
             @AuthenticationPrincipal UserDetails user) {
         // Basic validation + allowlist known books (closes L2 while touching this path)
         if (book == null || book.isBlank() || chapter < 1 || chapter > 150
@@ -144,9 +206,18 @@ public class TtsController {
             return ResponseEntity.notFound().build();
         }
 
-        Optional<String> cached = ttsService.findCachedAudioUrlForChapter(book, chapter);
+        String resolved = resolveRequestedVoice(voice);
+        if (resolved == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Optional<String> cached = ttsService.findCachedAudioUrlForChapter(book, chapter, resolved);
         if (cached.isPresent()) {
             return ResponseEntity.ok(Map.of("url", cached.get()));
+        }
+
+        if (!isDefaultVoice(resolved)) {
+            return ResponseEntity.notFound().build();
         }
 
         if (user == null) {

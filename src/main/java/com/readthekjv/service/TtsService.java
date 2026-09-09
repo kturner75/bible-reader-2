@@ -214,6 +214,61 @@ public class TtsService {
         return findExistingCdnUrl(verseCacheKeys(verseId));
     }
 
+    // ── Voice-scoped lookups (serve-only; see VoiceCatalogService) ───────────
+
+    /**
+     * Cache lookup in a caller-chosen voice. Serve-only by construction: there is
+     * no generating counterpart, because a selectable voice is one whose corpus is
+     * already complete. That is what keeps a user-supplied voice from becoming an
+     * arbitrary spend vector — the request can only ever hit or miss, never spend.
+     */
+    public Optional<String> findCachedAudioUrlForVerse(int verseId, String voice) {
+        if (!isEnabled() || s3Client == null) {
+            return Optional.empty();
+        }
+        return findExistingCdnUrl(verseCacheKeys(verseId, voice));
+    }
+
+    public Optional<String> findCachedAudioUrlForChapter(String book, int chapter, String voice) {
+        if (!isEnabled() || s3Client == null) {
+            return Optional.empty();
+        }
+        return findExistingCdnUrl(chapterCacheKeys(book, chapter, voice));
+    }
+
+    public Optional<String> findCachedAudioUrlForBook(String book, String voice) {
+        if (!isEnabled() || s3Client == null) {
+            return Optional.empty();
+        }
+        return findExistingCdnUrl(bookCacheKeys(book, voice));
+    }
+
+    /** The voice this server generates in when a request does not name one. */
+    public String defaultVoice() {
+        return resolvedVoice();
+    }
+
+    /** Every key under the audio prefix, grouped for the catalog's completeness count. */
+    public Set<String> allAudioKeys() {
+        return listExistingKeys();
+    }
+
+    /** The bearer a metadata call (the xAI voice roster) should use. */
+    String metadataBearer() {
+        // xAI-only by construction. resolvedBearer() hands back OPENAI_API_KEY under
+        // the openai provider, and this bearer is sent to api.x.ai — disclosing one
+        // provider's credential to another. No provider match, no bearer.
+        return isXai() ? resolvedBearer() : null;
+    }
+
+    String providerSegment() {
+        return providerKeySegment();
+    }
+
+    String audioPrefixValue() {
+        return audioPrefix;
+    }
+
     /**
      * Returns the CDN URL if the chapter announcement already exists in Spaces.
      * Does not call a TTS provider.
@@ -572,23 +627,18 @@ public class TtsService {
         return OPENAI_DEFAULT_MODEL;
     }
 
-    /**
-     * OpenAI keeps reading the unversioned {@code audio/verses/…} layout so the
-     * existing onyx cache still hits. xAI (or a non-onyx OpenAI voice) never
-     * consults those keys — flipping provider/voice must not serve the old files.
-     */
-    boolean usesLegacyCache() {
-        return !isXai() && OPENAI_DEFAULT_VOICE.equalsIgnoreCase(resolvedVoice());
-    }
-
     // ── Spaces key layout ─────────────────────────────────────────────────────
 
     /**
      * Canonical namespaced key: {@code audio/{provider}/{voice}/verses/{bucket}/{id}.mp3}.
      */
     String getVerseKey(int verseId) {
+        return getVerseKey(verseId, resolvedVoice());
+    }
+
+    String getVerseKey(int verseId, String voice) {
         int bucket = verseId / 1000;
-        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment()
+        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment(voice)
                 + "/verses/" + bucket + "/" + verseId + ".mp3";
     }
 
@@ -602,7 +652,11 @@ public class TtsService {
      * else, which is why the Psalms ("Psalm 3") get their own prefix.
      */
     String getChapterKey(String book, int chapter) {
-        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment()
+        return getChapterKey(book, chapter, resolvedVoice());
+    }
+
+    String getChapterKey(String book, int chapter, String voice) {
+        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment(voice)
                 + "/chapters/" + (isPsalmBook(book) ? "psalm_" : "") + chapter + ".mp3";
     }
 
@@ -613,8 +667,12 @@ public class TtsService {
      * there is no legacy key to fall back to — see {@link #bookCacheKeys(String)}.
      */
     String getBookKey(String book) {
+        return getBookKey(book, resolvedVoice());
+    }
+
+    String getBookKey(String book, String voice) {
         String safeBookName = book.replace(" ", "_");
-        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment()
+        return audioPrefix + "/" + providerKeySegment() + "/" + voiceKeySegment(voice)
                 + "/books/" + safeBookName + ".mp3";
     }
 
@@ -625,7 +683,13 @@ public class TtsService {
      * receives {@link #resolvedVoice()} as a pass-through (any string).
      */
     String voiceKeySegment() {
-        String raw = resolvedVoice();
+        return voiceKeySegment(resolvedVoice());
+    }
+
+    String voiceKeySegment(String raw) {
+        if (raw == null) {
+            return "_";
+        }
         StringBuilder sb = new StringBuilder(raw.length());
         for (int i = 0; i < raw.length(); i++) {
             char c = raw.charAt(i);
@@ -640,22 +704,17 @@ public class TtsService {
         return segment.isBlank() ? "_" : segment;
     }
 
-    String getLegacyVerseKey(int verseId) {
-        int bucket = verseId / 1000;
-        return audioPrefix + "/verses/" + bucket + "/" + verseId + ".mp3";
-    }
-
     /**
-     * Lookup order: namespaced key first, then the unversioned openai/onyx key
-     * when {@link #usesLegacyCache()} is true. Writes always use the namespaced key.
+     * The unversioned {@code audio/verses/…} layout is gone — those 3,329 openai/onyx
+     * objects were deleted once the xai/helios corpus was complete, so there is no
+     * longer any fallback for any of the three key families.
      */
     List<String> verseCacheKeys(int verseId) {
-        List<String> keys = new ArrayList<>(2);
-        keys.add(getVerseKey(verseId));
-        if (usesLegacyCache()) {
-            keys.add(getLegacyVerseKey(verseId));
-        }
-        return keys;
+        return verseCacheKeys(verseId, resolvedVoice());
+    }
+
+    List<String> verseCacheKeys(int verseId, String voice) {
+        return List.of(getVerseKey(verseId, voice));
     }
 
     /**
@@ -668,12 +727,20 @@ public class TtsService {
         return List.of(getChapterKey(book, chapter));
     }
 
+    List<String> chapterCacheKeys(String book, int chapter, String voice) {
+        return List.of(getChapterKey(book, chapter, voice));
+    }
+
     /**
      * Book announcements have only ever been written to the namespaced layout,
      * so unlike verses and chapters there is no legacy key to consult.
      */
     List<String> bookCacheKeys(String book) {
         return List.of(getBookKey(book));
+    }
+
+    List<String> bookCacheKeys(String book, String voice) {
+        return List.of(getBookKey(book, voice));
     }
 
     private String providerKeySegment() {
