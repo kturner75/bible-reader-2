@@ -243,6 +243,14 @@ public class TtsService {
         return findExistingCdnUrl(bookCacheKeys(book, voice));
     }
 
+    /**
+     * True when generated audio can actually be stored. Generation without a
+     * writable bucket spends TTS quota and throws the result away.
+     */
+    public boolean isSpacesReady() {
+        return s3Client != null;
+    }
+
     /** The voice this server generates in when a request does not name one. */
     public String defaultVoice() {
         return resolvedVoice();
