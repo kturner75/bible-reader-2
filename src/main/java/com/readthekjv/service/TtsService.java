@@ -12,6 +12,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
@@ -31,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -241,6 +243,45 @@ public class TtsService {
             return Optional.empty();
         }
         return findExistingCdnUrl(bookCacheKeys(book, voice));
+    }
+
+    /**
+     * True when generated audio can actually be stored — proven by storing something.
+     *
+     * <p>A non-null client only says the SDK was constructed. A read-only key, or a
+     * bucket policy that rejects the {@code public-read} ACL, both list happily and
+     * then fail every {@code putObject} — so a run would generate and bill the entire
+     * corpus before discovering it has nowhere to put any of it. That is the exact
+     * failure this preflight exists to prevent, so it has to exercise the real write
+     * path: same ACL, same content type, via {@link #uploadToSpaces} itself.
+     *
+     * <p>The probe object is deleted immediately. If a crash ever strands one it is
+     * harmless — it sits outside every {@code {voice}/(verses|books|chapters)/} path,
+     * and completeness is membership of an exact key set, so extra keys count for
+     * nothing.
+     */
+    public boolean isSpacesWritable() {
+        if (s3Client == null) {
+            log.error("Spaces is not configured — no client to write with");
+            return false;
+        }
+        String probeKey = audioPrefix + "/.preflight/" + UUID.randomUUID() + ".probe";
+        try {
+            uploadToSpaces(probeKey, new byte[] { 0 });
+            return true;
+        } catch (Exception e) {
+            log.error("Spaces write check failed for {}: {}", probeKey, e.toString());
+            return false;
+        } finally {
+            try {
+                s3Client.deleteObject(DeleteObjectRequest.builder()
+                        .bucket(spacesBucket)
+                        .key(probeKey)
+                        .build());
+            } catch (Exception e) {
+                log.warn("Could not remove the Spaces preflight probe {}: {}", probeKey, e.toString());
+            }
+        }
     }
 
     /** The voice this server generates in when a request does not name one. */
