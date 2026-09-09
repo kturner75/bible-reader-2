@@ -112,6 +112,17 @@ public class TtsPregenService implements ApplicationRunner {
         // fails here, before anything is generated, instead of silently moving the
         // whole run onto the metered XAI_API_KEY. Skipped for a dry run, which
         // spends nothing and is useful for checking the plan without credentials.
+        // Storage is checked with the same seriousness as credentials: without a
+        // writable bucket every clip is generated, billed, and then dropped on the
+        // floor. Found the hard way — three clips of quota for nothing.
+        if (!dryRun && !ttsService.isSpacesReady()) {
+            log.error("Pregen aborted: Spaces is not configured, so generated audio could not be "
+                    + "stored. Check DO_SPACES_ACCESS_KEY / DO_SPACES_SECRET_KEY — generating "
+                    + "without somewhere to put the result spends quota for nothing.");
+            exitWith(1);
+            return;
+        }
+
         if (!dryRun && !ttsService.hasOAuthBearer()) {
             log.error("Pregen aborted: no SuperGrok OAuth access token. Bulk generation will not "
                     + "fall back to XAI_API_KEY (that would be real per-token spend). Mint a fresh "
@@ -271,6 +282,15 @@ public class TtsPregenService implements ApplicationRunner {
             return false;
         }
         log.info("Pregen complete: {} generated, {} failed", done.get() - failed.get(), failed.get());
+        if (failed.get() > 0) {
+            // A partial corpus is not success: the completeness gate will withhold the
+            // voice, and a caller chaining on this needs to know to run it again.
+            // Transient provider resets (GOAWAY) are the common cause and the re-run
+            // is cheap, since only the gaps remain.
+            log.warn("{} clips did not land — re-run to fill the gaps before the voice can be "
+                    + "offered.", failed.get());
+            return false;
+        }
         return true;
     }
 }

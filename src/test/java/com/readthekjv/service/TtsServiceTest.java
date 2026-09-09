@@ -653,4 +653,15 @@ class TtsServiceTest {
         when(oauth.getAccessToken()).thenReturn(Optional.empty());
         assertEquals("xai-key", service.metadataBearer());
     }
+
+    @Test
+    void spacesReadinessIsReportedSoBulkRunsCanRefuseToBurnQuota() {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        assertTrue(service.isSpacesReady());
+
+        ReflectionTestUtils.setField(service, "s3Client", null);
+        // callTts would still spend; uploadToSpaces would then NPE. A bulk run must
+        // be able to see this coming rather than discover it 31k clips in.
+        assertFalse(service.isSpacesReady());
+    }
 }
