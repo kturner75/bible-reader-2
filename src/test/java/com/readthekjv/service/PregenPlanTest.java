@@ -55,4 +55,26 @@ class PregenPlanTest {
                 "no key generated twice");
         assertTrue(plan.stream().allMatch(c -> c.key().startsWith("audio/xai/helios/")));
     }
+
+    // ── Exit code honesty ─────────────────────────────────────────────────────
+
+    @Test
+    void onlyAGaplessRunCountsAsSuccess() {
+        assertTrue(TtsPregenService.runSucceeded(true, 100, 100));
+
+        // Clips that failed — the ursa run's 18 GOAWAY resets.
+        assertFalse(TtsPregenService.runSucceeded(true, 82, 100));
+
+        // Timed out with work outstanding. shutdownNow() interrupts workers that
+        // return without incrementing anything, so the counters look clean here —
+        // this is the case the failure count alone cannot see.
+        assertFalse(TtsPregenService.runSucceeded(false, 100, 100));
+        assertFalse(TtsPregenService.runSucceeded(false, 60, 100));
+    }
+
+    @Test
+    void anEmptyRunIsStillASuccess() {
+        // "Nothing to do — corpus is complete" must not exit non-zero.
+        assertTrue(TtsPregenService.runSucceeded(true, 0, 0));
+    }
 }

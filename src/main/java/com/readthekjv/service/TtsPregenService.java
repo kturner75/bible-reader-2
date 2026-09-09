@@ -115,10 +115,11 @@ public class TtsPregenService implements ApplicationRunner {
         // Storage is checked with the same seriousness as credentials: without a
         // writable bucket every clip is generated, billed, and then dropped on the
         // floor. Found the hard way — three clips of quota for nothing.
-        if (!dryRun && !ttsService.isSpacesReady()) {
-            log.error("Pregen aborted: Spaces is not configured, so generated audio could not be "
-                    + "stored. Check DO_SPACES_ACCESS_KEY / DO_SPACES_SECRET_KEY — generating "
-                    + "without somewhere to put the result spends quota for nothing.");
+        if (!dryRun && !ttsService.isSpacesWritable()) {
+            log.error("Pregen aborted: Spaces is not writable, so generated audio could not be "
+                    + "stored. Check DO_SPACES_ACCESS_KEY / DO_SPACES_SECRET_KEY and that the key "
+                    + "may PutObject with a public-read ACL — generating without somewhere to put "
+                    + "the result spends quota for nothing.");
             exitWith(1);
             return;
         }
@@ -167,6 +168,23 @@ public class TtsPregenService implements ApplicationRunner {
         }
 
         exitWith(generate(todo) ? 0 : 1);
+    }
+
+    /**
+     * Only a corpus with no gaps is worth a zero exit.
+     *
+     * <p>Three distinct ways to fall short, and the counters alone catch only one of
+     * them. Clips that failed increment {@code failed}; clips never attempted because
+     * the pool timed out do not, since {@code shutdownNow()} interrupts workers that
+     * then return without touching either counter. So the termination result has to
+     * participate, and {@code generated < total} catches whatever slips past both.
+     *
+     * <p>The completeness gate withholds the voice in every one of these cases, so
+     * reporting success would only hide why. Re-running is cheap — the work list is
+     * rebuilt from the bucket, leaving just the gaps.
+     */
+    static boolean runSucceeded(boolean finished, int generated, int total) {
+        return finished && generated >= total;
     }
 
     /**
@@ -271,7 +289,10 @@ public class TtsPregenService implements ApplicationRunner {
         }
 
         pool.shutdown();
-        if (!pool.awaitTermination(24, TimeUnit.HOURS)) {
+        // A timeout interrupts workers, which return without incrementing `failed` —
+        // so the counters alone would report a clean run over a half-finished one.
+        boolean finished = pool.awaitTermination(24, TimeUnit.HOURS);
+        if (!finished) {
             log.warn("Pregen timed out with work outstanding — re-run to resume");
             pool.shutdownNow();
         }
@@ -281,14 +302,11 @@ public class TtsPregenService implements ApplicationRunner {
                             + "resumes from the gaps.", done.get() - failed.get());
             return false;
         }
-        log.info("Pregen complete: {} generated, {} failed", done.get() - failed.get(), failed.get());
-        if (failed.get() > 0) {
-            // A partial corpus is not success: the completeness gate will withhold the
-            // voice, and a caller chaining on this needs to know to run it again.
-            // Transient provider resets (GOAWAY) are the common cause and the re-run
-            // is cheap, since only the gaps remain.
-            log.warn("{} clips did not land — re-run to fill the gaps before the voice can be "
-                    + "offered.", failed.get());
+        int generated = done.get() - failed.get();
+        log.info("Pregen complete: {} generated, {} failed", generated, failed.get());
+        if (!runSucceeded(finished, generated, total)) {
+            log.warn("{} of {} clips did not land — re-run to fill the gaps before the voice "
+                    + "can be offered.", total - generated, total);
             return false;
         }
         return true;

@@ -655,13 +655,38 @@ class TtsServiceTest {
     }
 
     @Test
-    void spacesReadinessIsReportedSoBulkRunsCanRefuseToBurnQuota() {
+    void spacesWritabilityIsProvenByWritingNotByHavingAClient() throws Exception {
         configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
-        assertTrue(service.isSpacesReady());
 
+        assertTrue(service.isSpacesWritable());
+
+        // The probe must exercise the real upload path — same public-read ACL — or a
+        // policy that rejects the ACL would pass here and fail every actual clip.
+        ArgumentCaptor<PutObjectRequest> put = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3Client).putObject(put.capture(), any(RequestBody.class));
+        assertEquals("public-read", put.getValue().acl().toString());
+        assertTrue(put.getValue().key().startsWith("audio/.preflight/"));
+
+        // And it must clean up after itself.
+        verify(s3Client).deleteObject(any(software.amazon.awssdk.services.s3.model.DeleteObjectRequest.class));
+    }
+
+    @Test
+    void aReadOnlyKeyIsNotWritableEvenThoughTheClientExists() {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenThrow(software.amazon.awssdk.services.s3.model.S3Exception.builder()
+                        .message("AccessDenied").build());
+
+        // This is the case the null check missed: listing works, writing does not, and
+        // a bulk run would generate and bill the whole corpus before finding out.
+        assertFalse(service.isSpacesWritable());
+    }
+
+    @Test
+    void spacesIsNotWritableWithoutAClient() {
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
         ReflectionTestUtils.setField(service, "s3Client", null);
-        // callTts would still spend; uploadToSpaces would then NPE. A bulk run must
-        // be able to see this coming rather than discover it 31k clips in.
-        assertFalse(service.isSpacesReady());
+        assertFalse(service.isSpacesWritable());
     }
 }
