@@ -3438,3 +3438,101 @@ body.note-dock-resizing {
         box-shadow: none;
     }
 }
+
+/* ── Reading voice picker ────────────────────────────────────────────────────
+   A popover on the footer audio controls. Only rendered when more than one
+   voice is available, so it costs nothing until a second corpus exists. */
+.audio-voice-badge {
+    background: none;
+    border: 1px solid var(--border-color, #d8d2c4);
+    border-radius: 3px;
+    color: inherit;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    opacity: 0.75;
+}
+
+.audio-voice-badge:hover {
+    opacity: 1;
+}
+
+.voice-picker {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 260;
+    min-width: 190px;
+    padding: 8px;
+    background: var(--bg-color, #fdfcf8);
+    border: 1px solid var(--border-color, #d8d2c4);
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* [hidden] loses to any display rule — see the chapter-notes gotcha. */
+.voice-picker[hidden],
+.audio-voice-badge[hidden] {
+    display: none !important;
+}
+
+.voice-picker-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+    margin-bottom: 6px;
+}
+
+.voice-option {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.voice-option.selected .voice-name {
+    font-weight: 600;
+}
+
+.voice-choose {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: inherit;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+    padding: 4px 6px;
+    text-align: left;
+}
+
+.voice-choose:hover,
+.voice-preview:hover {
+    background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+}
+
+.voice-gender {
+    font-size: 0.7rem;
+    opacity: 0.55;
+}
+
+.voice-preview {
+    background: none;
+    border: none;
+    border-radius: 3px;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+    opacity: 0.6;
+    padding: 4px 6px;
+}
+
+.audio-controls {
+    position: relative;
+}

@@ -82,6 +82,12 @@
                 <span class="audio-icon">&#128266;</span>
             </button>
             <button class="audio-speed-badge" id="audio-speed-badge" title="Change speed (s)">1x</button>
+            <button class="audio-voice-badge" id="audio-voice-badge" title="Change reading voice"
+                    aria-haspopup="true" aria-expanded="false" hidden></button>
+            <div class="voice-picker" id="voice-picker" role="dialog" aria-label="Reading voice" hidden>
+                <div class="voice-picker-title">Reading voice</div>
+                <div class="voice-picker-list" id="voice-picker-list"></div>
+            </div>
         </div>
         <div class="font-controls">
             <button id="font-decrease" aria-label="Decrease font size" title="Decrease font size">A−</button>
@@ -542,6 +548,7 @@
     <audio id="tts-audio" preload="none"></audio>
     <!-- TTS pre-buffer: silently pre-downloads the next verse so playback is gapless -->
     <audio id="tts-audio-buffer" preload="auto"></audio>
+    <audio id="voice-sample" preload="none"></audio>
 
     <script src="/date-utils.js"></script>
     <script src="/view-prefs.js"></script>

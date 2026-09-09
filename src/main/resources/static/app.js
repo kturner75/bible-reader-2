@@ -71,6 +71,9 @@
         audioSpeed: 1.0,           // 1, 1.25, 1.5, 1.75, 2
         audioAnnouncing: false,    // an announcement is playing, not a verse
         audioAnnounceEpoch: 0,     // bumps when an announcement is skipped/stopped; invalidates in-flight play
+        audioVoice: null,          // chosen voice id; null = server default
+        audioVoices: [],           // [{id, name, gender, isDefault}] the server will serve
+        audioSampleVerseId: 1,     // verse used to audition a voice
         audioQueuedAnnouncements: [], // [{ type: 'book'|'chapter', book, chapter }] still to speak
         audioWasPlayingBeforeModal: false,  // Track if audio was playing when modal opened
         mobileMenuOpen: false,             // Mobile quick-actions sheet
@@ -207,6 +210,10 @@
         audioSpeedBadge: document.getElementById('audio-speed-badge'),
         ttsAudio: document.getElementById('tts-audio'),
         ttsAudioBuffer: document.getElementById('tts-audio-buffer'),
+        voiceSample: document.getElementById('voice-sample'),
+        audioVoiceBadge: document.getElementById('audio-voice-badge'),
+        voicePicker: document.getElementById('voice-picker'),
+        voicePickerList: document.getElementById('voice-picker-list'),
         // Mobile navigation buttons
         mobilePrev: document.getElementById('mobile-prev'),
         mobileNext: document.getElementById('mobile-next'),
@@ -296,6 +303,7 @@
         SAVED_VERSES: 'kjv_saved_verses',
         TAGS: 'kjv_tags',
         AUDIO_SPEED: 'kjv_audio_speed',
+        AUDIO_VOICE: 'kjv_audio_voice',
         // How the Library is arranged, not what it contains — see view-prefs.js
         // for which side of that line a value belongs on.
         LIBRARY_VIEW: 'kjv_library_view',
@@ -6510,10 +6518,11 @@
      * cached value immediately without a network round-trip.
      */
     async function getAudioUrl(verseId) {
-        const key = `verse:${verseId}`;
+        const key = `verse:${audioVoiceKey()}:${verseId}`;
         if (audioUrlCache.has(key)) return audioUrlCache.get(key);
         // credentials: cache-miss generation requires a signed-in session (H2)
-        const response = await fetch(`/api/audio/${verseId}`, { credentials: 'include' });
+        const response = await fetch(`/api/audio/${verseId}${audioVoiceQuery()}`,
+            { credentials: 'include' });
         if (response.status === 401) {
             throw new Error('AUTH_REQUIRED');
         }
@@ -6523,15 +6532,153 @@
         return data.url;
     }
 
+    // ── Voice selection ──────────────────────────────────────────────────────
+
+    /**
+     * Cache-key component for the current voice. `audioUrlCache` is keyed by it
+     * because the same verse id maps to a different CDN object per voice — without
+     * this, switching voice mid-session replays the previous one from the Map.
+     */
+    function audioVoiceKey() {
+        return state.audioVoice || 'default';
+    }
+
+    function audioVoiceQuery() {
+        return state.audioVoice ? `?voice=${encodeURIComponent(state.audioVoice)}` : '';
+    }
+
+    /**
+     * Load the roster and the reader's choice. A stored voice the server no longer
+     * offers is dropped rather than honoured — a half-generated or retired voice
+     * would 404 every clip.
+     */
+    async function loadAudioVoices() {
+        if (!state.audioEnabled) return;
+        try {
+            const response = await fetch('/api/audio/voices', { credentials: 'include' });
+            if (!response.ok) return;
+            const data = await response.json();
+            state.audioVoices = Array.isArray(data.voices) ? data.voices : [];
+            state.audioSampleVerseId = data.sampleVerseId || 1;
+            const stored = window.KjvViewPrefs
+                ? window.KjvViewPrefs.get(STORAGE_KEYS.AUDIO_VOICE, null)
+                : null;
+            state.audioVoice = state.audioVoices.some(v => v.id === stored) ? stored : null;
+            renderVoicePicker();
+        } catch (e) {
+            // Non-critical — playback falls back to the server default voice.
+        }
+    }
+
+    /**
+     * Switching voice invalidates every cached URL and the pre-buffered clip, both
+     * of which hold the previous voice's audio. Playback restarts from the current
+     * verse so the reader hears the change immediately rather than at the next one.
+     */
+    function setAudioVoice(voiceId) {
+        const next = voiceId && state.audioVoices.some(v => v.id === voiceId) ? voiceId : null;
+        if (next === state.audioVoice) return;
+        state.audioVoice = next;
+        if (window.KjvViewPrefs) {
+            window.KjvViewPrefs.set(STORAGE_KEYS.AUDIO_VOICE, next);
+        }
+        audioUrlCache.clear();
+        if (elements.ttsAudioBuffer) {
+            elements.ttsAudioBuffer.pause();
+            elements.ttsAudioBuffer.src = '';
+        }
+        const wasPlaying = state.audioPlaying;
+        if (wasPlaying) {
+            stopAudio();
+            startAudio();
+        }
+        renderVoicePicker();
+    }
+
+    /**
+     * The picker only earns its place once there is a choice to make, so a single
+     * available voice hides the control entirely — generating a second voice is
+     * what makes it appear, with no further code.
+     */
+    function renderVoicePicker() {
+        if (!elements.audioVoiceBadge || !elements.voicePickerList) return;
+        const voices = state.audioVoices;
+        if (voices.length < 2) {
+            elements.audioVoiceBadge.hidden = true;
+            closeVoicePicker();
+            return;
+        }
+        const activeId = state.audioVoice || (voices.find(v => v.isDefault) || voices[0]).id;
+        const active = voices.find(v => v.id === activeId) || voices[0];
+        elements.audioVoiceBadge.hidden = false;
+        elements.audioVoiceBadge.textContent = active.name;
+
+        elements.voicePickerList.innerHTML = voices.map(v => {
+            const selected = v.id === activeId;
+            const gender = v.gender ? `<span class="voice-gender">${escapeHtml(v.gender)}</span>` : '';
+            return `<div class="voice-option${selected ? ' selected' : ''}">
+                <button class="voice-choose" data-voice-id="${escapeAttr(v.id)}"
+                        aria-pressed="${selected}">
+                    <span class="voice-name">${escapeHtml(v.name)}</span>${gender}
+                </button>
+                <button class="voice-preview" data-voice-sample="${escapeAttr(v.id)}"
+                        title="Hear ${escapeAttr(v.name)}" aria-label="Hear ${escapeAttr(v.name)}">&#9654;</button>
+            </div>`;
+        }).join('');
+    }
+
+    function openVoicePicker() {
+        if (!elements.voicePicker || elements.audioVoiceBadge.hidden) return;
+        elements.voicePicker.hidden = false;
+        elements.audioVoiceBadge.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeVoicePicker() {
+        if (!elements.voicePicker) return;
+        elements.voicePicker.hidden = true;
+        if (elements.audioVoiceBadge) {
+            elements.audioVoiceBadge.setAttribute('aria-expanded', 'false');
+        }
+        if (elements.voiceSample) {
+            elements.voiceSample.pause();
+        }
+    }
+
+    function toggleVoicePicker() {
+        if (elements.voicePicker && elements.voicePicker.hidden) openVoicePicker();
+        else closeVoicePicker();
+    }
+
+    /** Audition a voice without disturbing the reading. */
+    async function playVoiceSample(voiceId) {
+        if (!elements.voiceSample) return;
+        stopAudioOnUIEvent();
+        try {
+            const query = voiceId ? `?voice=${encodeURIComponent(voiceId)}` : '';
+            const response = await fetch(
+                `/api/audio/${state.audioSampleVerseId}${query}`, { credentials: 'include' });
+            if (!response.ok) {
+                showToast('Sample unavailable');
+                return;
+            }
+            const data = await response.json();
+            elements.voiceSample.src = data.url;
+            elements.voiceSample.playbackRate = 1;
+            await elements.voiceSample.play();
+        } catch (e) {
+            showToast('Sample unavailable');
+        }
+    }
+
     /**
      * Fetch and cache the CDN URL for a book announcement.
      */
     async function getBookAudioUrl(book) {
-        const key = `book:${book}`;
+        const key = `book:${audioVoiceKey()}:${book}`;
         if (audioUrlCache.has(key)) return audioUrlCache.get(key);
-        const response = await fetch(`/api/audio/book/${encodeURIComponent(book)}`, {
-            credentials: 'include'
-        });
+        const response = await fetch(
+            `/api/audio/book/${encodeURIComponent(book)}${audioVoiceQuery()}`,
+            { credentials: 'include' });
         if (response.status === 401) {
             throw new Error('AUTH_REQUIRED');
         }
@@ -6545,12 +6692,12 @@
      * Fetch and cache the CDN URL for a chapter announcement.
      */
     async function getChapterAudioUrl(book, chapter) {
-        const key = `chapter:${book}:${chapter}`;
+        const key = `chapter:${audioVoiceKey()}:${book}:${chapter}`;
         if (audioUrlCache.has(key)) return audioUrlCache.get(key);
         const encodedBook = encodeURIComponent(book);
-        const response = await fetch(`/api/audio/chapter/${encodedBook}/${chapter}`, {
-            credentials: 'include'
-        });
+        const response = await fetch(
+            `/api/audio/chapter/${encodedBook}/${chapter}${audioVoiceQuery()}`,
+            { credentials: 'include' });
         if (response.status === 401) {
             throw new Error('AUTH_REQUIRED');
         }
@@ -6658,6 +6805,12 @@
         // Close overlays with Escape (highest z-index first). Notes dock sits
         // below search/library/help, so those must close before the dock.
         if (e.key === 'Escape') {
+            // The voice picker is a popover on the footer controls, above everything
+            // else it could be confused with, so it dismisses first.
+            if (elements.voicePicker && !elements.voicePicker.hidden) {
+                closeVoicePicker();
+                return;
+            }
             if (state.passageInsertOpen) {
                 if (state.passageInsertMode === 'expand') {
                     showPassageInsertBrowse();
@@ -7290,6 +7443,31 @@
         elements.ttsAudio.addEventListener('ended', handleAudioEnded);
         elements.ttsAudio.addEventListener('error', handleAudioError);
 
+        if (elements.audioVoiceBadge) {
+            elements.audioVoiceBadge.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleVoicePicker();
+            });
+        }
+        if (elements.voicePicker) {
+            // Delegated: the list is re-rendered whenever the roster or choice changes.
+            elements.voicePicker.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sample = e.target.closest('[data-voice-sample]');
+                if (sample) {
+                    playVoiceSample(sample.dataset.voiceSample);
+                    return;
+                }
+                const choose = e.target.closest('[data-voice-id]');
+                if (choose) {
+                    setAudioVoice(choose.dataset.voiceId);
+                    closeVoicePicker();
+                }
+            });
+        }
+        // A click anywhere else, or Escape, dismisses the picker.
+        document.addEventListener('click', () => closeVoicePicker());
+
         // Click on verse to select it
         elements.readingArea.addEventListener('click', (e) => {
             const noteBtn = e.target.closest('.chapter-note-btn');
@@ -7576,6 +7754,9 @@
 
             // Check TTS status
             await checkTtsStatus();
+
+            // Voice roster (fire-and-forget — playback works on the default meanwhile)
+            loadAudioVoices();
 
             // Initialize dropdowns
             await initDropdowns();

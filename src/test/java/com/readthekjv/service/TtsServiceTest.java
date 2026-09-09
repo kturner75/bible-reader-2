@@ -232,17 +232,14 @@ class TtsServiceTest {
     // ── Cache-key namespacing ─────────────────────────────────────────────────
 
     @Test
-    void openaiOnyxVerseKeyIsNamespacedAndFallsBackToLegacy() {
+    void verseKeyIsNamespacedWithNoLegacyFallback() {
         configure("openai", "sk-openai", "xai-key", "", "tts-1-hd");
 
+        // The unversioned audio/verses/… objects were deleted once xai/helios was
+        // complete, so no key family falls back any more.
         assertEquals("audio/openai/onyx/verses/0/1.mp3", service.getVerseKey(1));
-        assertEquals("audio/verses/0/1.mp3", service.getLegacyVerseKey(1));
         assertEquals("audio/openai/onyx/verses/26/26137.mp3", service.getVerseKey(26137));
-        assertEquals("audio/verses/26/26137.mp3", service.getLegacyVerseKey(26137));
-        assertTrue(service.usesLegacyCache());
-        assertEquals(
-                List.of("audio/openai/onyx/verses/0/1.mp3", "audio/verses/0/1.mp3"),
-                service.verseCacheKeys(1));
+        assertEquals(List.of("audio/openai/onyx/verses/0/1.mp3"), service.verseCacheKeys(1));
     }
 
     @Test
@@ -271,7 +268,6 @@ class TtsServiceTest {
 
         // usesLegacyCache still governs verses; chapters opted out when the
         // per-book duplicates were collapsed.
-        assertTrue(service.usesLegacyCache());
         assertEquals(1, service.chapterCacheKeys("Genesis", 1).size());
         assertFalse(service.chapterCacheKeys("Genesis", 1).contains("audio/chapters/Genesis_1.mp3"));
     }
@@ -315,7 +311,6 @@ class TtsServiceTest {
         assertEquals("audio/xai/eve/verses/0/1.mp3", service.getVerseKey(1));
         assertEquals("audio/xai/eve/chapters/1.mp3", service.getChapterKey("Genesis", 1));
         assertEquals("audio/xai/eve/books/Genesis.mp3", service.getBookKey("Genesis"));
-        assertFalse(service.usesLegacyCache());
         assertEquals(List.of("audio/xai/eve/verses/0/1.mp3"), service.verseCacheKeys(1));
         assertEquals(List.of("audio/xai/eve/chapters/1.mp3"), service.chapterCacheKeys("Genesis", 1));
     }
@@ -325,7 +320,6 @@ class TtsServiceTest {
         configure("openai", "sk-openai", "xai-key", "alloy", "tts-1-hd");
 
         assertEquals("audio/openai/alloy/verses/0/1.mp3", service.getVerseKey(1));
-        assertFalse(service.usesLegacyCache());
         assertEquals(List.of("audio/openai/alloy/verses/0/1.mp3"), service.verseCacheKeys(1));
     }
 
@@ -402,7 +396,7 @@ class TtsServiceTest {
     }
 
     @Test
-    void findCachedAudioUrlForVerseHitsLegacyOpenAiOnyxKey() {
+    void findCachedAudioUrlForVerseNoLongerConsultsTheLegacyKey() {
         configure("openai", "sk-openai", "xai-key", "", "tts-1-hd");
         when(s3Client.headObject(any(HeadObjectRequest.class))).thenAnswer(inv -> {
             HeadObjectRequest req = inv.getArgument(0);
@@ -412,9 +406,10 @@ class TtsServiceTest {
             throw NoSuchKeyException.builder().message("missing").build();
         });
 
-        Optional<String> url = service.findCachedAudioUrlForVerse(1);
-
-        assertEquals(Optional.of("https://cdn.example/audio/verses/0/1.mp3"), url);
+        // The unversioned object exists, and is deliberately ignored: those 3,329
+        // openai/onyx files were deleted once xai/helios was complete, so reading
+        // them would only resurrect a layout that no longer exists.
+        assertEquals(Optional.empty(), service.findCachedAudioUrlForVerse(1));
     }
 
     @Test
@@ -617,5 +612,31 @@ class TtsServiceTest {
         verify(httpClient, times(2)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
         assertEquals("Bearer xai-key",
                 requests.getAllValues().get(1).headers().firstValue("Authorization").orElseThrow());
+    }
+
+    // ── Voice as a parameter, not just server config ──────────────────────────
+
+    @Test
+    void keysCanBeBuiltForAVoiceOtherThanTheConfiguredOne() {
+        configure("xai", "sk-openai", "xai-key", "helios", "tts-1-hd");
+
+        // Same server, same request, different corpus — this is what makes a
+        // per-reader voice choice possible at all.
+        assertEquals("audio/xai/helios/verses/0/1.mp3", service.getVerseKey(1));
+        assertEquals("audio/xai/ara/verses/0/1.mp3", service.getVerseKey(1, "ara"));
+        assertEquals("audio/xai/ara/books/1_John.mp3", service.getBookKey("1 John", "ara"));
+        assertEquals("audio/xai/ara/chapters/3.mp3", service.getChapterKey("Genesis", 3, "ara"));
+        assertEquals("audio/xai/ara/chapters/psalm_23.mp3", service.getChapterKey("Psalm", 23, "ara"));
+    }
+
+    @Test
+    void anExplicitVoiceIsStillSanitizedIntoOnePathSegment() {
+        configure("xai", "sk-openai", "xai-key", "helios", "tts-1-hd");
+
+        // A voice reaching the key builder from a request must not escape the prefix.
+        // Dots are not in the allowed set either, so traversal collapses to underscores.
+        assertEquals("audio/xai/______etc/verses/0/1.mp3", service.getVerseKey(1, "../../etc"));
+        assertEquals("audio/xai/_/verses/0/1.mp3", service.getVerseKey(1, ""));
+        assertEquals("audio/xai/_/verses/0/1.mp3", service.getVerseKey(1, null));
     }
 }
