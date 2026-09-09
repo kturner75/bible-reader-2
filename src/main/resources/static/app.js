@@ -6652,7 +6652,7 @@
     /** Audition a voice without disturbing the reading. */
     async function playVoiceSample(voiceId) {
         if (!elements.voiceSample) return;
-        stopAudioOnUIEvent();
+        // Play only on #voice-sample — never stopAudioOnUIEvent / stop chapter read-aloud.
         try {
             const query = voiceId ? `?voice=${encodeURIComponent(voiceId)}` : '';
             const response = await fetch(

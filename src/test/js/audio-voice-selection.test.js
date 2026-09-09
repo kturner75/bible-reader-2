@@ -117,3 +117,12 @@ test('setAudioVoice clears the URL cache and the pre-buffer', () => {
     assert.match(body, /ttsAudioBuffer/);
     assert.match(body, /KjvViewPrefs/, 'the choice persists as view state');
 });
+
+test('playVoiceSample leaves chapter audio alone', () => {
+    // Audition must play on #voice-sample only. Calling stopAudioOnUIEvent here
+    // kills mid-chapter read-aloud despite the "without disturbing" contract.
+    const body = extractFunction('playVoiceSample');
+    assert.match(body, /elements\.voiceSample/);
+    assert.doesNotMatch(body, /stopAudioOnUIEvent\s*\(/);
+    assert.doesNotMatch(body, /\bstopAudio\s*\(/);
+});
