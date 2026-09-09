@@ -139,4 +139,39 @@ class VoiceCatalogServiceTest {
         bucketKeys = keys;
         catalog.invalidate();
     }
+
+    @Test
+    void staleKeysCannotPadAVoiceIntoLookingComplete() {
+        Set<String> corpus = fullCorpus("ara");
+        corpus.remove(tts.getVerseKey(17000, "ara"));
+        // A leftover from an older layout — this bucket carried exactly this kind of
+        // orphan (per-book chapter objects) until they were deleted. Counting objects
+        // per family would let it stand in for the verse that is actually missing.
+        corpus.add("audio/xai/ara/verses/17/obsolete.mp3");
+        stubKeys(corpus);
+
+        assertFalse(catalog.completeVoices().contains("ara"));
+        assertFalse(catalog.isSelectable("ara"));
+    }
+
+    @Test
+    void aStaleChapterObjectCannotSubstituteForAMissingOne() {
+        Set<String> corpus = fullCorpus("ara");
+        corpus.remove(tts.getChapterKey("Genesis", 40, "ara"));
+        corpus.add("audio/xai/ara/chapters/Genesis_40.mp3");   // the pre-collapse key
+        stubKeys(corpus);
+
+        assertFalse(catalog.completeVoices().contains("ara"));
+    }
+
+    @Test
+    void extraObjectsAreHarmlessWhenNothingIsMissing() {
+        Set<String> corpus = fullCorpus("ara");
+        corpus.add("audio/xai/ara/chapters/Genesis_40.mp3");
+        corpus.add("audio/xai/ara/verses/17/obsolete.mp3");
+        stubKeys(corpus);
+
+        // Completeness asks "is everything required present", not "is nothing else".
+        assertTrue(catalog.completeVoices().contains("ara"));
+    }
 }

@@ -639,4 +639,18 @@ class TtsServiceTest {
         assertEquals("audio/xai/_/verses/0/1.mp3", service.getVerseKey(1, ""));
         assertEquals("audio/xai/_/verses/0/1.mp3", service.getVerseKey(1, null));
     }
+
+    @Test
+    void theXaiRosterBearerIsNeverAnOpenAiKey() {
+        configure("openai", "sk-openai", "xai-key", "", "tts-1-hd");
+
+        // This bearer is sent to api.x.ai. Under the openai provider resolvedBearer()
+        // is OPENAI_API_KEY, so returning it would disclose one provider's credential
+        // to another.
+        assertNull(service.metadataBearer());
+
+        configure("xai", "sk-openai", "xai-key", "", "tts-1-hd");
+        when(oauth.getAccessToken()).thenReturn(Optional.empty());
+        assertEquals("xai-key", service.metadataBearer());
+    }
 }

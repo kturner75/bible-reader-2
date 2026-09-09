@@ -255,7 +255,10 @@ public class TtsService {
 
     /** The bearer a metadata call (the xAI voice roster) should use. */
     String metadataBearer() {
-        return resolvedBearer();
+        // xAI-only by construction. resolvedBearer() hands back OPENAI_API_KEY under
+        // the openai provider, and this bearer is sent to api.x.ai — disclosing one
+        // provider's credential to another. No provider match, no bearer.
+        return isXai() ? resolvedBearer() : null;
     }
 
     String providerSegment() {

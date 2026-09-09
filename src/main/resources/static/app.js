@@ -74,6 +74,7 @@
         audioVoice: null,          // chosen voice id; null = server default
         audioVoices: [],           // [{id, name, gender, isDefault}] the server will serve
         audioSampleVerseId: 1,     // verse used to audition a voice
+        audioDuckedForSample: false, // reading paused while a sample plays
         audioQueuedAnnouncements: [], // [{ type: 'book'|'chapter', book, chapter }] still to speak
         audioWasPlayingBeforeModal: false,  // Track if audio was playing when modal opened
         mobileMenuOpen: false,             // Mobile quick-actions sheet
@@ -6324,11 +6325,17 @@
         }
     }
 
-    async function playVerseAudio(verseId, retryCount = 0) {
+    async function playVerseAudio(verseId, retryCount = 0, epoch = state.audioAnnounceEpoch) {
         if (!state.audioPlaying || !elements.ttsAudio) return;
+        if (epoch !== state.audioAnnounceEpoch) return;
 
         try {
             const url = await getAudioUrl(verseId);
+            // A voice switch stops and restarts playback, so audioPlaying is true
+            // again by the time this resolves. Only the epoch distinguishes this
+            // continuation from the one the reader is actually waiting on — without
+            // it, a URL fetched for the previous voice lands on the shared element.
+            if (epoch !== state.audioAnnounceEpoch) return;
             elements.ttsAudio.src = url;
             elements.ttsAudio.playbackRate = state.audioSpeed;
             await elements.ttsAudio.play();
@@ -6336,8 +6343,9 @@
             // While this verse plays, warm caches for upcoming verses and
             // pre-buffer the immediate next verse into the browser's media cache.
             warmUrlCache(verseId);
-            preBufferNextVerse(verseId);
+            preBufferNextVerse(verseId, epoch);
         } catch (e) {
+            if (epoch !== state.audioAnnounceEpoch) return;
             if (e && e.message === 'AUTH_REQUIRED') {
                 stopAudio();
                 showToast('Sign in to use read-aloud');
@@ -6346,7 +6354,7 @@
             console.error('Failed to play audio', e);
             if (retryCount < 1) {
                 console.log('Retrying audio playback...');
-                setTimeout(() => playVerseAudio(verseId, retryCount + 1), 500);
+                setTimeout(() => playVerseAudio(verseId, retryCount + 1, epoch), 500);
             } else {
                 stopAudio();
             }
@@ -6642,6 +6650,7 @@
         if (elements.voiceSample) {
             elements.voiceSample.pause();
         }
+        unduckReadingAfterSample();
     }
 
     function toggleVoicePicker() {
@@ -6649,15 +6658,24 @@
         else closeVoicePicker();
     }
 
-    /** Audition a voice without disturbing the reading. */
+    /**
+     * Audition a voice without disturbing the reading.
+     *
+     * <p>"Without disturbing" means the reading is *ducked*, not stopped. The sample
+     * lives on its own element, so playing it while read-aloud runs would put two
+     * voices on top of each other; stopping instead would discard the announcement
+     * queue and the position. Pausing does neither — the reading resumes exactly
+     * where it was as soon as the sample finishes.
+     */
     async function playVoiceSample(voiceId) {
         if (!elements.voiceSample) return;
-        // Play only on #voice-sample — never stopAudioOnUIEvent / stop chapter read-aloud.
+        duckReadingForSample();
         try {
             const query = voiceId ? `?voice=${encodeURIComponent(voiceId)}` : '';
             const response = await fetch(
                 `/api/audio/${state.audioSampleVerseId}${query}`, { credentials: 'include' });
             if (!response.ok) {
+                unduckReadingAfterSample();
                 showToast('Sample unavailable');
                 return;
             }
@@ -6666,7 +6684,26 @@
             elements.voiceSample.playbackRate = 1;
             await elements.voiceSample.play();
         } catch (e) {
+            unduckReadingAfterSample();
             showToast('Sample unavailable');
+        }
+    }
+
+    /** Pause read-aloud for the duration of a sample, remembering that we did. */
+    function duckReadingForSample() {
+        if (state.audioDuckedForSample) return;
+        if (state.audioPlaying && elements.ttsAudio && !elements.ttsAudio.paused) {
+            elements.ttsAudio.pause();
+            state.audioDuckedForSample = true;
+        }
+    }
+
+    /** Resume read-aloud after a sample ends, is dismissed, or fails to load. */
+    function unduckReadingAfterSample() {
+        if (!state.audioDuckedForSample) return;
+        state.audioDuckedForSample = false;
+        if (state.audioPlaying && elements.ttsAudio) {
+            elements.ttsAudio.play().catch(() => {});
         }
     }
 
@@ -6725,12 +6762,15 @@
      * Once the browser has downloaded it, playing the same URL on the main
      * element will be served from the browser's media cache with no network wait.
      */
-    async function preBufferNextVerse(verseId) {
+    async function preBufferNextVerse(verseId, epoch = state.audioAnnounceEpoch) {
         if (!state.audioEnabled || !elements.ttsAudioBuffer) return;
         const nextId = verseId + 1;
         if (nextId > state.totalVerses) return;
         try {
             const url = await getAudioUrl(nextId);
+            // Same staleness risk, cheaper symptom: refilling the buffer the voice
+            // switch just cleared would warm the wrong voice.
+            if (epoch !== state.audioAnnounceEpoch) return;
             if (elements.ttsAudioBuffer.src !== url) {
                 elements.ttsAudioBuffer.src = url;
                 elements.ttsAudioBuffer.load();
@@ -7442,6 +7482,10 @@
         elements.audioSpeedBadge.addEventListener('click', cycleAudioSpeed);
         elements.ttsAudio.addEventListener('ended', handleAudioEnded);
         elements.ttsAudio.addEventListener('error', handleAudioError);
+        if (elements.voiceSample) {
+            elements.voiceSample.addEventListener('ended', unduckReadingAfterSample);
+            elements.voiceSample.addEventListener('error', unduckReadingAfterSample);
+        }
 
         if (elements.audioVoiceBadge) {
             elements.audioVoiceBadge.addEventListener('click', (e) => {

@@ -73,6 +73,7 @@ public class VoiceCatalogService {
 
     private final AtomicReference<Cached> cache = new AtomicReference<>();
     private final AtomicReference<Map<String, Roster>> roster = new AtomicReference<>();
+    private final AtomicReference<Set<String>> expectedSuffixes = new AtomicReference<>();
 
     public VoiceCatalogService(TtsService ttsService, BibleService bibleService) {
         this.ttsService = ttsService;
@@ -80,18 +81,38 @@ public class VoiceCatalogService {
     }
 
     /**
-     * What "complete" means, derived from the Bible itself rather than written down.
-     * Hardcoding 31,102 / 66 / 216 would be three constants free to drift from the
-     * corpus they describe — and the chapter figure is not even obvious, since
-     * chapter clips collapse across books and the Psalms split off.
+     * Every key a complete corpus contains, relative to its voice prefix.
+     *
+     * <p>Counting objects per family is not good enough: a namespace carrying stale
+     * keys — the per-book chapter objects this bucket held until they were deleted,
+     * say — can hit the count while a required clip is missing, and the voice would
+     * be offered with a hole in it. Membership of the exact expected set cannot be
+     * fooled that way. Voice-independent, so it is built once and reused.
      */
-    private int[] expectedCounts() {
-        int chapters = (int) bibleService.getBooks().stream()
-                .flatMap(b -> bibleService.getChapters(b.id()).stream()
-                        .map(c -> ttsService.getChapterKey(b.name(), c.chapter())))
-                .distinct()
-                .count();
-        return new int[] { bibleService.getTotalVerses(), bibleService.getBooks().size(), chapters };
+    private Set<String> expectedSuffixes() {
+        Set<String> cached = expectedSuffixes.get();
+        if (cached != null) {
+            return cached;
+        }
+        String placeholder = "__voice__";
+        String prefix = ttsService.audioPrefixValue() + "/" + ttsService.providerSegment()
+                + "/" + placeholder + "/";
+        Set<String> out = new java.util.HashSet<>();
+        for (int id = 1; id <= bibleService.getTotalVerses(); id++) {
+            out.add(strip(ttsService.getVerseKey(id, placeholder), prefix));
+        }
+        bibleService.getBooks().forEach(b -> {
+            out.add(strip(ttsService.getBookKey(b.name(), placeholder), prefix));
+            bibleService.getChapters(b.id()).forEach(c ->
+                    out.add(strip(ttsService.getChapterKey(b.name(), c.chapter(), placeholder), prefix)));
+        });
+        Set<String> frozen = Set.copyOf(out);
+        expectedSuffixes.set(frozen);
+        return frozen;
+    }
+
+    private static String strip(String key, String prefix) {
+        return key.startsWith(prefix) ? key.substring(prefix.length()) : key;
     }
 
     /** One selectable voice. */
@@ -144,27 +165,23 @@ public class VoiceCatalogService {
      */
     Set<String> completeVoices() {
         String prefix = ttsService.audioPrefixValue() + "/" + ttsService.providerSegment() + "/";
-        Pattern key = Pattern.compile(
-                Pattern.quote(prefix) + "([^/]+)/(verses|books|chapters)/");
-        Map<String, int[]> counts = new HashMap<>();
+        Map<String, Set<String>> byVoice = new HashMap<>();
         for (String k : ttsService.allAudioKeys()) {
-            Matcher m = key.matcher(k);
-            if (!m.lookingAt()) continue;
-            int[] c = counts.computeIfAbsent(m.group(1), v -> new int[3]);
-            switch (m.group(2)) {
-                case "verses" -> c[0]++;
-                case "books" -> c[1]++;
-                default -> c[2]++;
-            }
+            if (!k.startsWith(prefix)) continue;
+            int slash = k.indexOf('/', prefix.length());
+            if (slash < 0) continue;
+            String voice = k.substring(prefix.length(), slash);
+            byVoice.computeIfAbsent(voice, v -> new java.util.HashSet<>())
+                    .add(k.substring(slash + 1));
         }
-        int[] expected = expectedCounts();
+        Set<String> expected = expectedSuffixes();
         Set<String> complete = new java.util.LinkedHashSet<>();
-        counts.forEach((v, c) -> {
-            if (c[0] >= expected[0] && c[1] >= expected[1] && c[2] >= expected[2]) {
-                complete.add(v);
+        byVoice.forEach((voice, present) -> {
+            if (present.containsAll(expected)) {
+                complete.add(voice);
             } else {
-                log.debug("Voice {} incomplete: {}/{} verses, {}/{} books, {}/{} chapters",
-                        v, c[0], expected[0], c[1], expected[1], c[2], expected[2]);
+                log.debug("Voice {} incomplete: {} of {} required clips present",
+                        voice, present.size(), expected.size());
             }
         });
         return complete;

@@ -39,6 +39,9 @@ function load(state) {
         voicePicker: fakeEl(),
         voicePickerList: fakeEl(),
         voiceSample: { paused: false, pause() { this.paused = true; } },
+        ttsAudio: { paused: false,
+                    pause() { this.paused = true; },
+                    play() { this.paused = false; return Promise.resolve(); } },
     };
     const ctx = {
         state,
@@ -47,7 +50,8 @@ function load(state) {
         escapeAttr: (t) => String(t),
     };
     vm.createContext(ctx);
-    for (const fn of ['audioVoiceKey', 'audioVoiceQuery', 'closeVoicePicker', 'renderVoicePicker']) {
+    for (const fn of ['audioVoiceKey', 'audioVoiceQuery', 'duckReadingForSample',
+                      'unduckReadingAfterSample', 'closeVoicePicker', 'renderVoicePicker']) {
         vm.runInContext(extractFunction(fn), ctx);
     }
     return ctx;
@@ -125,4 +129,43 @@ test('playVoiceSample leaves chapter audio alone', () => {
     assert.match(body, /elements\.voiceSample/);
     assert.doesNotMatch(body, /stopAudioOnUIEvent\s*\(/);
     assert.doesNotMatch(body, /\bstopAudio\s*\(/);
+});
+
+test('auditioning ducks the reading rather than stopping or talking over it', () => {
+    // Two <audio> elements will both play; stopping instead would discard the
+    // announcement queue and the position. Pausing does neither.
+    const ctx = load({ audioVoice: null, audioVoices: VOICES,
+                       audioPlaying: true, audioDuckedForSample: false });
+
+    ctx.duckReadingForSample();
+    assert.equal(ctx.elements.ttsAudio.paused, true, 'reading paused for the sample');
+    assert.equal(ctx.state.audioDuckedForSample, true);
+
+    ctx.unduckReadingAfterSample();
+    assert.equal(ctx.elements.ttsAudio.paused, false, 'reading resumes after the sample');
+    assert.equal(ctx.state.audioDuckedForSample, false);
+});
+
+test('a sample auditioned while nothing is playing leaves playback stopped', () => {
+    const ctx = load({ audioVoice: null, audioVoices: VOICES,
+                       audioPlaying: false, audioDuckedForSample: false });
+
+    ctx.elements.ttsAudio.paused = true;
+
+    ctx.duckReadingForSample();
+    assert.equal(ctx.state.audioDuckedForSample, false, 'nothing to duck');
+
+    // Must not start read-aloud the reader never asked for.
+    ctx.unduckReadingAfterSample();
+    assert.equal(ctx.elements.ttsAudio.paused, true, 'still stopped');
+});
+
+test('dismissing the picker mid-sample resumes the reading', () => {
+    const ctx = load({ audioVoice: null, audioVoices: VOICES,
+                       audioPlaying: true, audioDuckedForSample: false });
+    ctx.duckReadingForSample();
+    ctx.closeVoicePicker();
+
+    assert.equal(ctx.elements.voiceSample.paused, true, 'sample stopped');
+    assert.equal(ctx.elements.ttsAudio.paused, false, 'reading resumed');
 });
