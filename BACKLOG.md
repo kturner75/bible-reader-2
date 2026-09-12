@@ -1,5 +1,14 @@
 # KJV Bible Reader — Backlog
 
+> **Frozen — the backlog now lives in Notion.**
+>
+> Source of truth: **[read-the-kjv (RKJ)](https://app.notion.com/p/a580c7958b804d11993e5d751354e16f)**.
+> New ideas and feature design docs go there as child pages of the project.
+>
+> This file is kept as a historical record and is no longer added to. Most of what
+> follows is *done* work, and those entries are the reason it stays: they carry the
+> design rationale and PR numbers behind decisions the code alone does not explain.
+
 Feature ideas for future slices. Not prioritized — just captured for reference.
 
 ---

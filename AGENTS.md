@@ -6,6 +6,16 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 KJV Bible Reader - A distraction-free, desktop-focused Bible reading web application featuring a two-column layout inspired by physical printed Bibles. Complete rewrite of https://readthekjv.com/.
 
+## Where work is tracked
+
+**Notion is the source of truth for the backlog and feature design docs** —
+[read-the-kjv (RKJ)](https://app.notion.com/p/a580c7958b804d11993e5d751354e16f).
+New ideas and proposed designs go there as child pages of the project.
+
+`BACKLOG.md` is frozen: kept as history for the rationale and PR numbers in its
+*done* entries, never added to. `docs/architecture/*.md` is unaffected and stays in
+the repo — Notion holds what is *proposed*, `docs/architecture/` what is *built*.
+
 ## Build & Run Commands
 
 Requires a local PostgreSQL database (Flyway runs on startup; JPA `ddl-auto=validate`). Cloud Agents use `.cursor/start.sh` to provision one; locally create a DB matching `KJV_DB_*` in `application.properties` (or `./dev.sh` if present).
