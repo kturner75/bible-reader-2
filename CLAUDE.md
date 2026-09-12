@@ -10,10 +10,14 @@ KJV Bible Reader - A distraction-free, desktop-focused Bible reading web applica
 
 **Notion is the source of truth for the backlog and for feature design docs.** The
 project lives at [read-the-kjv (RKJ)](https://app.notion.com/p/a580c7958b804d11993e5d751354e16f),
-an item in the Projects database.
+an item in the Projects database, with a
+[Backlog database](https://app.notion.com/p/9349604733c94eda8cb646b967ef112f) under it
+(`Area` / `Status` / `Shipped in`).
 
-- **New feature idea, or a design worked out in conversation** → a child page under
-  the RKJ project, not a new section in `BACKLOG.md` and not a new file in `docs/`.
+- **New feature idea** → a row in the Backlog database, not a new section in
+  `BACKLOG.md`.
+- **A design worked out in conversation** → a child page under the RKJ project,
+  linked from its backlog row. Not a new file in `docs/`.
 - **`BACKLOG.md` is frozen.** It is kept as a historical record and a pointer; its
   *done* entries still carry useful rationale and PR numbers. Do not add to it.
 - **`docs/architecture/*.md` is unaffected.** Those describe systems that exist and

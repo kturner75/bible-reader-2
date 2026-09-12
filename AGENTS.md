@@ -10,7 +10,9 @@ KJV Bible Reader - A distraction-free, desktop-focused Bible reading web applica
 
 **Notion is the source of truth for the backlog and feature design docs** —
 [read-the-kjv (RKJ)](https://app.notion.com/p/a580c7958b804d11993e5d751354e16f).
-New ideas and proposed designs go there as child pages of the project.
+New ideas go in the [Backlog database](https://app.notion.com/p/9349604733c94eda8cb646b967ef112f)
+(`Area` / `Status` / `Shipped in`); worked-out designs become child pages of the
+project, linked from their backlog row.
 
 `BACKLOG.md` is frozen: kept as history for the rationale and PR numbers in its
 *done* entries, never added to. `docs/architecture/*.md` is unaffected and stays in

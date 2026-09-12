@@ -2,8 +2,10 @@
 
 > **Frozen — the backlog now lives in Notion.**
 >
-> Source of truth: **[read-the-kjv (RKJ)](https://app.notion.com/p/a580c7958b804d11993e5d751354e16f)**.
-> New ideas and feature design docs go there as child pages of the project.
+> Source of truth: the **[Backlog database](https://app.notion.com/p/9349604733c94eda8cb646b967ef112f)** in the
+> **[read-the-kjv (RKJ)](https://app.notion.com/p/a580c7958b804d11993e5d751354e16f)** Notion project. All 49 items below were
+> migrated there on 2026-09-12; worked-out designs live as child pages of the
+> project, linked from their backlog row.
 >
 > This file is kept as a historical record and is no longer added to. Most of what
 > follows is *done* work, and those entries are the reason it stays: they carry the
