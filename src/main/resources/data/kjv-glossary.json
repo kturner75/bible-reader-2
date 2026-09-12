@@ -1,0 +1,4515 @@
+{
+ "_generator": "scripts/build_glossary.py",
+ "_note": "Glosses are verbatim Webster's senses. Sense selection is derived from Webster's own scripture citations and [Obs.]/[Archaic] markers.",
+ "_source": "Webster's Unabridged Dictionary (1913). Public domain.",
+ "entries": {
+  "abhorring": {
+   "citation": "Isa. lxvi. 24.",
+   "confidence": "cited",
+   "gloss": "Object of abhorrence.",
+   "headword": "abhorring",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "abundant": {
+   "citation": "Exod. xxxiv. 6.",
+   "confidence": "cited",
+   "gloss": "Fully sufficient; plentiful; in copious supply; – followed by in, rarely by with.",
+   "headword": "abundant",
+   "occurrences": 13,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "accept": {
+   "citation": "Ps. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To receive with favor; to approve.",
+   "headword": "accept",
+   "occurrences": 25,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "accepted": {
+   "citation": "Ps. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To receive with favor; to approve.",
+   "headword": "accept",
+   "occurrences": 29,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "acceptest": {
+   "citation": "Ps. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To receive with favor; to approve.",
+   "headword": "accept",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "accepteth": {
+   "citation": "Ps. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To receive with favor; to approve.",
+   "headword": "accept",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "accepting": {
+   "citation": "Ps. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To receive with favor; to approve.",
+   "headword": "accept",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "add": {
+   "citation": "1 Kings xii. 14.",
+   "confidence": "cited",
+   "gloss": "To make an addition. To add to, to augment; to increase; as, it adds",
+   "headword": "add",
+   "occurrences": 33,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "added": {
+   "citation": "1 Kings xii. 14.",
+   "confidence": "cited",
+   "gloss": "To make an addition. To add to, to augment; to increase; as, it adds",
+   "headword": "add",
+   "occurrences": 15,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "addeth": {
+   "citation": "1 Kings xii. 14.",
+   "confidence": "cited",
+   "gloss": "To make an addition. To add to, to augment; to increase; as, it adds",
+   "headword": "add",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "admonish": {
+   "citation": "2 Thess. iii. 15.",
+   "confidence": "cited",
+   "gloss": "To warn or notify of a fault; to reprove gently or kindly, but seriously; to exhort.",
+   "headword": "admonish",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "admonished": {
+   "citation": "2 Thess. iii. 15.",
+   "confidence": "cited",
+   "gloss": "To warn or notify of a fault; to reprove gently or kindly, but seriously; to exhort.",
+   "headword": "admonish",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "admonishing": {
+   "citation": "2 Thess. iii. 15.",
+   "confidence": "cited",
+   "gloss": "To warn or notify of a fault; to reprove gently or kindly, but seriously; to exhort.",
+   "headword": "admonish",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "adulterer": {
+   "citation": "Jer. ix. 2.",
+   "confidence": "cited",
+   "gloss": "A man who violates his religious covenant.",
+   "headword": "adulterer",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "adulterers": {
+   "citation": "Jer. ix. 2.",
+   "confidence": "cited",
+   "gloss": "A man who violates his religious covenant.",
+   "headword": "adulterer",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "adulteress": {
+   "citation": "James iv. 4.",
+   "confidence": "cited",
+   "gloss": "A woman who violates her religious engagements.",
+   "headword": "adulteress",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "adulteresses": {
+   "citation": "James iv. 4.",
+   "confidence": "cited",
+   "gloss": "A woman who violates her religious engagements.",
+   "headword": "adulteress",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "adulteries": {
+   "citation": "Jer. iii. 9.",
+   "confidence": "cited",
+   "gloss": "Faithlessness in religion.",
+   "headword": "adultery",
+   "mark": "Obs.",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "adultery": {
+   "citation": "Jer. iii. 9.",
+   "confidence": "cited",
+   "gloss": "Faithlessness in religion.",
+   "headword": "adultery",
+   "mark": "Obs.",
+   "occurrences": 40,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "aforetime": {
+   "citation": "Dan. vi. 10.",
+   "confidence": "cited",
+   "gloss": "In time past; formerly.",
+   "headword": "aforetime",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "algum": {
+   "citation": "2 Chron. ii. 8.",
+   "confidence": "cited",
+   "gloss": "Same as Almug",
+   "headword": "algum",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "allegory": {
+   "citation": "John xv. 1-6",
+   "confidence": "cited",
+   "gloss": "A figure representation which has a meaning beyond notion directly conveyed by the object painted or sculptured.",
+   "headword": "allegory",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "almsdeeds": {
+   "citation": "Acts ix. 36.",
+   "confidence": "cited",
+   "gloss": "An act of charity.",
+   "headword": "almsdeed",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "already": {
+   "citation": "Exod. i. 5.",
+   "confidence": "cited",
+   "gloss": "Prior to some specified time, either past, present, or future; by this time; previously.",
+   "headword": "already",
+   "occurrences": 31,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "alter": {
+   "citation": "Dan. vi. 8.",
+   "confidence": "cited",
+   "gloss": "To become, in some respects, different; to vary; to change; as, the weather alters",
+   "headword": "alter",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "altered": {
+   "citation": "Dan. vi. 8.",
+   "confidence": "cited",
+   "gloss": "To become, in some respects, different; to vary; to change; as, the weather alters",
+   "headword": "alter",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "altereth": {
+   "citation": "Dan. vi. 8.",
+   "confidence": "cited",
+   "gloss": "To become, in some respects, different; to vary; to change; as, the weather alters",
+   "headword": "alter",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ambassage": {
+   "citation": "Luke xiv. 32.",
+   "confidence": "cited",
+   "gloss": "Same as Embassage",
+   "headword": "ambassage",
+   "mark": "Obs. or R.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "angry": {
+   "citation": "Prov. xxv. 23.",
+   "confidence": "cited",
+   "gloss": "Showing anger; proceeding from anger; acting as if moved by anger; wearing the marks of anger; as, angry",
+   "headword": "angry",
+   "occurrences": 44,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "anoint": {
+   "citation": "1 Sam. xxvi. 9.",
+   "confidence": "cited",
+   "gloss": "To apply oil to or to pour oil upon, etc., as a sacred rite, especially for consecration.",
+   "headword": "anoint",
+   "occurrences": 35,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "anointed": {
+   "citation": "1 Sam. xxvi. 9.",
+   "confidence": "cited",
+   "gloss": "To apply oil to or to pour oil upon, etc., as a sacred rite, especially for consecration.",
+   "headword": "anoint",
+   "occurrences": 98,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "anointest": {
+   "citation": "1 Sam. xxvi. 9.",
+   "confidence": "cited",
+   "gloss": "To apply oil to or to pour oil upon, etc., as a sacred rite, especially for consecration.",
+   "headword": "anoint",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "anointing": {
+   "citation": "1 Sam. xxvi. 9.",
+   "confidence": "cited",
+   "gloss": "To apply oil to or to pour oil upon, etc., as a sacred rite, especially for consecration.",
+   "headword": "anoint",
+   "occurrences": 28,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "apart": {
+   "citation": "Jas. i. 21.",
+   "confidence": "cited",
+   "gloss": "Aside; away.",
+   "headword": "apart",
+   "occurrences": 24,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "apostle": {
+   "citation": "1 Cor. i. 1.",
+   "confidence": "cited",
+   "gloss": "Literally: One sent forth; a messenger. Specifically: One of the twelve disciples of Christ, specially chosen as his companions and witnesses, and sent forth to preach the gospel.",
+   "headword": "apostle",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "apostles": {
+   "citation": "1 Cor. i. 1.",
+   "confidence": "cited",
+   "gloss": "Literally: One sent forth; a messenger. Specifically: One of the twelve disciples of Christ, specially chosen as his companions and witnesses, and sent forth to preach the gospel.",
+   "headword": "apostle",
+   "occurrences": 60,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "aside": {
+   "citation": "Heb. xii. 1.",
+   "confidence": "cited",
+   "gloss": "Out of one’s thoughts; off; away; as, to put aside",
+   "headword": "aside",
+   "occurrences": 72,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bdellium": {
+   "citation": "Num. xi. 7",
+   "confidence": "cited",
+   "gloss": "An unidentified substance mentioned in the Bible (Gen. ii. 12",
+   "headword": "bdellium",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bearers": {
+   "citation": "2 Chron. ii. 18.",
+   "confidence": "cited",
+   "gloss": "One who, or that which, bears, sustains, or carries.",
+   "headword": "bearer",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "belong": {
+   "citation": "Gen. xl. 8.",
+   "confidence": "cited",
+   "gloss": "To be the concern or proper business or function of; to appertain to.",
+   "headword": "belong",
+   "occurrences": 12,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "belonged": {
+   "citation": "Gen. xl. 8.",
+   "confidence": "cited",
+   "gloss": "To be the concern or proper business or function of; to appertain to.",
+   "headword": "belong",
+   "occurrences": 12,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "belongest": {
+   "citation": "Gen. xl. 8.",
+   "confidence": "cited",
+   "gloss": "To be the concern or proper business or function of; to appertain to.",
+   "headword": "belong",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "belongeth": {
+   "citation": "Gen. xl. 8.",
+   "confidence": "cited",
+   "gloss": "To be the concern or proper business or function of; to appertain to.",
+   "headword": "belong",
+   "occurrences": 20,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "beneath": {
+   "citation": "Ex. xxxii. 19.",
+   "confidence": "cited",
+   "gloss": "Lower in place, with something directly over or on; under; underneath; hence, at the foot of.",
+   "headword": "beneath",
+   "occurrences": 28,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "beside": {
+   "citation": "Gen. xxvi. 1.",
+   "confidence": "cited",
+   "gloss": "Over and above; distinct from; in addition to.",
+   "headword": "beside",
+   "occurrences": 132,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bond": {
+   "citation": "Acts xxvi.",
+   "confidence": "cited",
+   "gloss": "The state of being bound; imprisonment; captivity, restraint.",
+   "headword": "bond",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bonds": {
+   "citation": "Acts xxvi.",
+   "confidence": "cited",
+   "gloss": "The state of being bound; imprisonment; captivity, restraint.",
+   "headword": "bond",
+   "occurrences": 26,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "break": {
+   "citation": "Dan. iv. 27.",
+   "confidence": "cited",
+   "gloss": "To destroy the official character and standing of; to cashier; to dismiss.",
+   "headword": "break",
+   "mark": "Colloq.",
+   "occurrences": 140,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "breakest": {
+   "citation": "Dan. iv. 27.",
+   "confidence": "cited",
+   "gloss": "To destroy the official character and standing of; to cashier; to dismiss.",
+   "headword": "break",
+   "mark": "Colloq.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "breaketh": {
+   "citation": "Dan. iv. 27.",
+   "confidence": "cited",
+   "gloss": "To destroy the official character and standing of; to cashier; to dismiss.",
+   "headword": "break",
+   "mark": "Colloq.",
+   "occurrences": 17,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "breaking": {
+   "citation": "Dan. iv. 27.",
+   "confidence": "cited",
+   "gloss": "To destroy the official character and standing of; to cashier; to dismiss.",
+   "headword": "break",
+   "mark": "Colloq.",
+   "occurrences": 18,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bridechamber": {
+   "citation": "Matt. ix. 15.",
+   "confidence": "cited",
+   "gloss": "The nuptial apartment.",
+   "headword": "bridechamber",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "brigandine": {
+   "citation": "Jer. xlvi. 4.",
+   "confidence": "cited",
+   "gloss": "A coast of armor for the body, consisting of scales or plates, sometimes overlapping each other, generally of metal, and sewed to linen or other material. It was worn in the Middle Ages.",
+   "headword": "brigandine",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "brigandines": {
+   "citation": "Jer. xlvi. 4.",
+   "confidence": "cited",
+   "gloss": "A coast of armor for the body, consisting of scales or plates, sometimes overlapping each other, generally of metal, and sewed to linen or other material. It was worn in the Middle Ages.",
+   "headword": "brigandine",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bringest": {
+   "citation": "Ps. xxxvii. 5.",
+   "confidence": "cited",
+   "gloss": "To produce in exchange; to sell for; to fetch; as, what does coal bring per ton?",
+   "headword": "bring",
+   "mark": "Colloq.",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bringeth": {
+   "citation": "Ps. xxxvii. 5.",
+   "confidence": "cited",
+   "gloss": "To produce in exchange; to sell for; to fetch; as, what does coal bring per ton?",
+   "headword": "bring",
+   "mark": "Colloq.",
+   "occurrences": 79,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bringing": {
+   "citation": "Ps. xxxvii. 5.",
+   "confidence": "cited",
+   "gloss": "To produce in exchange; to sell for; to fetch; as, what does coal bring per ton?",
+   "headword": "bring",
+   "mark": "Colloq.",
+   "occurrences": 24,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bull": {
+   "citation": "Ps. xxii. 12.",
+   "confidence": "cited",
+   "gloss": "One who, or that which, resembles a bull in character or action.",
+   "headword": "bull",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "bulls": {
+   "citation": "Ps. xxii. 12.",
+   "confidence": "cited",
+   "gloss": "One who, or that which, resembles a bull in character or action.",
+   "headword": "bull",
+   "occurrences": 10,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "burn": {
+   "citation": "Deut. ix. 15.",
+   "confidence": "cited",
+   "gloss": "To be of fire; to flame.",
+   "headword": "burn",
+   "occurrences": 138,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "burneth": {
+   "citation": "Deut. ix. 15.",
+   "confidence": "cited",
+   "gloss": "To be of fire; to flame.",
+   "headword": "burn",
+   "occurrences": 18,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "calve": {
+   "citation": "Job xxi. 10.",
+   "confidence": "cited",
+   "gloss": "To bring forth a calf.",
+   "headword": "calve",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "calved": {
+   "citation": "Job xxi. 10.",
+   "confidence": "cited",
+   "gloss": "To bring forth a calf.",
+   "headword": "calve",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "calves": {
+   "citation": "Job xxi. 10.",
+   "confidence": "cited",
+   "gloss": "To bring forth a calf.",
+   "headword": "calve",
+   "occurrences": 18,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "calveth": {
+   "citation": "Job xxi. 10.",
+   "confidence": "cited",
+   "gloss": "To bring forth a calf.",
+   "headword": "calve",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "castest": {
+   "citation": "Luke xxii. 41.",
+   "confidence": "cited",
+   "gloss": "The distance to which a thing is or can be thrown.",
+   "headword": "cast",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "casteth": {
+   "citation": "Luke xxii. 41.",
+   "confidence": "cited",
+   "gloss": "The distance to which a thing is or can be thrown.",
+   "headword": "cast",
+   "occurrences": 16,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "catch": {
+   "citation": "Judg. i. 6.",
+   "confidence": "cited",
+   "gloss": "To seize after pursuing; to arrest; as, to catch",
+   "headword": "catch",
+   "occurrences": 15,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "catcheth": {
+   "citation": "Judg. i. 6.",
+   "confidence": "cited",
+   "gloss": "To seize after pursuing; to arrest; as, to catch",
+   "headword": "catch",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "cease": {
+   "citation": "Prov. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To come to an end; to stop; to leave off or give over; to desist; as, the noise ceased",
+   "headword": "cease",
+   "occurrences": 70,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ceased": {
+   "citation": "Prov. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To come to an end; to stop; to leave off or give over; to desist; as, the noise ceased",
+   "headword": "cease",
+   "occurrences": 33,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ceaseth": {
+   "citation": "Prov. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To come to an end; to stop; to leave off or give over; to desist; as, the noise ceased",
+   "headword": "cease",
+   "occurrences": 10,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ceasing": {
+   "citation": "Prov. xx. 3.",
+   "confidence": "cited",
+   "gloss": "To come to an end; to stop; to leave off or give over; to desist; as, the noise ceased",
+   "headword": "cease",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "changers": {
+   "citation": "John ii. 14.",
+   "confidence": "cited",
+   "gloss": "One who deals in or changes money.",
+   "headword": "changer",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "chant": {
+   "citation": "Amos vi. 5.",
+   "confidence": "cited",
+   "gloss": "To make melody with the voice; to sing.",
+   "headword": "chant",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "chapiter": {
+   "citation": "Ex. xxxvi. 38.",
+   "confidence": "cited",
+   "gloss": "A capital [Obs.]",
+   "headword": "chapiter",
+   "mark": "Obs.",
+   "occurrences": 13,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "chapiters": {
+   "citation": "Ex. xxxvi. 38.",
+   "confidence": "cited",
+   "gloss": "A capital [Obs.]",
+   "headword": "chapiter",
+   "mark": "Obs.",
+   "occurrences": 16,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "charmer": {
+   "citation": "Deut. xviii. 11.",
+   "confidence": "cited",
+   "gloss": "One who charms, or has power to charm; one who uses the power of enchantment; a magician.",
+   "headword": "charmer",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "charmers": {
+   "citation": "Deut. xviii. 11.",
+   "confidence": "cited",
+   "gloss": "One who charms, or has power to charm; one who uses the power of enchantment; a magician.",
+   "headword": "charmer",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "church": {
+   "citation": "Acts xix. 37.",
+   "confidence": "cited",
+   "gloss": "A Jewish or heathen temple.",
+   "headword": "church",
+   "mark": "Obs.",
+   "occurrences": 77,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "churches": {
+   "citation": "Acts xix. 37.",
+   "confidence": "cited",
+   "gloss": "A Jewish or heathen temple.",
+   "headword": "church",
+   "mark": "Obs.",
+   "occurrences": 37,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "clap": {
+   "citation": "Lam. ii. 15.",
+   "confidence": "cited",
+   "gloss": "To express contempt or derision.",
+   "headword": "clap",
+   "mark": "Obs.",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "clapped": {
+   "citation": "Lam. ii. 15.",
+   "confidence": "cited",
+   "gloss": "To express contempt or derision.",
+   "headword": "clap",
+   "mark": "Obs.",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "clappeth": {
+   "citation": "Lam. ii. 15.",
+   "confidence": "cited",
+   "gloss": "To express contempt or derision.",
+   "headword": "clap",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "close": {
+   "citation": "1 Chron. xii. 1",
+   "confidence": "cited",
+   "gloss": "Out of the way observation; secluded; secret; hidden.",
+   "headword": "close",
+   "occurrences": 11,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "closed": {
+   "citation": "1 Chron. xii. 1",
+   "confidence": "cited",
+   "gloss": "Out of the way observation; secluded; secret; hidden.",
+   "headword": "close",
+   "occurrences": 11,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "closest": {
+   "citation": "1 Chron. xii. 1",
+   "confidence": "cited",
+   "gloss": "Out of the way observation; secluded; secret; hidden.",
+   "headword": "close",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "cloud": {
+   "citation": "Ezek. viii. 11.",
+   "confidence": "cited",
+   "gloss": "A mass or volume of smoke, or flying dust, resembling vapor.",
+   "headword": "cloud",
+   "occurrences": 107,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "clouds": {
+   "citation": "Ezek. viii. 11.",
+   "confidence": "cited",
+   "gloss": "A mass or volume of smoke, or flying dust, resembling vapor.",
+   "headword": "cloud",
+   "occurrences": 49,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "collection": {
+   "citation": "1 Cor. xvi. 1",
+   "confidence": "cited",
+   "gloss": "A gathering of money for charitable or other purposes, as by passing a contribution box for freewill offerings.",
+   "headword": "collection",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "comest": {
+   "citation": "Matt. vi. 10.",
+   "confidence": "cited",
+   "gloss": "To approach or arrive, as if by a journey or from a distance.",
+   "headword": "come",
+   "occurrences": 29,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "cometh": {
+   "citation": "Matt. vi. 10.",
+   "confidence": "cited",
+   "gloss": "To approach or arrive, as if by a journey or from a distance.",
+   "headword": "come",
+   "occurrences": 282,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "comfort": {
+   "citation": "Acts xx. 12.",
+   "confidence": "cited",
+   "gloss": "To impart strength and hope to; to encourage; to relieve; to console; to cheer.",
+   "headword": "comfort",
+   "mark": "Obs.",
+   "occurrences": 66,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "comforted": {
+   "citation": "Acts xx. 12.",
+   "confidence": "cited",
+   "gloss": "To impart strength and hope to; to encourage; to relieve; to console; to cheer.",
+   "headword": "comfort",
+   "mark": "Obs.",
+   "occurrences": 36,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "comforteth": {
+   "citation": "Acts xx. 12.",
+   "confidence": "cited",
+   "gloss": "To impart strength and hope to; to encourage; to relieve; to console; to cheer.",
+   "headword": "comfort",
+   "mark": "Obs.",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "comforts": {
+   "citation": "Acts xx. 12.",
+   "confidence": "cited",
+   "gloss": "To impart strength and hope to; to encourage; to relieve; to console; to cheer.",
+   "headword": "comfort",
+   "mark": "Obs.",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "coming": {
+   "citation": "Ezek. xliii. 11",
+   "confidence": "cited",
+   "gloss": "Specifically: The Second Advent of Christ, called usually the second coming",
+   "headword": "coming",
+   "mark": "Obs.",
+   "occurrences": 100,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "comings": {
+   "citation": "Ezek. xliii. 11",
+   "confidence": "cited",
+   "gloss": "Specifically: The Second Advent of Christ, called usually the second coming",
+   "headword": "coming",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "conceal": {
+   "citation": "1 Sam. iii. 17, 18.",
+   "confidence": "cited",
+   "gloss": "To hide or withdraw from observation; to cover; to cover or keep from sight; to prevent the discovery of; to withhold knowledge of.",
+   "headword": "conceal",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "concealeth": {
+   "citation": "1 Sam. iii. 17, 18.",
+   "confidence": "cited",
+   "gloss": "To hide or withdraw from observation; to cover; to cover or keep from sight; to prevent the discovery of; to withhold knowledge of.",
+   "headword": "conceal",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "condescend": {
+   "citation": "Rom. xii. 16.",
+   "confidence": "cited",
+   "gloss": "To stoop or descend; to let one’s self down; to submit; to waive the privilege of rank or dignity; to accommodate one's self to an inferior.",
+   "headword": "condescend",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "consider": {
+   "citation": "Ps. xli. 1.",
+   "confidence": "cited",
+   "gloss": "To estimate; to think; to regard; to view.",
+   "headword": "consider",
+   "occurrences": 67,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "considered": {
+   "citation": "Ps. xli. 1.",
+   "confidence": "cited",
+   "gloss": "To estimate; to think; to regard; to view.",
+   "headword": "consider",
+   "occurrences": 16,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "considerest": {
+   "citation": "Ps. xli. 1.",
+   "confidence": "cited",
+   "gloss": "To estimate; to think; to regard; to view.",
+   "headword": "consider",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "considereth": {
+   "citation": "Ps. xli. 1.",
+   "confidence": "cited",
+   "gloss": "To estimate; to think; to regard; to view.",
+   "headword": "consider",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "considering": {
+   "citation": "Ps. xli. 1.",
+   "confidence": "cited",
+   "gloss": "To estimate; to think; to regard; to view.",
+   "headword": "consider",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "convenient": {
+   "citation": "Acts xxiv. 25.",
+   "confidence": "cited",
+   "gloss": "Seasonable; timely; opportune; as, a convenient",
+   "headword": "convenient",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "cornfloor": {
+   "citation": "Hos. ix. 1.",
+   "confidence": "cited",
+   "gloss": "A thrashing floor.",
+   "headword": "cornfloor",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "corruptible": {
+   "citation": "1 Cor. xv. 53.",
+   "confidence": "cited",
+   "gloss": "That which may decay and perish; the human body.",
+   "headword": "corruptible",
+   "mark": "Archaic",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "cover": {
+   "citation": "Ps. xxxii. 1.",
+   "confidence": "cited",
+   "gloss": "To remove from remembrance; to put away; to remit.",
+   "headword": "cover",
+   "occurrences": 72,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "coverest": {
+   "citation": "Ps. xxxii. 1.",
+   "confidence": "cited",
+   "gloss": "To remove from remembrance; to put away; to remit.",
+   "headword": "cover",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "covereth": {
+   "citation": "Ps. xxxii. 1.",
+   "confidence": "cited",
+   "gloss": "To remove from remembrance; to put away; to remit.",
+   "headword": "cover",
+   "occurrences": 27,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "covers": {
+   "citation": "Ps. xxxii. 1.",
+   "confidence": "cited",
+   "gloss": "To remove from remembrance; to put away; to remit.",
+   "headword": "cover",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "creeping": {
+   "citation": "Gen. vi. 20.",
+   "confidence": "cited",
+   "gloss": "Crawling, or moving close to the ground.",
+   "headword": "creeping",
+   "occurrences": 29,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "cunning": {
+   "citation": "Ex. xxxviii. 23.",
+   "confidence": "cited",
+   "gloss": "Knowing; skillful; dexterous.",
+   "headword": "cunning",
+   "occurrences": 33,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "cupbearer": {
+   "citation": "Neh. i. 11.",
+   "confidence": "cited",
+   "gloss": "One of the attendants of a prince or noble, permanently charged with the performance of this office for his master.",
+   "headword": "cupbearer",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "cupbearers": {
+   "citation": "Neh. i. 11.",
+   "confidence": "cited",
+   "gloss": "One of the attendants of a prince or noble, permanently charged with the performance of this office for his master.",
+   "headword": "cupbearer",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "deaths": {
+   "citation": "2 Cor. xi. 23.",
+   "confidence": "cited",
+   "gloss": "Danger of death.",
+   "headword": "death",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "debt": {
+   "citation": "Matt. vi. 12.",
+   "confidence": "cited",
+   "gloss": "A duty neglected or violated; a fault; a sin; a trespass.",
+   "headword": "debt",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "debts": {
+   "citation": "Matt. vi. 12.",
+   "confidence": "cited",
+   "gloss": "A duty neglected or violated; a fault; a sin; a trespass.",
+   "headword": "debt",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "deceitfulness": {
+   "citation": "Matt. xiii. 22.",
+   "confidence": "cited",
+   "gloss": "Tendency to mislead or deceive.",
+   "headword": "deceitfulness",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "dishonesty": {
+   "citation": "2 Cor. iv. 2.",
+   "confidence": "cited",
+   "gloss": "Dishonor; dishonorableness; shame.",
+   "headword": "dishonesty",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "drams": {
+   "citation": "Ezra ii. 69.",
+   "confidence": "cited",
+   "gloss": "A Persian daric.",
+   "headword": "dram",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "dwellers": {
+   "citation": "Acts i. 19.",
+   "confidence": "cited",
+   "gloss": "An inhabitant; a resident; as, a cave dweller",
+   "headword": "dweller",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ease": {
+   "citation": "Ps. xxv. 12.",
+   "confidence": "cited",
+   "gloss": "Freedom from constraint, formality, difficulty, embarrassment, etc.; facility; liberty; naturalness; – said of manner, style, etc.; as, ease",
+   "headword": "ease",
+   "occurrences": 20,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "eased": {
+   "citation": "Ps. xxv. 12.",
+   "confidence": "cited",
+   "gloss": "Freedom from constraint, formality, difficulty, embarrassment, etc.; facility; liberty; naturalness; – said of manner, style, etc.; as, ease",
+   "headword": "ease",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "eatest": {
+   "citation": "Dan. iv. 25.",
+   "confidence": "cited",
+   "gloss": "To chew and swallow as food; to devour; – said especially of food not liquid; as, to eat",
+   "headword": "eat",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "eateth": {
+   "citation": "Dan. iv. 25.",
+   "confidence": "cited",
+   "gloss": "To chew and swallow as food; to devour; – said especially of food not liquid; as, to eat",
+   "headword": "eat",
+   "occurrences": 56,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "effect": {
+   "citation": "Mark vii. 13.",
+   "confidence": "cited",
+   "gloss": "Goods; movables; personal estate; – sometimes used to embrace real as well as personal property; as, the people escaped from the town with their effects",
+   "headword": "effect",
+   "occurrences": 14,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "effected": {
+   "citation": "Mark vii. 13.",
+   "confidence": "cited",
+   "gloss": "Goods; movables; personal estate; – sometimes used to embrace real as well as personal property; as, the people escaped from the town with their effects",
+   "headword": "effect",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "elder": {
+   "citation": "1 Tim. v. 1.",
+   "confidence": "cited",
+   "gloss": "One who is older; a superior in age; a senior.",
+   "headword": "elder",
+   "occurrences": 20,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "elders": {
+   "citation": "1 Tim. v. 1.",
+   "confidence": "cited",
+   "gloss": "One who is older; a superior in age; a senior.",
+   "headword": "elder",
+   "occurrences": 179,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "elect": {
+   "citation": "1 Tim. v. 21.",
+   "confidence": "cited",
+   "gloss": "Chosen as the object of mercy or divine favor; set apart to eternal life.",
+   "headword": "elect",
+   "occurrences": 20,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "elected": {
+   "citation": "1 Tim. v. 21.",
+   "confidence": "cited",
+   "gloss": "Chosen as the object of mercy or divine favor; set apart to eternal life.",
+   "headword": "elect",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "enabled": {
+   "citation": "1 Tim. i. 12.",
+   "confidence": "cited",
+   "gloss": "To give strength or ability to; to make firm and strong.",
+   "headword": "enable",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ensue": {
+   "citation": "1 Pet. iii. 11.",
+   "confidence": "cited",
+   "gloss": "To follow; to pursue; to follow and overtake.",
+   "headword": "ensue",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "error": {
+   "citation": "Ps. xix. 12.",
+   "confidence": "cited",
+   "gloss": "A moral offense; violation of duty; a sin or transgression; iniquity; fault.",
+   "headword": "error",
+   "occurrences": 13,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "errors": {
+   "citation": "Ps. xix. 12.",
+   "confidence": "cited",
+   "gloss": "A moral offense; violation of duty; a sin or transgression; iniquity; fault.",
+   "headword": "error",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "exalt": {
+   "citation": "Ps. xcix. 5.",
+   "confidence": "cited",
+   "gloss": "To elevate by prise or estimation; to magnify; to extol; to glorify.",
+   "headword": "exalt",
+   "occurrences": 26,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "exaltest": {
+   "citation": "Ps. xcix. 5.",
+   "confidence": "cited",
+   "gloss": "To elevate by prise or estimation; to magnify; to extol; to glorify.",
+   "headword": "exalt",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "exalteth": {
+   "citation": "Ps. xcix. 5.",
+   "confidence": "cited",
+   "gloss": "To elevate by prise or estimation; to magnify; to extol; to glorify.",
+   "headword": "exalt",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "exceeding": {
+   "citation": "Eph. ii. 7.",
+   "confidence": "cited",
+   "gloss": "More than usual; extraordinary; more than sufficient; measureless.",
+   "headword": "exceeding",
+   "mark": "Obs.",
+   "occurrences": 59,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "exchangers": {
+   "citation": "Matt. xxv. 27.",
+   "confidence": "cited",
+   "gloss": "One who exchanges; one who practices exchange.",
+   "headword": "exchanger",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fables": {
+   "citation": "1 Tim. iv. 7.",
+   "confidence": "cited",
+   "gloss": "Any story told to excite wonder; common talk; the theme of talk.",
+   "headword": "fable",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fall": {
+   "citation": "Luke viii. 13.",
+   "confidence": "cited",
+   "gloss": "To be dropped or uttered carelessly; as, an unguarded expression fell",
+   "headword": "fall",
+   "occurrences": 252,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fallest": {
+   "citation": "Luke viii. 13.",
+   "confidence": "cited",
+   "gloss": "To be dropped or uttered carelessly; as, an unguarded expression fell",
+   "headword": "fall",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "falleth": {
+   "citation": "Luke viii. 13.",
+   "confidence": "cited",
+   "gloss": "To be dropped or uttered carelessly; as, an unguarded expression fell",
+   "headword": "fall",
+   "occurrences": 28,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fan": {
+   "citation": "Jer. li. 2.",
+   "confidence": "cited",
+   "gloss": "To winnow; to separate chaff from, and drive it away by a current of air; as, to fan",
+   "headword": "fan",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "far": {
+   "citation": "Eph. ii. 13.",
+   "confidence": "cited",
+   "gloss": "In a great proportion; by many degrees; very much; deeply; greatly.",
+   "headword": "far",
+   "occurrences": 173,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fared": {
+   "citation": "Eph. ii. 13.",
+   "confidence": "cited",
+   "gloss": "In a great proportion; by many degrees; very much; deeply; greatly.",
+   "headword": "far",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "feel": {
+   "citation": "Acts xvii. 27.",
+   "confidence": "cited",
+   "gloss": "To appear to the touch; to give a perception; to produce an impression by the nerves of sensation; – followed by an adjective describing the kind of sensation.",
+   "headword": "feel",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fewest": {
+   "citation": "Job x. 20.",
+   "confidence": "cited",
+   "gloss": "Not many; small, limited, or confined in number; – indicating a small portion of units or individuals constituting a whole; often, by ellipsis of a noun, a few people.",
+   "headword": "few",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fill": {
+   "citation": "Lev. xxv. 19.",
+   "confidence": "cited",
+   "gloss": "A full supply, as much as supplies want; as much as gives complete satisfaction.",
+   "headword": "fill",
+   "occurrences": 49,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "filled": {
+   "citation": "Lev. xxv. 19.",
+   "confidence": "cited",
+   "gloss": "A full supply, as much as supplies want; as much as gives complete satisfaction.",
+   "headword": "fill",
+   "occurrences": 159,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fillest": {
+   "citation": "Lev. xxv. 19.",
+   "confidence": "cited",
+   "gloss": "A full supply, as much as supplies want; as much as gives complete satisfaction.",
+   "headword": "fill",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "filleth": {
+   "citation": "Lev. xxv. 19.",
+   "confidence": "cited",
+   "gloss": "A full supply, as much as supplies want; as much as gives complete satisfaction.",
+   "headword": "fill",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "find": {
+   "citation": "Job. xi. 7.",
+   "confidence": "cited",
+   "gloss": "To arrive at, as a conclusion; to determine as true; to establish; as, to find",
+   "headword": "find",
+   "occurrences": 156,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "findest": {
+   "citation": "Job. xi. 7.",
+   "confidence": "cited",
+   "gloss": "To arrive at, as a conclusion; to determine as true; to establish; as, to find",
+   "headword": "find",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "findeth": {
+   "citation": "Job. xi. 7.",
+   "confidence": "cited",
+   "gloss": "To arrive at, as a conclusion; to determine as true; to establish; as, to find",
+   "headword": "find",
+   "occurrences": 27,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fining": {
+   "citation": "Prov. xvii. 3.",
+   "confidence": "cited",
+   "gloss": "That which is used to refine; especially, a preparation of isinglass, gelatin, etc., for clarifying beer.",
+   "headword": "fining",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fleshly": {
+   "citation": "2 Cor. i. 12.",
+   "confidence": "cited",
+   "gloss": "Human; not celestial; not spiritual or divine.",
+   "headword": "fleshly",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "flower": {
+   "citation": "Lev. xv. 24.",
+   "confidence": "cited",
+   "gloss": "Menstrual discharges.",
+   "headword": "flower",
+   "occurrences": 20,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "flowers": {
+   "citation": "Lev. xv. 24.",
+   "confidence": "cited",
+   "gloss": "Menstrual discharges.",
+   "headword": "flower",
+   "occurrences": 17,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fold": {
+   "citation": "1 Kings vi. 34.",
+   "confidence": "cited",
+   "gloss": "To become folded, plaited, or doubled; to close over another of the same kind; to double together; as, the leaves of the door fold",
+   "headword": "fold",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "foldeth": {
+   "citation": "1 Kings vi. 34.",
+   "confidence": "cited",
+   "gloss": "To become folded, plaited, or doubled; to close over another of the same kind; to double together; as, the leaves of the door fold",
+   "headword": "fold",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "folds": {
+   "citation": "1 Kings vi. 34.",
+   "confidence": "cited",
+   "gloss": "To become folded, plaited, or doubled; to close over another of the same kind; to double together; as, the leaves of the door fold",
+   "headword": "fold",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "force": {
+   "citation": "Heb. ix. 17.",
+   "confidence": "cited",
+   "gloss": "Any action between two bodies which changes, or tends to change, their relative condition as to rest or motion; or, more generally, which changes, or tends to change…",
+   "headword": "force",
+   "mark": "Obs.",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "forced": {
+   "citation": "Heb. ix. 17.",
+   "confidence": "cited",
+   "gloss": "Any action between two bodies which changes, or tends to change, their relative condition as to rest or motion; or, more generally, which changes, or tends to change…",
+   "headword": "force",
+   "mark": "Obs.",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "forces": {
+   "citation": "Heb. ix. 17.",
+   "confidence": "cited",
+   "gloss": "Any action between two bodies which changes, or tends to change, their relative condition as to rest or motion; or, more generally, which changes, or tends to change…",
+   "headword": "force",
+   "mark": "Obs.",
+   "occurrences": 16,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "foretell": {
+   "citation": "Acts iii. 24.",
+   "confidence": "cited",
+   "gloss": "To utter predictions.",
+   "headword": "foretell",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "forgive": {
+   "citation": "Matt. vi. 12.",
+   "confidence": "cited",
+   "gloss": "To cease to feel resentment against, on account of wrong committed; to give up claim to requital from or retribution upon (an offender); to absolve; to pardon…",
+   "headword": "forgive",
+   "occurrences": 56,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "forgiven": {
+   "citation": "Matt. vi. 12.",
+   "confidence": "cited",
+   "gloss": "To cease to feel resentment against, on account of wrong committed; to give up claim to requital from or retribution upon (an offender); to absolve; to pardon…",
+   "headword": "forgive",
+   "occurrences": 42,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "forgiveth": {
+   "citation": "Matt. vi. 12.",
+   "confidence": "cited",
+   "gloss": "To cease to feel resentment against, on account of wrong committed; to give up claim to requital from or retribution upon (an offender); to absolve; to pardon…",
+   "headword": "forgive",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "forgiving": {
+   "citation": "Matt. vi. 12.",
+   "confidence": "cited",
+   "gloss": "To cease to feel resentment against, on account of wrong committed; to give up claim to requital from or retribution upon (an offender); to absolve; to pardon…",
+   "headword": "forgive",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "forswear": {
+   "citation": "Matt. v. 33.",
+   "confidence": "cited",
+   "gloss": "To deny upon oath.",
+   "headword": "forswear",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "frame": {
+   "citation": "Judg. xii. 6.",
+   "confidence": "cited",
+   "gloss": "To shape; to arrange, as the organs of speech.",
+   "headword": "frame",
+   "mark": "Obs.",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "framed": {
+   "citation": "Judg. xii. 6.",
+   "confidence": "cited",
+   "gloss": "To shape; to arrange, as the organs of speech.",
+   "headword": "frame",
+   "mark": "Obs.",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "frameth": {
+   "citation": "Judg. xii. 6.",
+   "confidence": "cited",
+   "gloss": "To shape; to arrange, as the organs of speech.",
+   "headword": "frame",
+   "mark": "Obs.",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fulfilled": {
+   "citation": "Gen. xxix. 27.",
+   "confidence": "cited",
+   "gloss": "To fill up; to make full or complete.",
+   "headword": "fulfill",
+   "mark": "Obs.",
+   "occurrences": 82,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "fulfilling": {
+   "citation": "Gen. xxix. 27.",
+   "confidence": "cited",
+   "gloss": "To fill up; to make full or complete.",
+   "headword": "fulfill",
+   "mark": "Obs.",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "furnace": {
+   "citation": "Deut. iv. 20.",
+   "confidence": "cited",
+   "gloss": "A place or time of punishment, affiction, or great trial; severe experience or discipline.",
+   "headword": "furnace",
+   "occurrences": 30,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "furnaces": {
+   "citation": "Deut. iv. 20.",
+   "confidence": "cited",
+   "gloss": "A place or time of punishment, affiction, or great trial; severe experience or discipline.",
+   "headword": "furnace",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "gather": {
+   "citation": "Gen. xxv. 8.",
+   "confidence": "cited",
+   "gloss": "To haul in; to take up; as, to gather",
+   "headword": "gather",
+   "mark": "Obs.",
+   "occurrences": 165,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "gathered": {
+   "citation": "Gen. xxv. 8.",
+   "confidence": "cited",
+   "gloss": "To haul in; to take up; as, to gather",
+   "headword": "gather",
+   "mark": "Obs.",
+   "occurrences": 267,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "gatherest": {
+   "citation": "Gen. xxv. 8.",
+   "confidence": "cited",
+   "gloss": "To haul in; to take up; as, to gather",
+   "headword": "gather",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "gathereth": {
+   "citation": "Gen. xxv. 8.",
+   "confidence": "cited",
+   "gloss": "To haul in; to take up; as, to gather",
+   "headword": "gather",
+   "mark": "Obs.",
+   "occurrences": 17,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "gnat": {
+   "citation": "Matt. xxiii. 24.",
+   "confidence": "cited",
+   "gloss": "Any fly resembling a Culex in form or habits; esp., in America, a small biting fly of the genus Simulium",
+   "headword": "gnat",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "going": {
+   "citation": "Ezek. xliv. 5.",
+   "confidence": "cited",
+   "gloss": "Course of life; behavior; doings; ways.",
+   "headword": "going",
+   "occurrences": 92,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "goings": {
+   "citation": "Ezek. xliv. 5.",
+   "confidence": "cited",
+   "gloss": "Course of life; behavior; doings; ways.",
+   "headword": "going",
+   "occurrences": 26,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "grievous": {
+   "citation": "Gen. xviii. 20.",
+   "confidence": "cited",
+   "gloss": "Characterized by great atrocity; heinous; aggravated; flagitious; as, a grievous",
+   "headword": "grievous",
+   "occurrences": 38,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hallow": {
+   "citation": "Matt. vi. 9.",
+   "confidence": "cited",
+   "gloss": "To make holy; to set apart for holy or religious use; to consecrate; to treat or keep as sacred; to reverence.",
+   "headword": "hallow",
+   "occurrences": 15,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hallowed": {
+   "citation": "Matt. vi. 9.",
+   "confidence": "cited",
+   "gloss": "To make holy; to set apart for holy or religious use; to consecrate; to treat or keep as sacred; to reverence.",
+   "headword": "hallow",
+   "occurrences": 22,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "handbreadth": {
+   "citation": "Ex. xxxvii. 12.",
+   "confidence": "cited",
+   "gloss": "A space equal to the breadth of the hand; a palm.",
+   "headword": "handbreadth",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "handwriting": {
+   "citation": "Dan. v. 5.",
+   "confidence": "cited",
+   "gloss": "That which is written by hand; manuscript.",
+   "headword": "handwriting",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "harden": {
+   "citation": "Ps. xcv. 8.",
+   "confidence": "cited",
+   "gloss": "To accustom by labor or suffering to endure with constancy; to strengthen; to stiffen; to inure; also, to confirm in wickedness or shame; to make unimpressionable.",
+   "headword": "harden",
+   "occurrences": 12,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hardened": {
+   "citation": "Ps. xcv. 8.",
+   "confidence": "cited",
+   "gloss": "To accustom by labor or suffering to endure with constancy; to strengthen; to stiffen; to inure; also, to confirm in wickedness or shame; to make unimpressionable.",
+   "headword": "harden",
+   "occurrences": 33,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hardeneth": {
+   "citation": "Ps. xcv. 8.",
+   "confidence": "cited",
+   "gloss": "To accustom by labor or suffering to endure with constancy; to strengthen; to stiffen; to inure; also, to confirm in wickedness or shame; to make unimpressionable.",
+   "headword": "harden",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hate": {
+   "citation": "Luke xiv. 26.",
+   "confidence": "cited",
+   "gloss": "To love less, relatively.",
+   "headword": "hate",
+   "occurrences": 87,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "headlong": {
+   "citation": "Acts i. 18.",
+   "confidence": "cited",
+   "gloss": "With the head foremost; headforemost; head first; as, to fall headlong",
+   "headword": "headlong",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "headstone": {
+   "citation": "Ps. cxviii. 22.",
+   "confidence": "cited",
+   "gloss": "The principal stone in a foundation; the chief or corner stone.",
+   "headword": "headstone",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hearest": {
+   "citation": "Prov. xx. 12.",
+   "confidence": "cited",
+   "gloss": "To have the sense or faculty of perceiving sound.",
+   "headword": "hear",
+   "mark": "Colloq.",
+   "occurrences": 11,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "heareth": {
+   "citation": "Prov. xx. 12.",
+   "confidence": "cited",
+   "gloss": "To have the sense or faculty of perceiving sound.",
+   "headword": "hear",
+   "mark": "Colloq.",
+   "occurrences": 52,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "heritage": {
+   "citation": "Joel iii. 2.",
+   "confidence": "cited",
+   "gloss": "A possession; the Israelites, as God’s chosen people; also, a flock under pastoral charge.",
+   "headword": "heritage",
+   "occurrences": 30,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "heritages": {
+   "citation": "Joel iii. 2.",
+   "confidence": "cited",
+   "gloss": "A possession; the Israelites, as God’s chosen people; also, a flock under pastoral charge.",
+   "headword": "heritage",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hide": {
+   "citation": "Prov. xxii. 3.",
+   "confidence": "cited",
+   "gloss": "To remove from danger; to shelter.",
+   "headword": "hide",
+   "occurrences": 83,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "highest": {
+   "citation": "John xix. 31.",
+   "confidence": "cited",
+   "gloss": "Made with a high position of some part of the tongue in relation to the palate, as ē (ēve), oo͞ (foo͞d). See Guide to Pronunciation, §§ 10, 11.",
+   "headword": "high",
+   "mark": "Colloq.",
+   "occurrences": 18,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hindmost": {
+   "citation": "Gen. xxxiii. 2.",
+   "confidence": "cited",
+   "gloss": "Furthest in or toward the rear; last.",
+   "headword": "hindmost",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "hope": {
+   "citation": "Ps. cxix. 81.",
+   "confidence": "cited",
+   "gloss": "To place confidence; to trust with confident expectation of good; – usually followed by in.",
+   "headword": "hope",
+   "occurrences": 130,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "horn": {
+   "citation": "1 Sam. xvi. 13.",
+   "confidence": "cited",
+   "gloss": "A vessel made of a horn; esp., one designed for containing powder; anciently, a small vessel for carrying liquids.",
+   "headword": "horn",
+   "occurrences": 36,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "horns": {
+   "citation": "1 Sam. xvi. 13.",
+   "confidence": "cited",
+   "gloss": "A vessel made of a horn; esp., one designed for containing powder; anciently, a small vessel for carrying liquids.",
+   "headword": "horn",
+   "occurrences": 67,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "howl": {
+   "citation": "Deut. xxxii. 10.",
+   "confidence": "cited",
+   "gloss": "To make a noise resembling the cry of a wild beast.",
+   "headword": "howl",
+   "occurrences": 29,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "howled": {
+   "citation": "Deut. xxxii. 10.",
+   "confidence": "cited",
+   "gloss": "To make a noise resembling the cry of a wild beast.",
+   "headword": "howl",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "howling": {
+   "citation": "Deut. xxxii. 10.",
+   "confidence": "cited",
+   "gloss": "To make a noise resembling the cry of a wild beast.",
+   "headword": "howl",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "immutability": {
+   "citation": "Heb. vi. 17.",
+   "confidence": "cited",
+   "gloss": "The state or quality of being immutable; immutableness.",
+   "headword": "immutability",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "inkhorn": {
+   "citation": "Ezek. ix. 2.",
+   "confidence": "cited",
+   "gloss": "A small bottle of horn or other material formerly used for holding ink; an inkstand; a portable case for writing materials.",
+   "headword": "inkhorn",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "innermost": {
+   "citation": "Prov. xviii. 8.",
+   "confidence": "cited",
+   "gloss": "Farthest inward; most remote from the outward part; inmost; deepest within.",
+   "headword": "innermost",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "inquire": {
+   "citation": "Eccl. vii. 10.",
+   "confidence": "cited",
+   "gloss": "To seek to learn anything by recourse to the proper means of knowledge; to make examination.",
+   "headword": "inquire",
+   "occurrences": 52,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "inquired": {
+   "citation": "Eccl. vii. 10.",
+   "confidence": "cited",
+   "gloss": "To seek to learn anything by recourse to the proper means of knowledge; to make examination.",
+   "headword": "inquire",
+   "occurrences": 34,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "inquirest": {
+   "citation": "Eccl. vii. 10.",
+   "confidence": "cited",
+   "gloss": "To seek to learn anything by recourse to the proper means of knowledge; to make examination.",
+   "headword": "inquire",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "issue": {
+   "citation": "Matt. ix. 20.",
+   "confidence": "cited",
+   "gloss": "A discharge of flux, as of blood.",
+   "headword": "issue",
+   "occurrences": 40,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "issued": {
+   "citation": "Matt. ix. 20.",
+   "confidence": "cited",
+   "gloss": "A discharge of flux, as of blood.",
+   "headword": "issue",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "issues": {
+   "citation": "Matt. ix. 20.",
+   "confidence": "cited",
+   "gloss": "A discharge of flux, as of blood.",
+   "headword": "issue",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "jesting": {
+   "citation": "Eph. v. 4.",
+   "confidence": "cited",
+   "gloss": "The act or practice of making jests; joking; pleasantry.",
+   "headword": "jesting",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "judgment": {
+   "citation": "Prov. xix. 29.",
+   "confidence": "cited",
+   "gloss": "A calamity regarded as sent by God, by way of recompense for wrong committed; a providential punishment.",
+   "headword": "judgment",
+   "occurrences": 294,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "judgments": {
+   "citation": "Prov. xix. 29.",
+   "confidence": "cited",
+   "gloss": "A calamity regarded as sent by God, by way of recompense for wrong committed; a providential punishment.",
+   "headword": "judgment",
+   "occurrences": 127,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "keepest": {
+   "citation": "Jer. xlii. 4.",
+   "confidence": "cited",
+   "gloss": "To observe duly, as a festival, etc.; to celebrate; to solemnize; as, to keep",
+   "headword": "keep",
+   "mark": "Colloq.",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "keepeth": {
+   "citation": "Jer. xlii. 4.",
+   "confidence": "cited",
+   "gloss": "To observe duly, as a festival, etc.; to celebrate; to solemnize; as, to keep",
+   "headword": "keep",
+   "mark": "Colloq.",
+   "occurrences": 46,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "knead": {
+   "citation": "Ex. viii. 3.",
+   "confidence": "cited",
+   "gloss": "Fig.: To treat or form as by kneading; to beat.",
+   "headword": "knead",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "kneaded": {
+   "citation": "Ex. viii. 3.",
+   "confidence": "cited",
+   "gloss": "Fig.: To treat or form as by kneading; to beat.",
+   "headword": "knead",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "least": {
+   "citation": "Luke xvi. 10.",
+   "confidence": "cited",
+   "gloss": "Smallest, either in size or degree; shortest; lowest; most unimportant; as, the least",
+   "headword": "least",
+   "mark": "Used as the superlative of little.",
+   "occurrences": 39,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "leathern": {
+   "citation": "Matt. iii. 4.",
+   "confidence": "cited",
+   "gloss": "Made of leather; consisting of leather; as, a leathern",
+   "headword": "leathern",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "leave": {
+   "citation": "Gen. xliv. 12.",
+   "confidence": "cited",
+   "gloss": "To cease; to desist; to leave off.",
+   "headword": "leave",
+   "mark": "Colloq.",
+   "occurrences": 115,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "leaveth": {
+   "citation": "Gen. xliv. 12.",
+   "confidence": "cited",
+   "gloss": "To cease; to desist; to leave off.",
+   "headword": "leave",
+   "mark": "Colloq.",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "leaving": {
+   "citation": "Gen. xliv. 12.",
+   "confidence": "cited",
+   "gloss": "To cease; to desist; to leave off.",
+   "headword": "leave",
+   "mark": "Colloq.",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "leprous": {
+   "citation": "Ex. iv. 6.",
+   "confidence": "cited",
+   "gloss": "Infected with leprosy; pertaining to or resembling leprosy.",
+   "headword": "leprous",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "lift": {
+   "citation": "John viii. 28.",
+   "confidence": "cited",
+   "gloss": "To steal; to carry off by theft (esp. cattle); as, to lift",
+   "headword": "lift",
+   "occurrences": 104,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "lifted": {
+   "citation": "John viii. 28.",
+   "confidence": "cited",
+   "gloss": "To steal; to carry off by theft (esp. cattle); as, to lift",
+   "headword": "lift",
+   "occurrences": 158,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "liftest": {
+   "citation": "John viii. 28.",
+   "confidence": "cited",
+   "gloss": "To steal; to carry off by theft (esp. cattle); as, to lift",
+   "headword": "lift",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "lifteth": {
+   "citation": "John viii. 28.",
+   "confidence": "cited",
+   "gloss": "To steal; to carry off by theft (esp. cattle); as, to lift",
+   "headword": "lift",
+   "occurrences": 10,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "lo": {
+   "citation": "Matt. xxiv. 23.",
+   "confidence": "cited",
+   "gloss": "Look; see; behold; observe.",
+   "headword": "lo",
+   "occurrences": 159,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "looking": {
+   "citation": "Heb. x. 27.",
+   "confidence": "cited",
+   "gloss": "The manner in which one looks; appearance; countenance; face.",
+   "headword": "looking",
+   "mark": "Obs.",
+   "occurrences": 30,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "loose": {
+   "citation": "Acts xiii. 13.",
+   "confidence": "cited",
+   "gloss": "To set sail.",
+   "headword": "loose",
+   "mark": "Obs.",
+   "occurrences": 29,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "magnifical": {
+   "citation": "1 Chron. xxii. 5.",
+   "confidence": "cited",
+   "gloss": "Grand; splendid; illustrious; magnificent.",
+   "headword": "magnifical",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "magnificence": {
+   "citation": "Acts xix. 27.",
+   "confidence": "cited",
+   "gloss": "The act of doing what is magnificent; the state or quality of being magnificent.",
+   "headword": "magnificence",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "maneh": {
+   "citation": "Ezek. xlv. 12.",
+   "confidence": "cited",
+   "gloss": "A Hebrew weight for gold or silver, being one hundred shekels of gold and sixty shekels of silver.",
+   "headword": "maneh",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "manifold": {
+   "citation": "Eph. iii. 10.",
+   "confidence": "cited",
+   "gloss": "Exhibited at divers times or in various ways; – used to qualify nouns in the singular number.",
+   "headword": "manifold",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "mankind": {
+   "citation": "Lev. xviii. 22.",
+   "confidence": "cited",
+   "gloss": "Men, as distinguished from women; the male portion of human race.",
+   "headword": "mankind",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "manna": {
+   "citation": "Ex. xvi. 15.",
+   "confidence": "cited",
+   "gloss": "The food supplied to the Israelites in their journey through the wilderness of Arabia; hence, divinely supplied food.",
+   "headword": "manna",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "markest": {
+   "citation": "Ps. xxxvii. 37.",
+   "confidence": "cited",
+   "gloss": "To notice or observe; to give attention to; to take note of; to remark; to heed; to regard; as, mark",
+   "headword": "mark",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "marketh": {
+   "citation": "Ps. xxxvii. 37.",
+   "confidence": "cited",
+   "gloss": "To notice or observe; to give attention to; to take note of; to remark; to heed; to regard; as, mark",
+   "headword": "mark",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "marks": {
+   "citation": "Ps. xxxvii. 37.",
+   "confidence": "cited",
+   "gloss": "To notice or observe; to give attention to; to take note of; to remark; to heed; to regard; as, mark",
+   "headword": "mark",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "mercies": {
+   "citation": "Luke x. 37.",
+   "confidence": "cited",
+   "gloss": "Compassionate treatment of the unfortunate and helpless; sometimes, favor, beneficence.",
+   "headword": "mercy",
+   "occurrences": 44,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "mercy": {
+   "citation": "Luke x. 37.",
+   "confidence": "cited",
+   "gloss": "Compassionate treatment of the unfortunate and helpless; sometimes, favor, beneficence.",
+   "headword": "mercy",
+   "occurrences": 276,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "mighties": {
+   "citation": "Matt. xi. 20.",
+   "confidence": "cited",
+   "gloss": "Accomplished by might; hence, extraordinary; wonderful.",
+   "headword": "mighty",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "mightiest": {
+   "citation": "Matt. xi. 20.",
+   "confidence": "cited",
+   "gloss": "Accomplished by might; hence, extraordinary; wonderful.",
+   "headword": "mighty",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "mighty": {
+   "citation": "Matt. xi. 20.",
+   "confidence": "cited",
+   "gloss": "Accomplished by might; hence, extraordinary; wonderful.",
+   "headword": "mighty",
+   "occurrences": 284,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "milch": {
+   "citation": "Gen. xxxii.",
+   "confidence": "cited",
+   "gloss": "Giving milk; – now applied only to beasts.",
+   "headword": "milch",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "mind": {
+   "citation": "Rom. xii. 16.",
+   "confidence": "cited",
+   "gloss": "To fix the mind or thoughts on; to regard with attention; to treat as of consequence; to consider; to heed; to mark; to note.",
+   "headword": "mind",
+   "occurrences": 95,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "minds": {
+   "citation": "Rom. xii. 16.",
+   "confidence": "cited",
+   "gloss": "To fix the mind or thoughts on; to regard with attention; to treat as of consequence; to consider; to heed; to mark; to note.",
+   "headword": "mind",
+   "occurrences": 16,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "minister": {
+   "citation": "Matt. xxv. 44.",
+   "confidence": "cited",
+   "gloss": "To supply or to things needful; esp., to supply consolation or remedies; as, to minister",
+   "headword": "minister",
+   "occurrences": 100,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ministered": {
+   "citation": "Matt. xxv. 44.",
+   "confidence": "cited",
+   "gloss": "To supply or to things needful; esp., to supply consolation or remedies; as, to minister",
+   "headword": "minister",
+   "occurrences": 37,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ministereth": {
+   "citation": "Matt. xxv. 44.",
+   "confidence": "cited",
+   "gloss": "To supply or to things needful; esp., to supply consolation or remedies; as, to minister",
+   "headword": "minister",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ministering": {
+   "citation": "Matt. xxv. 44.",
+   "confidence": "cited",
+   "gloss": "To supply or to things needful; esp., to supply consolation or remedies; as, to minister",
+   "headword": "minister",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ministers": {
+   "citation": "Matt. xxv. 44.",
+   "confidence": "cited",
+   "gloss": "To supply or to things needful; esp., to supply consolation or remedies; as, to minister",
+   "headword": "minister",
+   "occurrences": 26,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ministration": {
+   "citation": "Luke i. 23.",
+   "confidence": "cited",
+   "gloss": "The act of ministering; service; ministry.",
+   "headword": "ministration",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "morrow": {
+   "citation": "Lev. vii. 16.",
+   "confidence": "cited",
+   "gloss": "The next following day; the day subsequent to any day specified or understood.",
+   "headword": "morrow",
+   "mark": "Obs.",
+   "occurrences": 103,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "murmur": {
+   "citation": "John vi. 61.",
+   "confidence": "cited",
+   "gloss": "To utter complaints in a low, half-articulated voice; to feel or express dissatisfaction or discontent; to grumble; – often with at or against.",
+   "headword": "murmur",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "murmured": {
+   "citation": "John vi. 61.",
+   "confidence": "cited",
+   "gloss": "To utter complaints in a low, half-articulated voice; to feel or express dissatisfaction or discontent; to grumble; – often with at or against.",
+   "headword": "murmur",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "naught": {
+   "citation": "Prov. i. 25.",
+   "confidence": "cited",
+   "gloss": "The arithmetical character 0; a cipher. See Cipher",
+   "headword": "naught",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "navy": {
+   "citation": "1 kings x. 11.",
+   "confidence": "cited",
+   "gloss": "A fleet of ships; an assemblage of merchantmen, or so many as sail in company.",
+   "headword": "navy",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "new": {
+   "citation": "2 Kings iv. 23.",
+   "confidence": "cited",
+   "gloss": "Fresh from anything; newly come.",
+   "headword": "new",
+   "occurrences": 150,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "noisome": {
+   "citation": "Ps. xci. 3.",
+   "confidence": "cited",
+   "gloss": "Noxious to health; hurtful; mischievous; unwholesome; insalubrious; destructive; as, noisome",
+   "headword": "noisome",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "novice": {
+   "citation": "1 Tim. iii. 6.",
+   "confidence": "cited",
+   "gloss": "One newly received into the church, or one newly converted to the Christian faith.",
+   "headword": "novice",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "occupied": {
+   "citation": "Luke xix. 13.",
+   "confidence": "cited",
+   "gloss": "To hold possession; to be an occupant.",
+   "headword": "occupy",
+   "mark": "Obs.",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "occupieth": {
+   "citation": "Luke xix. 13.",
+   "confidence": "cited",
+   "gloss": "To hold possession; to be an occupant.",
+   "headword": "occupy",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "occupy": {
+   "citation": "Luke xix. 13.",
+   "confidence": "cited",
+   "gloss": "To hold possession; to be an occupant.",
+   "headword": "occupy",
+   "mark": "Obs.",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "offend": {
+   "citation": "2 Chron. xxviii. 13.",
+   "confidence": "cited",
+   "gloss": "To cause dislike, anger, or vexation; to displease.",
+   "headword": "offend",
+   "occurrences": 25,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "offended": {
+   "citation": "2 Chron. xxviii. 13.",
+   "confidence": "cited",
+   "gloss": "To cause dislike, anger, or vexation; to displease.",
+   "headword": "offend",
+   "occurrences": 25,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "offscouring": {
+   "citation": "Lam. iii. 45.",
+   "confidence": "cited",
+   "gloss": "That which is scoured off; hence, refuse; rejected matter; that which is vile or despised.",
+   "headword": "offscouring",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "often": {
+   "citation": "1 Tim. v. 23.",
+   "confidence": "cited",
+   "gloss": "Frequent; common; repeated.",
+   "headword": "often",
+   "mark": "R.",
+   "occurrences": 15,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "omer": {
+   "citation": "Ex. xvi. 36.",
+   "confidence": "cited",
+   "gloss": "A Hebrew measure, the tenth of an ephah. See Ephah",
+   "headword": "omer",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "omers": {
+   "citation": "Ex. xvi. 36.",
+   "confidence": "cited",
+   "gloss": "A Hebrew measure, the tenth of an ephah. See Ephah",
+   "headword": "omer",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "onycha": {
+   "citation": "Ex. xxx. 34.",
+   "confidence": "cited",
+   "gloss": "An ingredient of the Mosaic incense, probably the operculum of some kind of strombus.",
+   "headword": "onycha",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "oppression": {
+   "citation": "Job xxxv. 9.",
+   "confidence": "cited",
+   "gloss": "That which oppresses; a hardship or injustice; cruelty; severity; tyranny.",
+   "headword": "oppression",
+   "occurrences": 24,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "oppressions": {
+   "citation": "Job xxxv. 9.",
+   "confidence": "cited",
+   "gloss": "That which oppresses; a hardship or injustice; cruelty; severity; tyranny.",
+   "headword": "oppression",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "oracle": {
+   "citation": "1 Kings vi. 19.",
+   "confidence": "cited",
+   "gloss": "The sanctuary, or Most Holy place in the temple; also, the temple itself.",
+   "headword": "oracle",
+   "occurrences": 17,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "oracles": {
+   "citation": "1 Kings vi. 19.",
+   "confidence": "cited",
+   "gloss": "The sanctuary, or Most Holy place in the temple; also, the temple itself.",
+   "headword": "oracle",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ordinance": {
+   "citation": "Ex. xv. 25.",
+   "confidence": "cited",
+   "gloss": "A rule established by authority; a permanent rule of action; a statute, law, regulation, rescript, or accepted usage; an edict or decree…",
+   "headword": "ordinance",
+   "mark": "Obs.",
+   "occurrences": 30,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ordinances": {
+   "citation": "Ex. xv. 25.",
+   "confidence": "cited",
+   "gloss": "A rule established by authority; a permanent rule of action; a statute, law, regulation, rescript, or accepted usage; an edict or decree…",
+   "headword": "ordinance",
+   "mark": "Obs.",
+   "occurrences": 27,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "overcome": {
+   "citation": "Rev. iii. 21.",
+   "confidence": "cited",
+   "gloss": "To gain the superiority; to be victorious.",
+   "headword": "overcome",
+   "mark": "Obs.",
+   "occurrences": 22,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "overcometh": {
+   "citation": "Rev. iii. 21.",
+   "confidence": "cited",
+   "gloss": "To gain the superiority; to be victorious.",
+   "headword": "overcome",
+   "mark": "Obs.",
+   "occurrences": 11,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "palmerworm": {
+   "citation": "Joel. i. 4.",
+   "confidence": "cited",
+   "gloss": "Any hairy caterpillar which appears in great numbers, devouring herbage, and wandering about like a palmer. The name is applied also to other voracious insects.",
+   "headword": "palmerworm",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "palsies": {
+   "citation": "Mark ii. 3.",
+   "confidence": "cited",
+   "gloss": "Paralysis, complete or partial. See Paralysis",
+   "headword": "palsy",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "palsy": {
+   "citation": "Mark ii. 3.",
+   "confidence": "cited",
+   "gloss": "Paralysis, complete or partial. See Paralysis",
+   "headword": "palsy",
+   "occurrences": 13,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "part": {
+   "citation": "Neh. i. 9.",
+   "confidence": "cited",
+   "gloss": "Quarter; region; district; – usually in the plural.",
+   "headword": "part",
+   "occurrences": 214,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "parteth": {
+   "citation": "Neh. i. 9.",
+   "confidence": "cited",
+   "gloss": "Quarter; region; district; – usually in the plural.",
+   "headword": "part",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "parting": {
+   "citation": "Ezek. xxi. 21.",
+   "confidence": "cited",
+   "gloss": "The act of parting or dividing; the state of being parted; division; separation.",
+   "headword": "parting",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "partly": {
+   "citation": "1 Cor. xi. 18.",
+   "confidence": "cited",
+   "gloss": "In part; in some measure of degree; not wholly.",
+   "headword": "partly",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "parts": {
+   "citation": "Neh. i. 9.",
+   "confidence": "cited",
+   "gloss": "Quarter; region; district; – usually in the plural.",
+   "headword": "part",
+   "occurrences": 64,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "passed": {
+   "citation": "2 Pet. iii. 10.",
+   "confidence": "cited",
+   "gloss": "To decline to play in one’s turn; in euchre, to decline to make the trump.",
+   "headword": "pass",
+   "occurrences": 161,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "passest": {
+   "citation": "2 Pet. iii. 10.",
+   "confidence": "cited",
+   "gloss": "To decline to play in one’s turn; in euchre, to decline to make the trump.",
+   "headword": "pass",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "passeth": {
+   "citation": "2 Pet. iii. 10.",
+   "confidence": "cited",
+   "gloss": "To decline to play in one’s turn; in euchre, to decline to make the trump.",
+   "headword": "pass",
+   "occurrences": 38,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "passover": {
+   "citation": "Ex. xii.",
+   "confidence": "cited",
+   "gloss": "The sacrifice offered at the feast of the passover; the paschal lamb.",
+   "headword": "passover",
+   "occurrences": 76,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "passovers": {
+   "citation": "Ex. xii.",
+   "confidence": "cited",
+   "gloss": "The sacrifice offered at the feast of the passover; the paschal lamb.",
+   "headword": "passover",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "past": {
+   "citation": "Eph. iv. 19.",
+   "confidence": "cited",
+   "gloss": "Beyond, in position, or degree; further than; beyond the reach or influence of.",
+   "headword": "past",
+   "occurrences": 51,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "paw": {
+   "citation": "Job xxxix. 21.",
+   "confidence": "cited",
+   "gloss": "To draw the forefoot along the ground; to beat or scrape with the forefoot.",
+   "headword": "paw",
+   "mark": "Jocose",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "paweth": {
+   "citation": "Job xxxix. 21.",
+   "confidence": "cited",
+   "gloss": "To draw the forefoot along the ground; to beat or scrape with the forefoot.",
+   "headword": "paw",
+   "mark": "Jocose",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "paws": {
+   "citation": "Job xxxix. 21.",
+   "confidence": "cited",
+   "gloss": "To draw the forefoot along the ground; to beat or scrape with the forefoot.",
+   "headword": "paw",
+   "mark": "Jocose",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pay": {
+   "citation": "Matt. xviii. 28.",
+   "confidence": "cited",
+   "gloss": "To discharge, as a debt, demand, or obligation, by giving or doing what is due or required; to deliver the amount or value of to the person to whom it is owing…",
+   "headword": "pay",
+   "occurrences": 39,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "payed": {
+   "citation": "Matt. xviii. 28.",
+   "confidence": "cited",
+   "gloss": "To discharge, as a debt, demand, or obligation, by giving or doing what is due or required; to deliver the amount or value of to the person to whom it is owing…",
+   "headword": "pay",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "payeth": {
+   "citation": "Matt. xviii. 28.",
+   "confidence": "cited",
+   "gloss": "To discharge, as a debt, demand, or obligation, by giving or doing what is due or required; to deliver the amount or value of to the person to whom it is owing…",
+   "headword": "pay",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "peacemakers": {
+   "citation": "Matt. v. 9.",
+   "confidence": "cited",
+   "gloss": "One who makes peace by reconciling parties that are at variance.",
+   "headword": "peacemaker",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "perfectness": {
+   "citation": "Col. iii. 14.",
+   "confidence": "cited",
+   "gloss": "The quality or state of being perfect; perfection.",
+   "headword": "perfectness",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pitch": {
+   "citation": "Gen. vi. 14.",
+   "confidence": "cited",
+   "gloss": "To cover over or smear with pitch.",
+   "headword": "pitch",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pitched": {
+   "citation": "Gen. vi. 14.",
+   "confidence": "cited",
+   "gloss": "To cover over or smear with pitch.",
+   "headword": "pitch",
+   "occurrences": 82,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "plat": {
+   "citation": "Matt. xxvii. 29.",
+   "confidence": "cited",
+   "gloss": "To form by interlaying interweaving; to braid; to plait.",
+   "headword": "plat",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "plates": {
+   "citation": "Matt. xxvii. 29.",
+   "confidence": "cited",
+   "gloss": "To form by interlaying interweaving; to braid; to plait.",
+   "headword": "plat",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "player": {
+   "citation": "1 Sam. xvi. 16.",
+   "confidence": "cited",
+   "gloss": "One who plays on an instrument of music.",
+   "headword": "player",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "players": {
+   "citation": "1 Sam. xvi. 16.",
+   "confidence": "cited",
+   "gloss": "One who plays on an instrument of music.",
+   "headword": "player",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "please": {
+   "citation": "Col. i. 19.",
+   "confidence": "cited",
+   "gloss": "To be the will or pleasure of; to seem good to; – used impersonally.",
+   "headword": "please",
+   "occurrences": 39,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pleaseth": {
+   "citation": "Col. i. 19.",
+   "confidence": "cited",
+   "gloss": "To be the will or pleasure of; to seem good to; – used impersonally.",
+   "headword": "please",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pleasure": {
+   "citation": "Isa. xlviii. 14.",
+   "confidence": "cited",
+   "gloss": "What the will dictates or prefers as gratifying or satisfying; hence, will; choice; wish; purpose.",
+   "headword": "pleasure",
+   "occurrences": 61,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pleasures": {
+   "citation": "Isa. xlviii. 14.",
+   "confidence": "cited",
+   "gloss": "What the will dictates or prefers as gratifying or satisfying; hence, will; choice; wish; purpose.",
+   "headword": "pleasure",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "plenteous": {
+   "citation": "Gen. xli. 34.",
+   "confidence": "cited",
+   "gloss": "Yielding abundance; productive; fruitful.",
+   "headword": "plenteous",
+   "occurrences": 12,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "plenty": {
+   "citation": "Gen. xxvii. 28.",
+   "confidence": "cited",
+   "gloss": "Full or adequate supply; enough and to spare; sufficiency; specifically, abundant productiveness of the earth; ample supply for human wants; abundance; copiousness.",
+   "headword": "plenty",
+   "occurrences": 13,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pomegranate": {
+   "citation": "Ex. xxviii. 33.",
+   "confidence": "cited",
+   "gloss": "A carved or embroidered ornament resembling a pomegranate.",
+   "headword": "pomegranate",
+   "occurrences": 10,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pomegranates": {
+   "citation": "Ex. xxviii. 33.",
+   "confidence": "cited",
+   "gloss": "A carved or embroidered ornament resembling a pomegranate.",
+   "headword": "pomegranate",
+   "occurrences": 23,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "poor": {
+   "citation": "Gen. xli. 19.",
+   "confidence": "cited",
+   "gloss": "Wanting in fat, plumpness, or fleshiness; lean; emaciated; meager; as, a poor",
+   "headword": "poor",
+   "occurrences": 205,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "poorest": {
+   "citation": "Gen. xli. 19.",
+   "confidence": "cited",
+   "gloss": "Wanting in fat, plumpness, or fleshiness; lean; emaciated; meager; as, a poor",
+   "headword": "poor",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "potsherd": {
+   "citation": "Job ii. 8.",
+   "confidence": "cited",
+   "gloss": "A piece or fragment of a broken pot.",
+   "headword": "potsherd",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "potsherds": {
+   "citation": "Job ii. 8.",
+   "confidence": "cited",
+   "gloss": "A piece or fragment of a broken pot.",
+   "headword": "potsherd",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "potter": {
+   "citation": "Ps. ii. 9.",
+   "confidence": "cited",
+   "gloss": "One whose occupation is to make earthen vessels.",
+   "headword": "potter",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "potters": {
+   "citation": "Ps. ii. 9.",
+   "confidence": "cited",
+   "gloss": "One whose occupation is to make earthen vessels.",
+   "headword": "potter",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "preach": {
+   "citation": "Ps. xl. 9.",
+   "confidence": "cited",
+   "gloss": "To inculcate in public discourse; to urge with earnestness by public teaching.",
+   "headword": "preach",
+   "occurrences": 50,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "preached": {
+   "citation": "Ps. xl. 9.",
+   "confidence": "cited",
+   "gloss": "To inculcate in public discourse; to urge with earnestness by public teaching.",
+   "headword": "preach",
+   "occurrences": 61,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "preachest": {
+   "citation": "Ps. xl. 9.",
+   "confidence": "cited",
+   "gloss": "To inculcate in public discourse; to urge with earnestness by public teaching.",
+   "headword": "preach",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "preacheth": {
+   "citation": "Ps. xl. 9.",
+   "confidence": "cited",
+   "gloss": "To inculcate in public discourse; to urge with earnestness by public teaching.",
+   "headword": "preach",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "presumptuous": {
+   "citation": "Ps. xix. 13.",
+   "confidence": "cited",
+   "gloss": "Done with hold design, rash confidence, or in violation of known duty; willful.",
+   "headword": "presumptuous",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "price": {
+   "citation": "Isa. lv. 1.",
+   "confidence": "cited",
+   "gloss": "The sum or amount of money at which a thing is valued, or the value which a seller sets on his goods in market; that for which something is bought or sold, or offered for sale…",
+   "headword": "price",
+   "occurrences": 33,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prices": {
+   "citation": "Isa. lv. 1.",
+   "confidence": "cited",
+   "gloss": "The sum or amount of money at which a thing is valued, or the value which a seller sets on his goods in market; that for which something is bought or sold, or offered for sale…",
+   "headword": "price",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pricking": {
+   "citation": "Prov. xii. 18 [1583].",
+   "confidence": "cited",
+   "gloss": "The act of piercing or puncturing with a sharp point.",
+   "headword": "pricking",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "privy": {
+   "citation": "Ezek. xxi. 14.",
+   "confidence": "cited",
+   "gloss": "Appropriated to retirement; private; not open to the public.",
+   "headword": "privy",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "profane": {
+   "citation": "1 Tim. i. 9.",
+   "confidence": "cited",
+   "gloss": "Irreverent in language; taking the name of God in vain; given to swearing; blasphemous; as, a profane",
+   "headword": "profane",
+   "occurrences": 33,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "profaned": {
+   "citation": "1 Tim. i. 9.",
+   "confidence": "cited",
+   "gloss": "Irreverent in language; taking the name of God in vain; given to swearing; blasphemous; as, a profane",
+   "headword": "profane",
+   "occurrences": 15,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "profaneth": {
+   "citation": "1 Tim. i. 9.",
+   "confidence": "cited",
+   "gloss": "Irreverent in language; taking the name of God in vain; given to swearing; blasphemous; as, a profane",
+   "headword": "profane",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "profaning": {
+   "citation": "1 Tim. i. 9.",
+   "confidence": "cited",
+   "gloss": "Irreverent in language; taking the name of God in vain; given to swearing; blasphemous; as, a profane",
+   "headword": "profane",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prognosticators": {
+   "citation": "Isa. xlvii. 13.",
+   "confidence": "cited",
+   "gloss": "One who prognosticates; a foreknower or foreteller of a future course or event by present signs.",
+   "headword": "prognosticator",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prophecies": {
+   "citation": "2 Chron. ix. 29.",
+   "confidence": "cited",
+   "gloss": "A book of prophecies; a history; as, the prophecy",
+   "headword": "prophecy",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prophecy": {
+   "citation": "2 Chron. ix. 29.",
+   "confidence": "cited",
+   "gloss": "A book of prophecies; a history; as, the prophecy",
+   "headword": "prophecy",
+   "occurrences": 21,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prophesied": {
+   "citation": "1 Kings xxii. 8.",
+   "confidence": "cited",
+   "gloss": "To foretell; to predict; to prognosticate.",
+   "headword": "prophesy",
+   "occurrences": 50,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prophesieth": {
+   "citation": "1 Kings xxii. 8.",
+   "confidence": "cited",
+   "gloss": "To foretell; to predict; to prognosticate.",
+   "headword": "prophesy",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prophesy": {
+   "citation": "1 Kings xxii. 8.",
+   "confidence": "cited",
+   "gloss": "To foretell; to predict; to prognosticate.",
+   "headword": "prophesy",
+   "occurrences": 90,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prophesying": {
+   "citation": "1 Kings xxii. 8.",
+   "confidence": "cited",
+   "gloss": "To foretell; to predict; to prognosticate.",
+   "headword": "prophesy",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prophet": {
+   "citation": "Ex. vii. 1.",
+   "confidence": "cited",
+   "gloss": "An interpreter; a spokesman.",
+   "headword": "prophet",
+   "mark": "R.",
+   "occurrences": 244,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prophets": {
+   "citation": "Ex. vii. 1.",
+   "confidence": "cited",
+   "gloss": "An interpreter; a spokesman.",
+   "headword": "prophet",
+   "mark": "R.",
+   "occurrences": 239,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "proportion": {
+   "citation": "Rom. xii. 6.",
+   "confidence": "cited",
+   "gloss": "Harmonic relation between parts, or between different things of the same kind; symmetrical arrangement or adjustment; symmetry; as, to be out of proportion",
+   "headword": "proportion",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "prostitute": {
+   "citation": "Lev. xix. 29.",
+   "confidence": "cited",
+   "gloss": "To offer, as a woman, to a lewd use; to give up to lewdness for hire.",
+   "headword": "prostitute",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "pure": {
+   "citation": "1 Tim. v. 22.",
+   "confidence": "cited",
+   "gloss": "Free from moral defilement or quilt; hence, innocent; guileless; chaste; – applied to persons.",
+   "headword": "pure",
+   "occurrences": 97,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "purloining": {
+   "citation": "Titus ii. 10.",
+   "confidence": "cited",
+   "gloss": "To practice theft; to steal.",
+   "headword": "purloin",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "rather": {
+   "citation": "1 Cor. xiv. 19.",
+   "confidence": "cited",
+   "gloss": "In some degree; somewhat; as, the day is rather",
+   "headword": "rather",
+   "occurrences": 62,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "ravening": {
+   "citation": "Luke xi. 39.",
+   "confidence": "cited",
+   "gloss": "Eagerness for plunder; rapacity; extortion.",
+   "headword": "ravening",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "refuge": {
+   "citation": "Josh. xx.",
+   "confidence": "cited",
+   "gloss": "An expedient to secure protection or defense; a device or contrivance.",
+   "headword": "refuge",
+   "occurrences": 47,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "region": {
+   "citation": "Matt. iii. 5.",
+   "confidence": "cited",
+   "gloss": "The inhabitants of a district.",
+   "headword": "region",
+   "mark": "Obs.",
+   "occurrences": 15,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "regions": {
+   "citation": "Matt. iii. 5.",
+   "confidence": "cited",
+   "gloss": "The inhabitants of a district.",
+   "headword": "region",
+   "mark": "Obs.",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "repent": {
+   "citation": "Gen. vi. 6.",
+   "confidence": "cited",
+   "gloss": "To cause to have sorrow or regret; – used impersonally.",
+   "headword": "repent",
+   "mark": "Archaic",
+   "occurrences": 46,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "repented": {
+   "citation": "Gen. vi. 6.",
+   "confidence": "cited",
+   "gloss": "To cause to have sorrow or regret; – used impersonally.",
+   "headword": "repent",
+   "mark": "Archaic",
+   "occurrences": 32,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "repentest": {
+   "citation": "Gen. vi. 6.",
+   "confidence": "cited",
+   "gloss": "To cause to have sorrow or regret; – used impersonally.",
+   "headword": "repent",
+   "mark": "Archaic",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "repenteth": {
+   "citation": "Gen. vi. 6.",
+   "confidence": "cited",
+   "gloss": "To cause to have sorrow or regret; – used impersonally.",
+   "headword": "repent",
+   "mark": "Archaic",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "repenting": {
+   "citation": "Gen. vi. 6.",
+   "confidence": "cited",
+   "gloss": "To cause to have sorrow or regret; – used impersonally.",
+   "headword": "repent",
+   "mark": "Archaic",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "report": {
+   "citation": "Acts xvi. 2.",
+   "confidence": "cited",
+   "gloss": "To make a statement of the conduct of, especially in an unfavorable sense; as, to report",
+   "headword": "report",
+   "occurrences": 30,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "reported": {
+   "citation": "Acts xvi. 2.",
+   "confidence": "cited",
+   "gloss": "To make a statement of the conduct of, especially in an unfavorable sense; as, to report",
+   "headword": "report",
+   "occurrences": 12,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "request": {
+   "citation": "Ps. cvi. 15.",
+   "confidence": "cited",
+   "gloss": "That which is asked for or requested.",
+   "headword": "request",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "requested": {
+   "citation": "Ps. cvi. 15.",
+   "confidence": "cited",
+   "gloss": "That which is asked for or requested.",
+   "headword": "request",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "requests": {
+   "citation": "Ps. cvi. 15.",
+   "confidence": "cited",
+   "gloss": "That which is asked for or requested.",
+   "headword": "request",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "restore": {
+   "citation": "Dan. ix. 25.",
+   "confidence": "cited",
+   "gloss": "To bring back to its former state; to bring back from a state of ruin, decay, disease, or the like; to repair; to renew; to recover.",
+   "headword": "restore",
+   "occurrences": 40,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "restored": {
+   "citation": "Dan. ix. 25.",
+   "confidence": "cited",
+   "gloss": "To bring back to its former state; to bring back from a state of ruin, decay, disease, or the like; to repair; to renew; to recover.",
+   "headword": "restore",
+   "occurrences": 27,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "restoreth": {
+   "citation": "Dan. ix. 25.",
+   "confidence": "cited",
+   "gloss": "To bring back to its former state; to bring back from a state of ruin, decay, disease, or the like; to repair; to renew; to recover.",
+   "headword": "restore",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "rise": {
+   "citation": "Matt. v. 45.",
+   "confidence": "cited",
+   "gloss": "To appear above the horizont, as the sun, moon, stars, and the like.",
+   "headword": "rise",
+   "occurrences": 142,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "rising": {
+   "citation": "Lev. xiii. 10.",
+   "confidence": "cited",
+   "gloss": "That which rises; a tumor; a boil.",
+   "headword": "rising",
+   "mark": "Colloq. & Low, U.S.",
+   "occurrences": 39,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sabbath": {
+   "citation": "Lev. xxv. 4.",
+   "confidence": "cited",
+   "gloss": "The seventh year, observed among the Israelites as one of rest and festival.",
+   "headword": "sabbath",
+   "occurrences": 137,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sabbaths": {
+   "citation": "Lev. xxv. 4.",
+   "confidence": "cited",
+   "gloss": "The seventh year, observed among the Israelites as one of rest and festival.",
+   "headword": "sabbath",
+   "occurrences": 35,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "safe": {
+   "citation": "1 Sam. xii. 11.",
+   "confidence": "cited",
+   "gloss": "Free from harm, injury, or risk; untouched or unthreatened by danger or injury; unharmed; unhurt; secure; whole; as, safe",
+   "headword": "safe",
+   "occurrences": 13,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sake": {
+   "citation": "1 Cor. x. 28.",
+   "confidence": "cited",
+   "gloss": "Final cause; end; purpose of obtaining; cause; motive; reason; interest; concern; account; regard or respect; – used chiefly in such phrases as, for the sake of, for his sake…",
+   "headword": "sake",
+   "occurrences": 145,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sakes": {
+   "citation": "1 Cor. x. 28.",
+   "confidence": "cited",
+   "gloss": "Final cause; end; purpose of obtaining; cause; motive; reason; interest; concern; account; regard or respect; – used chiefly in such phrases as, for the sake of, for his sake…",
+   "headword": "sake",
+   "occurrences": 31,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sardius": {
+   "citation": "Ex. xxviii. 17.",
+   "confidence": "cited",
+   "gloss": "A precious stone, probably a carnelian, one of which was set in Aaron’s breastplate.",
+   "headword": "sardius",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "scapegoat": {
+   "citation": "Lev. xvi. 10.",
+   "confidence": "cited",
+   "gloss": "A goat upon whose head were symbolically placed the sins of the people, after which he was suffered to escape into the wilderness.",
+   "headword": "scapegoat",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "scoffers": {
+   "citation": "2 Pet. iii. 3.",
+   "confidence": "cited",
+   "gloss": "One who scoffs.",
+   "headword": "scoffer",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "scurvy": {
+   "citation": "Lev. xxi. 18, 20.",
+   "confidence": "cited",
+   "gloss": "Covered or affected with scurf or scabs; scabby; scurfy; specifically, diseased with the scurvy.",
+   "headword": "scurvy",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "search": {
+   "citation": "John v. 39.",
+   "confidence": "cited",
+   "gloss": "To look over or through, for the purpose of finding something; to examine; to explore; as, to search",
+   "headword": "search",
+   "occurrences": 48,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "searched": {
+   "citation": "John v. 39.",
+   "confidence": "cited",
+   "gloss": "To look over or through, for the purpose of finding something; to examine; to explore; as, to search",
+   "headword": "search",
+   "occurrences": 20,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "searchest": {
+   "citation": "John v. 39.",
+   "confidence": "cited",
+   "gloss": "To look over or through, for the purpose of finding something; to examine; to explore; as, to search",
+   "headword": "search",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "searcheth": {
+   "citation": "John v. 39.",
+   "confidence": "cited",
+   "gloss": "To look over or through, for the purpose of finding something; to examine; to explore; as, to search",
+   "headword": "search",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "seethe": {
+   "citation": "1 Sam. ii. 13.",
+   "confidence": "cited",
+   "gloss": "To be a state of ebullition or violent commotion; to be hot; to boil.",
+   "headword": "seethe",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "self": {
+   "citation": "John iv. 2.",
+   "confidence": "cited",
+   "gloss": "Personification; embodiment.",
+   "headword": "self",
+   "mark": "Poetic.",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sepulchre": {
+   "citation": "Matt. xxiii. 27.",
+   "confidence": "cited",
+   "gloss": "The place in which the dead body of a human being is interred, or a place set apart for that purpose; a grave; a tomb.",
+   "headword": "sepulchre",
+   "occurrences": 54,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sepulchres": {
+   "citation": "Matt. xxiii. 27.",
+   "confidence": "cited",
+   "gloss": "The place in which the dead body of a human being is interred, or a place set apart for that purpose; a grave; a tomb.",
+   "headword": "sepulchre",
+   "occurrences": 16,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "seraphims": {
+   "citation": "Isa. vi. 2 and 6.",
+   "confidence": "cited",
+   "gloss": "The Hebrew plural of Seraph",
+   "headword": "seraphim",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "shadow": {
+   "citation": "James i. 17.",
+   "confidence": "cited",
+   "gloss": "A small degree; a shade.",
+   "headword": "shadow",
+   "occurrences": 73,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "shadows": {
+   "citation": "James i. 17.",
+   "confidence": "cited",
+   "gloss": "A small degree; a shade.",
+   "headword": "shadow",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "shame": {
+   "citation": "Isa. xlvii. 3.",
+   "confidence": "cited",
+   "gloss": "The parts which modesty requires to be covered; the private parts.",
+   "headword": "shame",
+   "occurrences": 100,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sheepmaster": {
+   "citation": "2 Kings iii. 4.",
+   "confidence": "cited",
+   "gloss": "A keeper or feeder of sheep; also, an owner of sheep.",
+   "headword": "sheepmaster",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "shine": {
+   "citation": "Num. vi. 25.",
+   "confidence": "cited",
+   "gloss": "To be eminent, conspicuous, or distinguished; to exhibit brilliant intellectual powers; as, to shine",
+   "headword": "shine",
+   "occurrences": 32,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "shipmaster": {
+   "citation": "Jonah i. 6.",
+   "confidence": "cited",
+   "gloss": "The captain, master, or commander of a ship.",
+   "headword": "shipmaster",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sister": {
+   "citation": "James ii. 15.",
+   "confidence": "cited",
+   "gloss": "A woman who is closely allied to, or assocciated with, another person, as in the sdame faith, society, order, or community.",
+   "headword": "sister",
+   "occurrences": 116,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sisters": {
+   "citation": "James ii. 15.",
+   "confidence": "cited",
+   "gloss": "A woman who is closely allied to, or assocciated with, another person, as in the sdame faith, society, order, or community.",
+   "headword": "sister",
+   "occurrences": 19,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "skin": {
+   "citation": "Job xix. 20.",
+   "confidence": "cited",
+   "gloss": "The covering, as of planking or iron plates, outside the framing, forming the sides and bottom of a vessel; the shell; also, a lining inside the framing.",
+   "headword": "skin",
+   "occurrences": 77,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "skins": {
+   "citation": "Job xix. 20.",
+   "confidence": "cited",
+   "gloss": "The covering, as of planking or iron plates, outside the framing, forming the sides and bottom of a vessel; the shell; also, a lining inside the framing.",
+   "headword": "skin",
+   "occurrences": 24,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sling": {
+   "citation": "Judg. xx. 16.",
+   "confidence": "cited",
+   "gloss": "To throw with a sling.",
+   "headword": "sling",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "slings": {
+   "citation": "Judg. xx. 16.",
+   "confidence": "cited",
+   "gloss": "To throw with a sling.",
+   "headword": "sling",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "small": {
+   "citation": "1 Kings xix. 12.",
+   "confidence": "cited",
+   "gloss": "Weak; slender; fine; gentle; soft; not loud.",
+   "headword": "small",
+   "occurrences": 97,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "smallest": {
+   "citation": "1 Kings xix. 12.",
+   "confidence": "cited",
+   "gloss": "Weak; slender; fine; gentle; soft; not loud.",
+   "headword": "small",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "smell": {
+   "citation": "Ex. xxx. 38.",
+   "confidence": "cited",
+   "gloss": "To exercise the sense of smell.",
+   "headword": "smell",
+   "occurrences": 20,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "smelled": {
+   "citation": "Ex. xxx. 38.",
+   "confidence": "cited",
+   "gloss": "To exercise the sense of smell.",
+   "headword": "smell",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "smelleth": {
+   "citation": "Ex. xxx. 38.",
+   "confidence": "cited",
+   "gloss": "To exercise the sense of smell.",
+   "headword": "smell",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "smite": {
+   "citation": "Exod. xxi. 27.",
+   "confidence": "cited",
+   "gloss": "To strike or affect with passion, as love or fear.",
+   "headword": "smite",
+   "mark": "Obs.",
+   "occurrences": 125,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "smooth": {
+   "citation": "Gen. xxvii. 16.",
+   "confidence": "cited",
+   "gloss": "That which is smooth; the smooth part of anything.",
+   "headword": "smooth",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "smootheth": {
+   "citation": "Gen. xxvii. 16.",
+   "confidence": "cited",
+   "gloss": "That which is smooth; the smooth part of anything.",
+   "headword": "smooth",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "solitarily": {
+   "citation": "Mic. vii. 14.",
+   "confidence": "cited",
+   "gloss": "In a solitary manner; in solitude; alone.",
+   "headword": "solitarily",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "soon": {
+   "citation": "Ex. xxxii. 19.",
+   "confidence": "cited",
+   "gloss": "Readily; willingly; – in this sense used with would, or some other word expressing will.",
+   "headword": "soon",
+   "mark": "Obs.",
+   "occurrences": 65,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "south": {
+   "citation": "Matt. xii. 42.",
+   "confidence": "cited",
+   "gloss": "A country, region, or place situated farther to the south than another; the southern section of a country.",
+   "headword": "south",
+   "occurrences": 143,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spit": {
+   "citation": "Luke xviii. 32.",
+   "confidence": "cited",
+   "gloss": "To eject; to throw out; to belch.",
+   "headword": "spit",
+   "occurrences": 11,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spitting": {
+   "citation": "Luke xviii. 32.",
+   "confidence": "cited",
+   "gloss": "To eject; to throw out; to belch.",
+   "headword": "spit",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spoil": {
+   "citation": "Ex. iii. 22.",
+   "confidence": "cited",
+   "gloss": "To plunder; to strip by violence; to pillage; to rob; – with of before the name of the thing taken; as, to spoil",
+   "headword": "spoil",
+   "occurrences": 118,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spoiled": {
+   "citation": "Ex. iii. 22.",
+   "confidence": "cited",
+   "gloss": "To plunder; to strip by violence; to pillage; to rob; – with of before the name of the thing taken; as, to spoil",
+   "headword": "spoil",
+   "occurrences": 55,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spoilest": {
+   "citation": "Ex. iii. 22.",
+   "confidence": "cited",
+   "gloss": "To plunder; to strip by violence; to pillage; to rob; – with of before the name of the thing taken; as, to spoil",
+   "headword": "spoil",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spoileth": {
+   "citation": "Ex. iii. 22.",
+   "confidence": "cited",
+   "gloss": "To plunder; to strip by violence; to pillage; to rob; – with of before the name of the thing taken; as, to spoil",
+   "headword": "spoil",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spoiling": {
+   "citation": "Ex. iii. 22.",
+   "confidence": "cited",
+   "gloss": "To plunder; to strip by violence; to pillage; to rob; – with of before the name of the thing taken; as, to spoil",
+   "headword": "spoil",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spoils": {
+   "citation": "Ex. iii. 22.",
+   "confidence": "cited",
+   "gloss": "To plunder; to strip by violence; to pillage; to rob; – with of before the name of the thing taken; as, to spoil",
+   "headword": "spoil",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sport": {
+   "citation": "Prov. xxvi. 19.",
+   "confidence": "cited",
+   "gloss": "A sportsman; a gambler.",
+   "headword": "sport",
+   "mark": "Slang",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "spring": {
+   "citation": "Ps. lxxxvii. 7.",
+   "confidence": "cited",
+   "gloss": "Any source of supply; especially, the source from which a stream proceeds; an issue of water from the earth; a natural fountain.",
+   "headword": "spring",
+   "occurrences": 23,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "springeth": {
+   "citation": "Ps. lxxxvii. 7.",
+   "confidence": "cited",
+   "gloss": "Any source of supply; especially, the source from which a stream proceeds; an issue of water from the earth; a natural fountain.",
+   "headword": "spring",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "springs": {
+   "citation": "Ps. lxxxvii. 7.",
+   "confidence": "cited",
+   "gloss": "Any source of supply; especially, the source from which a stream proceeds; an issue of water from the earth; a natural fountain.",
+   "headword": "spring",
+   "occurrences": 16,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stablish": {
+   "citation": "2 Sam. vii. 13.",
+   "confidence": "cited",
+   "gloss": "To settle permanently in a state; to make firm; to establish; to fix.",
+   "headword": "stablish",
+   "mark": "Obs.",
+   "occurrences": 12,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stablished": {
+   "citation": "2 Sam. vii. 13.",
+   "confidence": "cited",
+   "gloss": "To settle permanently in a state; to make firm; to establish; to fix.",
+   "headword": "stablish",
+   "mark": "Obs.",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stablisheth": {
+   "citation": "2 Sam. vii. 13.",
+   "confidence": "cited",
+   "gloss": "To settle permanently in a state; to make firm; to establish; to fix.",
+   "headword": "stablish",
+   "mark": "Obs.",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stacte": {
+   "citation": "Ex. xxx. 34.",
+   "confidence": "cited",
+   "gloss": "One of the sweet spices used by the ancient Jews in the preparation of incense. It was perhaps an oil or other form of myrrh or cinnamon, or a kind of storax.",
+   "headword": "stacte",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stalled": {
+   "citation": "Prov. xv. 17.",
+   "confidence": "cited",
+   "gloss": "Put or kept in a stall; hence, fatted.",
+   "headword": "stalled",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stand": {
+   "citation": "Heb. ix. 10.",
+   "confidence": "cited",
+   "gloss": "To be in some particular state; to have essence or being; to be; to consist.",
+   "headword": "stand",
+   "occurrences": 274,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "standest": {
+   "citation": "Heb. ix. 10.",
+   "confidence": "cited",
+   "gloss": "To be in some particular state; to have essence or being; to be; to consist.",
+   "headword": "stand",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "standeth": {
+   "citation": "Heb. ix. 10.",
+   "confidence": "cited",
+   "gloss": "To be in some particular state; to have essence or being; to be; to consist.",
+   "headword": "stand",
+   "occurrences": 30,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "still": {
+   "citation": "1 Kings xix. 12.",
+   "confidence": "cited",
+   "gloss": "Comparatively quiet or silent; soft; gentle; low.",
+   "headword": "still",
+   "occurrences": 101,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stilled": {
+   "citation": "1 Kings xix. 12.",
+   "confidence": "cited",
+   "gloss": "Comparatively quiet or silent; soft; gentle; low.",
+   "headword": "still",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stillest": {
+   "citation": "1 Kings xix. 12.",
+   "confidence": "cited",
+   "gloss": "Comparatively quiet or silent; soft; gentle; low.",
+   "headword": "still",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stilleth": {
+   "citation": "1 Kings xix. 12.",
+   "confidence": "cited",
+   "gloss": "Comparatively quiet or silent; soft; gentle; low.",
+   "headword": "still",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "straitly": {
+   "citation": "Mark i. 43.",
+   "confidence": "cited",
+   "gloss": "In a strait manner; narrowly; strictly; rigorously.",
+   "headword": "straitly",
+   "occurrences": 11,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "strange": {
+   "citation": "Prov. v. 3.",
+   "confidence": "cited",
+   "gloss": "Not familiar; unaccustomed; inexperienced.",
+   "headword": "strange",
+   "mark": "Obs.",
+   "occurrences": 76,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "string": {
+   "citation": "Ps. xxx. iii. 2.",
+   "confidence": "cited",
+   "gloss": "The cord of a musical instrument, as of a piano, harp, or violin; specifically (pl.",
+   "headword": "string",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "stringed": {
+   "citation": "Ps. cl. 4.",
+   "confidence": "cited",
+   "gloss": "Having strings; as, a stringed",
+   "headword": "stringed",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "strings": {
+   "citation": "Ps. xxx. iii. 2.",
+   "confidence": "cited",
+   "gloss": "The cord of a musical instrument, as of a piano, harp, or violin; specifically (pl.",
+   "headword": "string",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "strong": {
+   "citation": "Heb. v. 12.",
+   "confidence": "cited",
+   "gloss": "Solid; nourishing; as, strong",
+   "headword": "strong",
+   "occurrences": 255,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "strongest": {
+   "citation": "Heb. v. 12.",
+   "confidence": "cited",
+   "gloss": "Solid; nourishing; as, strong",
+   "headword": "strong",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "subvert": {
+   "citation": "2 Tim. iii. 14.",
+   "confidence": "cited",
+   "gloss": "To pervert, as the mind, and turn it from the truth; to corrupt; to confound.",
+   "headword": "subvert",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "subverted": {
+   "citation": "2 Tim. iii. 14.",
+   "confidence": "cited",
+   "gloss": "To pervert, as the mind, and turn it from the truth; to corrupt; to confound.",
+   "headword": "subvert",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "subverting": {
+   "citation": "2 Tim. iii. 14.",
+   "confidence": "cited",
+   "gloss": "To pervert, as the mind, and turn it from the truth; to corrupt; to confound.",
+   "headword": "subvert",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sunder": {
+   "citation": "Ps. xlvi. 9.",
+   "confidence": "cited",
+   "gloss": "A separation into parts; a division or severance.",
+   "headword": "sunder",
+   "mark": "R.",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "sundered": {
+   "citation": "Ps. xlvi. 9.",
+   "confidence": "cited",
+   "gloss": "A separation into parts; a division or severance.",
+   "headword": "sunder",
+   "mark": "R.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "suppose": {
+   "citation": "Acts ii. 15.",
+   "confidence": "cited",
+   "gloss": "To make supposition; to think; to be of opinion.",
+   "headword": "suppose",
+   "mark": "Obs.",
+   "occurrences": 10,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "supposed": {
+   "citation": "Acts ii. 15.",
+   "confidence": "cited",
+   "gloss": "To make supposition; to think; to be of opinion.",
+   "headword": "suppose",
+   "mark": "Obs.",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "supposing": {
+   "citation": "Acts ii. 15.",
+   "confidence": "cited",
+   "gloss": "To make supposition; to think; to be of opinion.",
+   "headword": "suppose",
+   "mark": "Obs.",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "swim": {
+   "citation": "Ps. vi. 6.",
+   "confidence": "cited",
+   "gloss": "To be overflowed or drenched.",
+   "headword": "swim",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "swimmest": {
+   "citation": "Ps. vi. 6.",
+   "confidence": "cited",
+   "gloss": "To be overflowed or drenched.",
+   "headword": "swim",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "swimmeth": {
+   "citation": "Ps. vi. 6.",
+   "confidence": "cited",
+   "gloss": "To be overflowed or drenched.",
+   "headword": "swim",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "swine": {
+   "citation": "Mark v. 11.",
+   "confidence": "cited",
+   "gloss": "Any animal of the hog kind, especially one of the domestical species. Swine secrete a large amount of subcutaneous fat, which, when extracted…",
+   "headword": "swine",
+   "mark": "Obs.",
+   "occurrences": 20,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "tabernacles": {
+   "citation": "Ex. xxvi.",
+   "confidence": "cited",
+   "gloss": "A portable structure of wooden framework covered with curtains, which was carried through the wilderness in the Israelitish exodus, as a place of sacrifice and worship.",
+   "headword": "tabernacle",
+   "occurrences": 30,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "taches": {
+   "citation": "Ex. xxvi. 6.",
+   "confidence": "cited",
+   "gloss": "Something used for taking hold or holding; a catch; a loop; a button.",
+   "headword": "tache",
+   "mark": "Obs.",
+   "occurrences": 10,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "taskmasters": {
+   "citation": "Ex. i. 11.",
+   "confidence": "cited",
+   "gloss": "One who imposes a task, or burdens another with labor; one whose duty is to assign tasks; an overseer.",
+   "headword": "taskmaster",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "teach": {
+   "citation": "Mark ix. 31.",
+   "confidence": "cited",
+   "gloss": "To direct, as an instructor; to manage, as a preceptor; to guide the studies of; to instruct; to inform; to conduct through a course of studies; as, to teach",
+   "headword": "teach",
+   "occurrences": 109,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "teachest": {
+   "citation": "Mark ix. 31.",
+   "confidence": "cited",
+   "gloss": "To direct, as an instructor; to manage, as a preceptor; to guide the studies of; to instruct; to inform; to conduct through a course of studies; as, to teach",
+   "headword": "teach",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "teacheth": {
+   "citation": "Mark ix. 31.",
+   "confidence": "cited",
+   "gloss": "To direct, as an instructor; to manage, as a preceptor; to guide the studies of; to instruct; to inform; to conduct through a course of studies; as, to teach",
+   "headword": "teach",
+   "occurrences": 16,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "temple": {
+   "citation": "John ii. 21.",
+   "confidence": "cited",
+   "gloss": "Fig.: Any place in which the divine presence specially resides.",
+   "headword": "temple",
+   "occurrences": 204,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "temples": {
+   "citation": "John ii. 21.",
+   "confidence": "cited",
+   "gloss": "Fig.: Any place in which the divine presence specially resides.",
+   "headword": "temple",
+   "occurrences": 9,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "tentmakers": {
+   "citation": "Acts xviii. 3.",
+   "confidence": "cited",
+   "gloss": "One whose occupation it is to make tents.",
+   "headword": "tentmaker",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "terrestrial": {
+   "citation": "1 Cor. xv. 40.",
+   "confidence": "cited",
+   "gloss": "Of or pertaining to the earth; existing on the earth; earthly; as, terrestrial",
+   "headword": "terrestrial",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "terror": {
+   "citation": "Job xviii. 14.",
+   "confidence": "cited",
+   "gloss": "That which excites dread; a cause of extreme fear.",
+   "headword": "terror",
+   "occurrences": 29,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "terrors": {
+   "citation": "Job xviii. 14.",
+   "confidence": "cited",
+   "gloss": "That which excites dread; a cause of extreme fear.",
+   "headword": "terror",
+   "occurrences": 15,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "thereupon": {
+   "citation": "Zeph. ii. 7.",
+   "confidence": "cited",
+   "gloss": "Upon that or this; thereon.",
+   "headword": "thereupon",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "therewith": {
+   "citation": "Phil. iv. 11.",
+   "confidence": "cited",
+   "gloss": "With that or this.",
+   "headword": "therewith",
+   "occurrences": 36,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "thicket": {
+   "citation": "Gen. xxii. 13.",
+   "confidence": "cited",
+   "gloss": "A wood or a collection of trees, shrubs, etc., closely set; as, a ram caught in a thicket",
+   "headword": "thicket",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "thickets": {
+   "citation": "Gen. xxii. 13.",
+   "confidence": "cited",
+   "gloss": "A wood or a collection of trees, shrubs, etc., closely set; as, a ram caught in a thicket",
+   "headword": "thicket",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "tie": {
+   "citation": "1 Sam. vi. 7.",
+   "confidence": "cited",
+   "gloss": "To fasten with a band or cord and knot; to bind.",
+   "headword": "tie",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "tied": {
+   "citation": "1 Sam. vi. 7.",
+   "confidence": "cited",
+   "gloss": "To fasten with a band or cord and knot; to bind.",
+   "headword": "tie",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "torment": {
+   "citation": "Matt. viii. 29.",
+   "confidence": "cited",
+   "gloss": "To put to extreme pain or anguish; to inflict excruciating misery upon, either of body or mind; to torture.",
+   "headword": "torment",
+   "occurrences": 11,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "tormented": {
+   "citation": "Matt. viii. 29.",
+   "confidence": "cited",
+   "gloss": "To put to extreme pain or anguish; to inflict excruciating misery upon, either of body or mind; to torture.",
+   "headword": "torment",
+   "occurrences": 8,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "torments": {
+   "citation": "Matt. viii. 29.",
+   "confidence": "cited",
+   "gloss": "To put to extreme pain or anguish; to inflict excruciating misery upon, either of body or mind; to torture.",
+   "headword": "torment",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "tottering": {
+   "citation": "Ps. lxii. 3.",
+   "confidence": "cited",
+   "gloss": "To shake so as to threaten a fall; to vacillate; to be unsteady; to stagger; as, an old man totters",
+   "headword": "totter",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "treader": {
+   "citation": "Isa. xvi. 10.",
+   "confidence": "cited",
+   "gloss": "One who treads.",
+   "headword": "treader",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "treaders": {
+   "citation": "Isa. xvi. 10.",
+   "confidence": "cited",
+   "gloss": "One who treads.",
+   "headword": "treader",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "treasure": {
+   "citation": "Ex. i. 11.",
+   "confidence": "cited",
+   "gloss": "That which is very much valued.",
+   "headword": "treasure",
+   "occurrences": 37,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "treasured": {
+   "citation": "Ex. i. 11.",
+   "confidence": "cited",
+   "gloss": "That which is very much valued.",
+   "headword": "treasure",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "treasures": {
+   "citation": "Ex. i. 11.",
+   "confidence": "cited",
+   "gloss": "That which is very much valued.",
+   "headword": "treasure",
+   "occurrences": 62,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "treasurest": {
+   "citation": "Ex. i. 11.",
+   "confidence": "cited",
+   "gloss": "That which is very much valued.",
+   "headword": "treasure",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "tribe": {
+   "citation": "Rev. v. 5.",
+   "confidence": "cited",
+   "gloss": "A family, race, or series of generations, descending from the same progenitor, and kept distinct, as in the case of the twelve tribes of Israel, descended from the twelve sons of Jacob.",
+   "headword": "tribe",
+   "occurrences": 242,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "tribes": {
+   "citation": "Rev. v. 5.",
+   "confidence": "cited",
+   "gloss": "A family, race, or series of generations, descending from the same progenitor, and kept distinct, as in the case of the twelve tribes of Israel, descended from the twelve sons of Jacob.",
+   "headword": "tribe",
+   "occurrences": 112,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "trust": {
+   "citation": "2 Cor. iii. 4.",
+   "confidence": "cited",
+   "gloss": "Assured anticipation; dependence upon something future or contingent, as if present or actual; hope; belief.",
+   "headword": "trust",
+   "occurrences": 134,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "trusted": {
+   "citation": "2 Cor. iii. 4.",
+   "confidence": "cited",
+   "gloss": "Assured anticipation; dependence upon something future or contingent, as if present or actual; hope; belief.",
+   "headword": "trust",
+   "occurrences": 29,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "trustest": {
+   "citation": "2 Cor. iii. 4.",
+   "confidence": "cited",
+   "gloss": "Assured anticipation; dependence upon something future or contingent, as if present or actual; hope; belief.",
+   "headword": "trust",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "trusteth": {
+   "citation": "2 Cor. iii. 4.",
+   "confidence": "cited",
+   "gloss": "Assured anticipation; dependence upon something future or contingent, as if present or actual; hope; belief.",
+   "headword": "trust",
+   "occurrences": 17,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "twelve": {
+   "citation": "Matt. xxvi. 20.",
+   "confidence": "cited",
+   "gloss": "A symbol representing twelve units, as 12, or xii.",
+   "headword": "twelve",
+   "occurrences": 189,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "unbelieving": {
+   "citation": "Acts xiv. 2.",
+   "confidence": "cited",
+   "gloss": "Believing that the thing alleged is not true; disbelieving; especially, believing that the Bible is not a divine revelation, or that Christ was not a divine or a supernatural person.",
+   "headword": "unbelieving",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "uncircumcised": {
+   "citation": "1 Sam. xvii. 26.",
+   "confidence": "cited",
+   "gloss": "Not circumcised; hence, not of the Israelites.",
+   "headword": "uncircumcised",
+   "occurrences": 43,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "uncomely": {
+   "citation": "1 Cor. vii. 36.",
+   "confidence": "cited",
+   "gloss": "In an uncomely manner.",
+   "headword": "uncomely",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "uncorruptible": {
+   "citation": "Rom. i. 23.",
+   "confidence": "cited",
+   "gloss": "Incorruptible.",
+   "headword": "uncorruptible",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "untoward": {
+   "citation": "Acts ii. 40.",
+   "confidence": "cited",
+   "gloss": "Froward; perverse.",
+   "headword": "untoward",
+   "mark": "Obs.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "variableness": {
+   "citation": "James i. 17.",
+   "confidence": "cited",
+   "gloss": "The quality or state of being variable; variability.",
+   "headword": "variableness",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "victual": {
+   "citation": "2 Chron. xi. 23. Shak.",
+   "confidence": "cited",
+   "gloss": "Food; – now used chiefly in the plural. See Victuals",
+   "headword": "victual",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "vigilant": {
+   "citation": "1 Pet. v. 8.",
+   "confidence": "cited",
+   "gloss": "Attentive to discover and avoid danger, or to provide for safety; wakeful; watchful; circumspect; wary.",
+   "headword": "vigilant",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "voices": {
+   "citation": "Acts xix. 34.",
+   "confidence": "cited",
+   "gloss": "A particular mode of inflecting or conjugating verbs, or a particular form of a verb, by means of which is indicated the relation of the subject of the verb to the action which the verb…",
+   "headword": "voice",
+   "occurrences": 17,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "vow": {
+   "citation": "Eccl. v. 4.",
+   "confidence": "cited",
+   "gloss": "To give, consecrate, or dedicate to God, or to some deity, by a solemn promise; to devote; to promise solemnly.",
+   "headword": "vow",
+   "occurrences": 41,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "vowed": {
+   "citation": "Eccl. v. 4.",
+   "confidence": "cited",
+   "gloss": "To give, consecrate, or dedicate to God, or to some deity, by a solemn promise; to devote; to promise solemnly.",
+   "headword": "vow",
+   "occurrences": 18,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "vowest": {
+   "citation": "Eccl. v. 4.",
+   "confidence": "cited",
+   "gloss": "To give, consecrate, or dedicate to God, or to some deity, by a solemn promise; to devote; to promise solemnly.",
+   "headword": "vow",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "voweth": {
+   "citation": "Eccl. v. 4.",
+   "confidence": "cited",
+   "gloss": "To give, consecrate, or dedicate to God, or to some deity, by a solemn promise; to devote; to promise solemnly.",
+   "headword": "vow",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "vows": {
+   "citation": "Eccl. v. 4.",
+   "confidence": "cited",
+   "gloss": "To give, consecrate, or dedicate to God, or to some deity, by a solemn promise; to devote; to promise solemnly.",
+   "headword": "vow",
+   "occurrences": 30,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "walk": {
+   "citation": "Rom. viii. 1.",
+   "confidence": "cited",
+   "gloss": "To move off; to depart.",
+   "headword": "walk",
+   "mark": "Obs. or Colloq.",
+   "occurrences": 212,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "walked": {
+   "citation": "Rom. viii. 1.",
+   "confidence": "cited",
+   "gloss": "To move off; to depart.",
+   "headword": "walk",
+   "mark": "Obs. or Colloq.",
+   "occurrences": 122,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "walkest": {
+   "citation": "Rom. viii. 1.",
+   "confidence": "cited",
+   "gloss": "To move off; to depart.",
+   "headword": "walk",
+   "mark": "Obs. or Colloq.",
+   "occurrences": 7,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "walketh": {
+   "citation": "Rom. viii. 1.",
+   "confidence": "cited",
+   "gloss": "To move off; to depart.",
+   "headword": "walk",
+   "mark": "Obs. or Colloq.",
+   "occurrences": 41,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wallow": {
+   "citation": "Jer. vi. 26.",
+   "confidence": "cited",
+   "gloss": "To roll; esp., to roll in anything defiling or unclean.",
+   "headword": "wallow",
+   "mark": "Prov. Eng. & Scot.",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wallowed": {
+   "citation": "Jer. vi. 26.",
+   "confidence": "cited",
+   "gloss": "To roll; esp., to roll in anything defiling or unclean.",
+   "headword": "wallow",
+   "mark": "Prov. Eng. & Scot.",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wallowing": {
+   "citation": "Jer. vi. 26.",
+   "confidence": "cited",
+   "gloss": "To roll; esp., to roll in anything defiling or unclean.",
+   "headword": "wallow",
+   "mark": "Prov. Eng. & Scot.",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "war": {
+   "citation": "1 Pet. ii. 11.",
+   "confidence": "cited",
+   "gloss": "To contend; to strive violently; to fight.",
+   "headword": "war",
+   "occurrences": 225,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wars": {
+   "citation": "1 Pet. ii. 11.",
+   "confidence": "cited",
+   "gloss": "To contend; to strive violently; to fight.",
+   "headword": "war",
+   "occurrences": 15,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wave": {
+   "citation": "Lev. viii. 27.",
+   "confidence": "cited",
+   "gloss": "Something resembling or likened to a water wave, as in rising unusually high, in being of unusual extent, or in progressive motion; a swelling or excitement, as of feeling or energy…",
+   "headword": "wave",
+   "occurrences": 32,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "waves": {
+   "citation": "Lev. viii. 27.",
+   "confidence": "cited",
+   "gloss": "Something resembling or likened to a water wave, as in rising unusually high, in being of unusual extent, or in progressive motion; a swelling or excitement, as of feeling or energy…",
+   "headword": "wave",
+   "occurrences": 26,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wayfaring": {
+   "citation": "Judg. xix. 17.",
+   "confidence": "cited",
+   "gloss": "Traveling; passing; being on a journey.",
+   "headword": "wayfaring",
+   "occurrences": 6,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wealth": {
+   "citation": "1 Cor. x. 24.",
+   "confidence": "cited",
+   "gloss": "Weal; welfare; prosperity; good.",
+   "headword": "wealth",
+   "mark": "Obs.",
+   "occurrences": 27,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "weep": {
+   "citation": "Num. xi. 13.",
+   "confidence": "cited",
+   "gloss": "To lament; to complain.",
+   "headword": "weep",
+   "occurrences": 49,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "weepest": {
+   "citation": "Num. xi. 13.",
+   "confidence": "cited",
+   "gloss": "To lament; to complain.",
+   "headword": "weep",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "weepeth": {
+   "citation": "Num. xi. 13.",
+   "confidence": "cited",
+   "gloss": "To lament; to complain.",
+   "headword": "weep",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "whelp": {
+   "citation": "2 Sam. xvii. 8.",
+   "confidence": "cited",
+   "gloss": "One of the young of a dog or a beast of prey; a puppy; a cub; as, a lion’s whelps",
+   "headword": "whelp",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "whelps": {
+   "citation": "2 Sam. xvii. 8.",
+   "confidence": "cited",
+   "gloss": "One of the young of a dog or a beast of prey; a puppy; a cub; as, a lion’s whelps",
+   "headword": "whelp",
+   "occurrences": 10,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "whensoever": {
+   "citation": "Mark xiv. 7.",
+   "confidence": "cited",
+   "gloss": "At what time soever; at whatever time; whenever.",
+   "headword": "whensoever",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "whereto": {
+   "citation": "Phil. iii. 16.",
+   "confidence": "cited",
+   "gloss": "To which; – used relatively.",
+   "headword": "whereto",
+   "occurrences": 3,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "whisperer": {
+   "citation": "Prov. xvi. 28.",
+   "confidence": "cited",
+   "gloss": "A tattler; one who tells secrets; a conveyer of intelligence secretly; hence; a backbiter; one who slanders secretly.",
+   "headword": "whisperer",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "whisperers": {
+   "citation": "Prov. xvi. 28.",
+   "confidence": "cited",
+   "gloss": "A tattler; one who tells secrets; a conveyer of intelligence secretly; hence; a backbiter; one who slanders secretly.",
+   "headword": "whisperer",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "whit": {
+   "citation": "1 Sam. iii. 18.",
+   "confidence": "cited",
+   "gloss": "The smallest part or particle imaginable; a bit; a jot; an iota; – generally used in an adverbial phrase in a negative sentence.",
+   "headword": "whit",
+   "occurrences": 5,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "whited": {
+   "citation": "1 Sam. iii. 18.",
+   "confidence": "cited",
+   "gloss": "The smallest part or particle imaginable; a bit; a jot; an iota; – generally used in an adverbial phrase in a negative sentence.",
+   "headword": "whit",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "winebibber": {
+   "citation": "Prov. xxiii. 20.",
+   "confidence": "cited",
+   "gloss": "One who drinks much wine.",
+   "headword": "winebibber",
+   "occurrences": 2,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "winebibbers": {
+   "citation": "Prov. xxiii. 20.",
+   "confidence": "cited",
+   "gloss": "One who drinks much wine.",
+   "headword": "winebibber",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "woe": {
+   "citation": "Isa. vi. 5.",
+   "confidence": "cited",
+   "gloss": "A curse; a malediction.",
+   "headword": "woe",
+   "occurrences": 106,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "woes": {
+   "citation": "Isa. vi. 5.",
+   "confidence": "cited",
+   "gloss": "A curse; a malediction.",
+   "headword": "woe",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "worketh": {
+   "citation": "Phil. ii. 12.",
+   "confidence": "cited",
+   "gloss": "To cause to ferment, as liquor.",
+   "headword": "work",
+   "mark": "R.",
+   "occurrences": 37,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "works": {
+   "citation": "Phil. ii. 12.",
+   "confidence": "cited",
+   "gloss": "To cause to ferment, as liquor.",
+   "headword": "work",
+   "mark": "R.",
+   "occurrences": 237,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "worse": {
+   "citation": "Kings xiv. 12.",
+   "confidence": "cited",
+   "gloss": "Loss; disadvantage; defeat.",
+   "headword": "worse",
+   "occurrences": 26,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wrath": {
+   "citation": "Rom. xiii. 4.",
+   "confidence": "cited",
+   "gloss": "The effects of anger or indignation; the just punishment of an offense or a crime.",
+   "headword": "wrath",
+   "occurrences": 198,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wraths": {
+   "citation": "Rom. xiii. 4.",
+   "confidence": "cited",
+   "gloss": "The effects of anger or indignation; the just punishment of an offense or a crime.",
+   "headword": "wrath",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "wreathen": {
+   "citation": "Ex. xxviii. 22.",
+   "confidence": "cited",
+   "gloss": "Twisted; made into a wreath.",
+   "headword": "wreathen",
+   "occurrences": 10,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "yoke": {
+   "citation": "2 Cor. vi. 14.",
+   "confidence": "cited",
+   "gloss": "To couple; to join with another.",
+   "headword": "yoke",
+   "occurrences": 59,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "yoked": {
+   "citation": "2 Cor. vi. 14.",
+   "confidence": "cited",
+   "gloss": "To couple; to join with another.",
+   "headword": "yoke",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "yokefellow": {
+   "citation": "Phil. iv. 3.",
+   "confidence": "cited",
+   "gloss": "An associate or companion in, or as in; a mate; a fellow; especially, a partner in marriage.",
+   "headword": "yokefellow",
+   "occurrences": 1,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "yokes": {
+   "citation": "2 Cor. vi. 14.",
+   "confidence": "cited",
+   "gloss": "To couple; to join with another.",
+   "headword": "yoke",
+   "occurrences": 4,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  },
+  "younger": {
+   "citation": "Rom. ix. 12.",
+   "confidence": "cited",
+   "gloss": "One who is younger; an inferior in age; a junior.",
+   "headword": "younger",
+   "occurrences": 31,
+   "source": "Webster's Unabridged Dictionary (1913), public domain"
+  }
+ }
+}
