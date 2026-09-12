@@ -6,6 +6,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 KJV Bible Reader - A distraction-free, desktop-focused Bible reading web application featuring a two-column layout inspired by physical printed Bibles. Complete rewrite of https://readthekjv.com/.
 
+## Where work is tracked
+
+**Notion is the source of truth for the backlog and for feature design docs.** The
+project lives at [read-the-kjv (RKJ)](https://app.notion.com/p/a580c7958b804d11993e5d751354e16f),
+an item in the Projects database, with a
+[Backlog database](https://app.notion.com/p/9349604733c94eda8cb646b967ef112f) under it
+(`Area` / `Status` / `Shipped in`).
+
+- **New feature idea** → a row in the Backlog database, not a new section in
+  `BACKLOG.md`.
+- **A design worked out in conversation** → a child page under the RKJ project,
+  linked from its backlog row. Not a new file in `docs/`.
+- **`BACKLOG.md` is frozen.** It is kept as a historical record and a pointer; its
+  *done* entries still carry useful rationale and PR numbers. Do not add to it.
+- **`docs/architecture/*.md` is unaffected.** Those describe systems that exist and
+  stay in the repo next to the code they explain. The split is tense: Notion holds
+  what is *proposed*, `docs/architecture/` holds what is *built*.
+
+A design doc that reaches Notion should carry the reasoning that is expensive to
+re-derive — approaches tried and rejected, and why — not just the happy path. The
+word-gloss page is the worked example.
+
 ## Build & Run Commands
 
 Requires a local PostgreSQL database (Flyway runs on startup; JPA `ddl-auto=validate`). Cloud Agents use `.cursor/start.sh` to provision one; locally create a DB matching `KJV_DB_*` in `application.properties` (or `./dev.sh` if present).

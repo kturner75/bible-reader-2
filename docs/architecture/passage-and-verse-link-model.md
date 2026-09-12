@@ -317,4 +317,4 @@ Use this as acceptance criteria against `feature/note-editor-passage-selection` 
 - Completed Passages slice: [first-class-passages.md](./first-class-passages.md)
 - Active implementation plan: [portable-verse-links-plan.md](./portable-verse-links-plan.md)
 - Agent constraints: `AGENTS.md` (no-scroll, two-column, desktop-first)
-- Backlog consumers: `BACKLOG.md` (character/location studies, plans)
+- Backlog consumers: the [Backlog database in Notion](https://app.notion.com/p/9349604733c94eda8cb646b967ef112f) — character/location studies, plans (`BACKLOG.md` is frozen history)

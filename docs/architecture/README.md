@@ -17,4 +17,4 @@
 
 **Do not** implement note links as `[passage=<uuid>]` as the canonical form. That was an interim choice on the Passages slice; the accepted model uses portable `[v=…]` verse-id ranges (human label on render).
 
-**Follow-on (backlog):** Insert Scripture search (PR #40), header `/` Matching Verses | Matching Passages tabs (PR #41), scope-relative multi-verse, and absolute same-chapter multi-verse (`[John 3:16-18]`) are done. Future discovery lanes can join the search tab strip. See `BACKLOG.md`.
+**Follow-on (backlog):** Insert Scripture search (PR #40), header `/` Matching Verses | Matching Passages tabs (PR #41), scope-relative multi-verse, and absolute same-chapter multi-verse (`[John 3:16-18]`) are done. Future discovery lanes can join the search tab strip. Backlog: the [Backlog database in Notion](https://app.notion.com/p/9349604733c94eda8cb646b967ef112f) (`BACKLOG.md` is frozen history).
