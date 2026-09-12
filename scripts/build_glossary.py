@@ -10,20 +10,53 @@ Source: an Apple Dictionary.app bundle built from the public-domain Webster's
 1913 text. Body.data is a run of zlib streams (0x78 0xda); each decompresses to
 XML holding <d:entry> elements with class="def" / "mark" / "au" sub-divs.
 
-Sense selection is derived, never guessed. In priority order:
+A gloss is keyed on the surface form, so whatever it says is asserted at EVERY
+occurrence of that word in the Bible. Every rule below exists because a looser
+one shipped something false about scripture.
 
-  cited   a sense whose quotation cites scripture ("Ex. xxvi. 6.") -- Webster
-          is telling us directly which sense the KJV uses.
-  marked  a sense tagged [Obs.] or [Archaic]. This is what catches the false
-          friends: words still current today whose 1611 meaning differs
-          (prevent -> go before, leasing -> lying, let -> hinder).
-  single  the entry has exactly one sense, so there is nothing to disambiguate.
-          Only taken for words that are rare in the KJV itself.
+An entry ships only when all of these hold:
 
-Anything else -- a common word whose KJV sense sits unmarked among several
-modern ones (charity, suffer, corn) -- is written to the review file instead of
-the glossary. Those need a human to pick the sense; picking one automatically
-is how you end up asserting something false about scripture.
+  monosemous      exactly one usable Webster sense. With one sense there is
+                  nothing to over-apply and nothing to disambiguate.
+  clean headword  an exact match, or a suffix-stripped one where exactly ONE
+                  candidate exists in Webster.
+  not a homograph the entry carried no inflection note. If Webster says this
+                  spelling is the plural or preterit of another word, the
+                  remaining sense belongs to a different word entirely.
+  real definition the sense body is a definition, not a grammar label or a
+                  bare cross-reference.
+
+with one deliberate exception:
+
+  cited-dominant  a polysemous word may ship on a scripture-cited sense when
+                  >=80% of its KJV occurrences fall inside the cited book. All
+                  10 "taches" are in Exodus and Webster cites Ex. xxvi. 6, so
+                  that sense is not one usage among many -- it is the usage.
+
+Rules tried and rejected, each having asserted something false:
+
+  [Obs.] markers      a dead sense is not the sense the KJV uses. Glossed
+                      "hosts" as "any animal affording lodgment to a parasite"
+                      and "turn" as "a court of record held by the sheriff".
+  bare citation       licenses a sense AT THE CITED VERSE only. Webster cites
+                      Lev. xxv. 4 for "sabbath" = the seventh YEAR -- true
+                      there, wrong for most of the other 136 occurrences. This
+                      is what cited-dominant replaces.
+  citation by window  scanning a fixed span for a quotation lets a trailing
+                      idiom certify an unrelated sense. Webster keeps phrases
+                      in <div class="cs">; "To lift up ... John viii. 28" made
+                      "lift" ship as "to steal cattle".
+  first candidate     being first in a suffix list is not evidence. Stripping
+                      -s from "plates" yields both "plat" and "plate"; the
+                      first won, and the metal plates of Exodus were glossed
+                      "to braid".
+  survivor of a stub  filtering an inflection note can make a two-sense entry
+                      look monosemous, promoting a rare homograph to sole
+                      survivor: "feet" as "fact; performance", "slew" as "a wet
+                      place; a river inlet".
+
+Everything not shipped becomes a proposal in the review file, with its
+alternatives, so review is a yes/no rather than writing a definition.
 
 Usage:
   python3 scripts/build_glossary.py [--bundle PATH] [--out PATH] [--review PATH]
@@ -81,16 +114,27 @@ am is are was were be been being have has had having do does did doing done
 shall should will would may might must can could let lets
 not no nor none nothing all any both each few more most other some such only own
 same very too as is came come go went gone said say says
+one two three four five six seven eight nine ten eleven twelve twenty thirty
+forty fifty sixty seventy eighty ninety hundred thousand first second third
+therein thereof thereon thereto therewith thereby wherein whereof whereby
+whereon whereto herein hereof hereby hereto moreover furthermore however
+cannot whosoever whatsoever whensoever wheresoever thyself himself herself
+itself myself ourselves yourselves themselves
 """.split())
 
 # Webster's entry body sometimes holds an inflection note rather than a
 # definition ("imperfect or past participle", "plural of ..."). Useless in a
 # popover, and in a few cases actively misleading.
 STUB_RE = re.compile(
-    r"^\s*(?:"
-    r"imperfect|past\s+participle|present\s+participle|p\.\s*p\b|pl\b|plural\b|sing\b"
+    r"^\s*(?:the\s+|a\s+|an\s+)?(?:"
+    # inflection notes -- "imperfect or past participle", "the past or preterit
+    # tense of Arise", "the second-person singular imperfect"
+    r"imperfect|preterit|past\b|present\b|p\.\s*p\b|pl\b|plural\b|sing(?:ular)?\b"
     r"|first-?\s*or\s*third-?\s*person|second-?\s*person|third-?\s*person"
-    r"|see\s+\w+\.?\s*$|of\s+\w+\.?\s*$|obs\b"
+    # bare part-of-speech labels -- "adjective or noun"
+    r"|adjective\b|adverb\b|noun\b|verb\b|participle\b"
+    # pure cross-references carry no definition of their own
+    r"|see\s+\w+\.?\s*$|same\s+as\s+\w+\.?\s*$|of\s+\w+\.?\s*$|obs\b"
     r")",
     re.I,
 )
@@ -144,14 +188,26 @@ def parse_entries(blob):
         headword = html.unescape(m.group(1)).lower().strip()
         if not headword or " " in headword and len(headword.split()) > 3:
             continue
+        # Part of speech is declared per entry, ahead of the senses. Needed to
+        # reject a plural noun that matched a verb-only headword.
+        pos = {untag(p).lower().strip() for p in
+               re.findall(r'<div class="pos">(.*?)</div>', entry, re.S)}
+
         defs = list(re.finditer(r'<div class="def">(.*?)</div>', entry, re.S))
+        # Webster puts idioms and phrasal senses in a trailing <div class="cs">
+        # block -- "To lift up ... John viii. 28." Those citations belong to the
+        # PHRASE, not to the headword, so the last definition's search must stop
+        # there. Without this, "lift" ships as "to steal cattle" certified by a
+        # citation that is really about being lifted up on the cross; "break",
+        # "gather" and "work" corrupt the same way.
+        cs = re.search(r'<div class="cs">', entry)
+        cs_at = cs.start() if cs else len(entry)
         for i, dm in enumerate(defs):
             # A quotation belongs to the definition it follows, so the search
-            # for it must stop at the NEXT definition. Scanning a fixed window
-            # instead lets a citation jump senses and vouch for the wrong one --
-            # that is how "gathered" ended up glossed "to gain; to win" on the
-            # strength of a Gen. xxv. 8 citation belonging to another sense.
-            stop = defs[i + 1].start() if i + 1 < len(defs) else len(entry)
+            # for it must stop at the NEXT definition -- or at the phrase block,
+            # whichever comes first.
+            nxt = defs[i + 1].start() if i + 1 < len(defs) else len(entry)
+            stop = min(nxt, cs_at) if cs_at > dm.end() else nxt
             after = entry[dm.end():stop]
             window = entry[max(0, dm.start() - 500):stop]
             au = re.search(r'<div class="au">(.*?)</div>', after, re.S)
@@ -165,6 +221,7 @@ def parse_entries(blob):
                 "mark": untag(mark.group(1)) if mark else "",
                 "au": au_text,
                 "cited": bool(CITE_RE.match(au_text)),
+                "pos": pos,
             })
     return words
 
@@ -174,19 +231,20 @@ def kjv_vocabulary(path):
     data = json.load(open(path))
     freq = collections.Counter()
     lower = set()
-    for chapters in data.values():
+    locations = collections.defaultdict(collections.Counter)
+    for book, chapters in data.items():
         for verses in chapters.values():
             for text in verses:
                 for w in WORD_RE.findall(text):
                     freq[w.lower()] += 1
+                    locations[w.lower()][book] += 1
                     if w[0].islower():
                         lower.add(w.lower())
-    return freq, lower
+    return freq, lower, locations
 
 
 def candidate_headwords(form):
     """Webster headwords an inflected KJV form might resolve to."""
-    yield form
     for suf in SUFFIXES:
         if form.endswith(suf) and len(form) - len(suf) >= 3:
             base = form[: -len(suf)]
@@ -198,12 +256,95 @@ def candidate_headwords(form):
                 yield base[:-1] + "y"
 
 
+PLURALISH_RE = re.compile(r"(?:[^aeiou]s|es)$")
+
+# Share of a word's KJV occurrences that must fall inside the book Webster cites
+# before a cited sense is trusted for the word everywhere. See cited_coverage.
+CITED_COVERAGE_MIN = 0.8
+
+CITE_BOOK_RE = re.compile(r"^\s*(?:[1-3]\s*)?([A-Za-z]+)\.?", re.I)
+BOOK_ALIASES = {"cant": "song", "song": "song", "philem": "philemon",
+                "jas": "james", "kin": "kings", "exod": "exodus"}
+
+
+def cited_book(citation, kjv_books):
+    """KJV book names a Webster citation like '1 Sam. xvi. 13.' refers to.
+
+    Numbered volumes collapse together -- a sense used across 1 and 2 Samuel is
+    one usage -- so the leading digit is dropped and the match is on the base
+    name.
+    """
+    m = CITE_BOOK_RE.match(citation or "")
+    if not m:
+        return set()
+    abbr = BOOK_ALIASES.get(m.group(1).lower(), m.group(1).lower())
+    hits = set()
+    for b in kjv_books:
+        base = re.sub(r"^[1-3]\s+", "", b).lower()
+        if base.startswith(abbr) or abbr.startswith(base):
+            hits.add(b)
+    return hits
+
+
+def cited_coverage(form, citation, locations):
+    """Fraction of this form's KJV occurrences inside the cited book.
+
+    A scripture citation licenses a sense at the verse it names. Whether that
+    sense governs the word *everywhere* is a separate question, and the KJV text
+    answers it: if the word only ever appears in the book Webster cites, the
+    cited sense is the word's meaning. If it is scattered across the canon, the
+    citation is describing one usage among many.
+
+    tache  -> all 10 occurrences in Exodus, cited Ex. xxvi. 6  -> 1.00, trust it
+    sabbath-> 137 occurrences across 30+ books, cited Lev. xxv -> 0.12, do not
+    """
+    counts = locations.get(form)
+    if not counts:
+        return 0.0
+    books = cited_book(citation, counts.keys())
+    if not books:
+        return 0.0
+    total = sum(counts.values())
+    return sum(counts[b] for b in books) / total if total else 0.0
+
+
+def resolve_headword(form, words):
+    """(headword, senses, resolution) for a KJV form.
+
+    Taking the *first* candidate that happens to exist is how "plates" ended up
+    glossed "to braid": stripping -s yields both "plat" and "plate", and "plat"
+    was tried first. Being first in a suffix list is not evidence.
+
+    An inflection is only trusted when the dictionary leaves no choice -- exactly
+    one candidate exists. Two candidates means the data cannot say which is the
+    lemma, so it goes to review rather than being guessed. That catches "plates",
+    "whited" (whit/white) and "fared" (far/fare).
+    """
+    if form in words:
+        return form, words[form], "exact"
+    found = sorted({c for c in candidate_headwords(form) if c in words})
+    if not found:
+        return None, None, "none"
+    if len(found) > 1:
+        return found[0], words[found[0]], "ambiguous"
+    hw = found[0]
+    senses = words[hw]
+    # A plural noun that resolved to a verb-only headword is not this word.
+    # "calves" is unambiguous by candidate count, but "calve" is a verb -- "to
+    # bring forth a calf" -- and the KJV's calves are animals, not an action.
+    if PLURALISH_RE.search(form):
+        pos = set().union(*(s.get("pos", set()) for s in senses)) if senses else set()
+        if pos and not any("noun" in p for p in pos):
+            return hw, senses, "pos-mismatch"
+    return hw, senses, "inflection"
+
+
 def usable(sense):
     """A sense is usable only if its body is a definition, not an inflection note."""
     return len(sense["def"]) >= 12 and not STUB_RE.match(sense["def"])
 
 
-def choose_sense(senses, kjv_freq):
+def choose_sense(senses, kjv_freq, coverage=0.0):
     """Return (sense, confidence, auto) -- auto says whether it may ship unreviewed.
 
     Only a scripture-cited sense ships automatically. Webster is naming a verse
@@ -224,17 +365,45 @@ def choose_sense(senses, kjv_freq):
     Both classes are still worth proposing -- a human says yes or no far faster
     than writing a gloss from scratch -- but neither is safe to assert.
     """
-    senses = [s for s in senses if usable(s)]
-    if not senses:
+    kept = [s for s in senses if usable(s)]
+    if not kept:
         return None, "stub", False
+    # A stub sense ("plural of Foot", "imperfect of Slay") is Webster telling us
+    # this spelling is an inflection of another word. Dropping it as unusable
+    # then treating what remains as the word's only sense promotes a rare
+    # homograph to sole survivor: "feet" ships as "fact; performance", "slew" as
+    # "a wet place; a river inlet", "seen" as "versed; skilled". If the entry
+    # carried an inflection note at all, this spelling is not its own word.
+    if len(kept) != len(senses):
+        return kept[0], "homograph-of-inflection", False
+    senses = kept
+
+    # A citation licenses a sense AT THE CITED VERSE. It says nothing about the
+    # word's other occurrences, and a glossary keyed on the surface form applies
+    # to all of them. Webster cites Lev. xxv. 4 for "sabbath" meaning the seventh
+    # YEAR -- true there, wrong for most of the other 136 occurrences. Same for
+    # "adultery" (faithlessness in religion, Jer. iii. 9) and "horns".
+    #
+    # So a citation is only safe to ship globally when the word has nothing else
+    # to mean: one usable sense, no polysemy, nothing to get wrong. Cited senses
+    # on polysemous words keep their citation and go to review, where the verse
+    # scoping is a human's call.
+    if len(senses) == 1:
+        s = senses[0]
+        why = "single-cited" if s["cited"] else (
+            "single-marked" if ARCHAIC_RE.search(s["mark"]) else "single")
+        return s, why, True
+
     for s in senses:
         if s["cited"]:
-            return s, "cited", True
+            if coverage >= CITED_COVERAGE_MIN:
+                # The word lives in the book Webster cites, so the cited sense
+                # is not one usage among many -- it is the usage.
+                return s, "cited-dominant", True
+            return s, "cited-polysemous", False
     for s in senses:
         if ARCHAIC_RE.search(s["mark"]):
             return s, "marked", False
-    if len(senses) == 1 and kjv_freq <= 50:
-        return senses[0], "single", False
     return senses[0], "ambiguous", False
 
 
@@ -268,7 +437,7 @@ def main():
     log(f"  {len(words):,} headwords, {sum(len(v) for v in words.values()):,} senses")
 
     log("Reading KJV vocabulary…")
-    freq, lower = kjv_vocabulary(KJV_JSON)
+    freq, lower, locations = kjv_vocabulary(KJV_JSON)
     log(f"  {len(lower):,} lowercase forms across {sum(freq.values()):,} tokens")
 
     glossary, review = {}, {}
@@ -280,15 +449,19 @@ def main():
         if freq[form] > MAX_OCCURRENCES:
             counts["too-common"] += 1
             continue
-        entry = headword = None
-        for cand in candidate_headwords(form):
-            if cand in words:
-                entry, headword = words[cand], cand
-                break
-        if entry is None:
+        headword, entry, resolution = resolve_headword(form, words)
+        if resolution == "none":
             counts["no-entry"] += 1
             continue
-        sense, confidence, auto = choose_sense(entry, freq[form])
+        cited_at = next((s["au"] for s in entry if s.get("cited")), "")
+        coverage = cited_coverage(form, cited_at, locations)
+        sense, confidence, auto = choose_sense(entry, freq[form], coverage)
+        # A shaky headword match disqualifies the entry however good the sense
+        # looks -- the sense is for a different word.
+        if resolution in ("ambiguous", "pos-mismatch"):
+            counts["hw-" + resolution] += 1
+            auto = False
+            confidence = resolution
         counts[confidence] += 1
         if sense is None:
             continue
@@ -296,6 +469,7 @@ def main():
             "headword": headword,
             "gloss": truncate(sense["def"]),
             "confidence": confidence,
+            "resolution": resolution,
             "occurrences": freq[form],
             "source": "Webster's Unabridged Dictionary (1913), public domain",
         }
@@ -303,6 +477,7 @@ def main():
             record["mark"] = sense["mark"]
         if sense["cited"]:
             record["citation"] = sense["au"]
+            record["citedBookShare"] = round(coverage, 3)
         if auto:
             glossary[form] = record
         else:
@@ -326,12 +501,18 @@ def main():
         json.dump(review, fh, indent=1, sort_keys=True, ensure_ascii=False)
 
     log("")
-    log(f"  SHIPPED")
-    log(f"    cited    {counts['cited']:>5}   Webster cites scripture on the sense")
+    log(f"  SHIPPED (monosemous -- one usable sense, nothing to over-apply)")
+    log(f"    single-cited  {counts['single-cited']:>5}   + Webster cites scripture")
+    log(f"    single-marked {counts['single-marked']:>5}   + [Obs.] / [Archaic]")
+    log(f"    single        {counts['single']:>5}   unmarked")
+    log(f"    cited-dominant{counts['cited-dominant']:>5}   polysemous, but the word lives in the cited book")
     log(f"  PROPOSED (needs review, not shipped)")
-    log(f"    marked   {counts['marked']:>5}   [Obs.] / [Archaic] sense exists")
-    log(f"    single   {counts['single']:>5}   one sense, rare in KJV")
-    log(f"    ambig    {counts['ambiguous']:>5}   several modern senses")
+    log(f"    cited-poly    {counts['cited-polysemous']:>5}   cited, but word has other senses")
+    log(f"    marked        {counts['marked']:>5}   [Obs.] / [Archaic] among several")
+    log(f"    ambiguous     {counts['ambiguous']:>5}   several modern senses")
+    log(f"    homograph     {counts['homograph-of-inflection']:>5}   spelling is an inflection of another word")
+    log(f"    bad-headword  {counts['hw-ambiguous']:>5}   inflection matched >1 candidate")
+    log(f"    pos-mismatch  {counts['hw-pos-mismatch']:>5}   plural noun hit a verb-only headword")
     log(f"  ---------------------")
     log(f"  glossary   {len(glossary):>5}  -> {args.out}")
     log(f"  review     {len(review):>5}  -> {args.review}")
