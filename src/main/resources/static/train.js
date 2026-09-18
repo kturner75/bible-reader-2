@@ -831,5 +831,7 @@
                 startRecording();
             }
         });
+
+        beginBtn.focus();
     }
 })();
